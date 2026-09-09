@@ -261,7 +261,47 @@ First DiSCo run (SNR=50, K=5, 300 it): `validation/prism_disco_connectivity_resu
 
 ## 6. Results log
 
-*(appended as runs complete)*
+### 6.1 First DiSCo run — SNR=50, K=5, 300 Rprop iterations, max_angle=45°, peak_frac_min=0.05 (2026-09-08)
+
+`validation/prism_disco_connectivity_results_snr50_first.npz`
+
+| method | r | CCC | Dice | Δ vs MSMT | streamlines | fit time | notes |
+|---|---:|---:|---:|---:|---:|---:|---|
+| MSMT-CSD (oracle responses) | 0.776 | 0.769 | **0.565** | — | 37,869 | 169 s | dipy mcsd, cvxpy per voxel |
+| PRISM-JAX MSE (faithful, D∥=1.7 D⊥=0.4) | undefined | — | 0.000 | — | 2,427 | 7 s | f_i→0.82; ~2 peaks/voxel; tracking collapses |
+| PRISM-JAX NLL (faithful) | undefined | — | 0.000 | — | 1,796 | 7 s | same failure |
+| **PRISM-plus NLL (learned D)** | **0.830** | 0.829 | 0.376 | **+5.4 pp** | 118,181 | 8 s | recovered D∥ = **0.648e-9**, D⊥ = 0.42e-9; 4.8 peaks/voxel |
+| (doc 004 §24, dictionary, for reference) | 0.851 | 0.849 | 0.420 | +7.5 pp | — | — | different method, same tracker |
+
+Three findings, in order of importance:
+
+1. **Faithful PRISM with its published fixed diffusivities does not
+   work on DiSCo.** The in-vivo D∥=1.7 cannot fit a ~0.6 phantom; f_i
+   saturates toward the stick to compensate, direction estimates
+   degrade, and the tracker produces so few streamlines that r is
+   undefined (zero-variance matrix). This is §3.1's hypothesis
+   confirmed in the strongest form. PRISM's paper must have retuned for
+   DiSCo (as FORCE §3.2 did) or relied on the restricted compartment +
+   calibration terms to absorb the mismatch — either way it is
+   unstated. `prism-tuned-nll` (D fixed at 0.6/0.35) is added to the
+   driver as the fair "PRISM as its authors would run it" row.
+2. **Learning the diffusivities recovers D∥ = 0.648e-9 — inside the
+   FORCE-paper DiSCo band (0.54–0.66) — with no prior knowledge**, and
+   lands at +5.4 pp over MSMT-CSD on the identical tracker. PRISM's
+   reported margin is +1.4 pp. First run, no warm start, no tuning.
+3. **MSMT-CSD through dipy peaks + eudx gives r = 0.776 on this
+   phantom.** Doc 004 §18 found MRtrix SD_STREAM at r = 0.13 on the same
+   data and called the gap "structural to the benchmark". It was
+   tracker-specific: the same CSD family with the §21 eudx pipeline is a
+   strong, specific baseline (Dice 0.565, the best specificity of any
+   method to date). §18.4's conclusion should be amended.
+
+Open issue from this run: PRISM-plus keeps ~4.8 of 5 fibres above the
+0.05 cut and emits 3× MSMT's streamlines — high sensitivity, poor
+specificity (Dice 0.376). The sparsity prior at λ=0.02 is not selecting
+on DiSCo's actual crossings. Next: sweep `peak_frac_min` ∈ {0.05, 0.10,
+0.15} and `max_angle` ∈ {25, 30, 45} (PRISM sweeps 15–30° and reports
+the best), then warm start.
 
 ---
 

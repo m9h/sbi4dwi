@@ -217,3 +217,34 @@ def test_pam_adapter_shapes_and_threshold():
     assert (pi[:, 1] >= 0).mean() > 0.9          # a stray local minimum is allowed
     assert (pi[:, 2:] == -1).all()
     assert (pam.peak_values[mask][:, 0] >= pam.peak_values[mask][:, 1]).all()
+
+
+# --------------------------------------------------------------------------- #
+# 4. PRISM synthetic benchmark generator
+# --------------------------------------------------------------------------- #
+
+class TestSyntheticBenchmark:
+    def test_protocol_shape(self):
+        from dmipy_jax.validation import prism_synthetic as ps
+        bvals, bvecs = ps.prism_scheme()
+        assert bvals.shape == (193,)
+        assert sorted(set(np.round(bvals / 1e6).astype(int))) == [0, 1000, 2000, 3000]
+        np.testing.assert_allclose(np.linalg.norm(bvecs[1:], axis=1), 1.0, atol=1e-6)
+        b = ps.make_benchmark(snr=None)
+        assert b["data"].shape[:3] == (17, 10, 20) and b["mask"].sum() == 3400
+        assert len(ps.ANGLES) == 16 and ps.ANGLES[0] == 15 and ps.ANGLES[-1] == 90
+
+    def test_gt_angles_are_as_labelled(self):
+        from dmipy_jax.validation import prism_synthetic as ps
+        b = ps.make_benchmark(snr=None)
+        for a in ps.ANGLES:
+            g = b["gt_dirs"][b["angle"] == a][0]
+            got = np.degrees(np.arccos(abs(g[0] @ g[1])))
+            assert got == pytest.approx(a, abs=1e-6)
+
+    def test_score_perfect_prediction(self):
+        from dmipy_jax.validation import prism_synthetic as ps
+        b = ps.make_benchmark(snr=None)
+        sc = ps.score_by_angle(b["gt_dirs"], b["gt_fracs"][:, 2:4], b)
+        e, r = sc["overall"]
+        assert e == pytest.approx(0.0, abs=1e-6) and r == 1.0

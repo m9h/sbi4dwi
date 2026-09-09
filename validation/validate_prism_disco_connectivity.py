@@ -48,6 +48,9 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int) -> PrismConfig:
     return {
         "prism-mse": base,
         "prism-nll": replace(base, loss="nll"),
+        # PRISM run the way the FORCE paper §3.2 retunes for DiSCo: fixed
+        # diffusivities moved to the phantom's regime (D∥=0.6, D⊥=0.35).
+        "prism-tuned-nll": replace(base, loss="nll", d_par=0.6e-9, d_perp=0.35e-9),
         "plus-nll": replace(base, loss="nll", learn_diffusivities=True,
                             d_par=0.6e-9, d_perp=0.35e-9),
         "plus-warm": replace(base, loss="nll", learn_diffusivities=True,
@@ -93,7 +96,8 @@ def _warm_start(out, acq_bvals, acq_bvecs, n_fibres, library_size):
     return dirs, fr
 
 
-def run_method(method, out, affine, n_fibres, n_iter, library_size):
+def run_method(method, out, affine, n_fibres, n_iter, library_size,
+               peak_frac_min=0.05, max_angle=45.0):
     from dipy.data import default_sphere
     data, mask, rois, gtab = out["data"], out["mask"], out["rois"], out["gtab"]
     t0 = time.time()
@@ -110,13 +114,14 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size):
         if method == "plus-warm":
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
-        pam = prism_fit_to_pam(fit, default_sphere, affine=affine)
+        pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,
+                               affine=affine)
         extra.update(d_par=fit.d_par, d_perp=fit.d_perp, sigma=fit.sigma,
                      fintra_mean=float(fit.fintra.mean()),
                      final_loss=float(fit.loss_history[-1]),
-                     n_peaks_mean=float((fit.wm_fracs >= 0.05).sum(1).mean()))
+                     n_peaks_mean=float((fit.wm_fracs >= peak_frac_min).sum(1).mean()))
     t_fit = time.time() - t0
-    res = track_connectivity(pam, mask, rois, affine)
+    res = track_connectivity(pam, mask, rois, affine, max_angle=max_angle)
     res.update(extra, t_fit=t_fit)
     return res
 
@@ -124,12 +129,15 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--methods", nargs="+",
-                    default=["msmt", "prism-mse", "prism-nll", "plus-nll"])
+                    default=["msmt", "prism-mse", "prism-nll", "prism-tuned-nll", "plus-nll"])
     ap.add_argument("--snrs", type=int, nargs="+", default=[10, 30, 50])
     ap.add_argument("--n-fibres", type=int, default=5, help="PRISM uses K=5 on DiSCo")
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--library-size", type=int, default=500_000)
     ap.add_argument("--single-shell", action="store_true")
+    ap.add_argument("--peak-frac-min", type=float, default=0.05)
+    ap.add_argument("--max-angle", type=float, default=45.0,
+                    help="PRISM sweeps 15-30 and reports the best; §21 used 45")
     ap.add_argument("--tag", default="")
     args = ap.parse_args()
 
@@ -143,7 +151,8 @@ def main():
         out = load_disco_subject(subject=1, snr=snr, single_shell_b=ssb)
         for m in args.methods:
             print(f"\n=== {m} @ SNR={snr} ===", flush=True)
-            res = run_method(m, out, affine, args.n_fibres, args.n_iter, args.library_size)
+            res = run_method(m, out, affine, args.n_fibres, args.n_iter,
+                             args.library_size, args.peak_frac_min, args.max_angle)
             res["r"] = connectivity_pearson(res["connectivity"], gt)
             results[(m, snr)] = res
             print(f"  r={res['r']:.4f}  streamlines={res['streamlines_count']:,}  "
