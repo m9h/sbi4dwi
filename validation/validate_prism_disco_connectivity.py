@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""
+PRISM-JAX vs MSMT-CSD vs dmipy-JAX §24 on DiSCo connectivity (doc 006 §4).
+
+All methods go through the identical §21.2 tracker
+(``dmipy_jax.validation.disco_tracking.track_connectivity``), so the only
+variable is the per-voxel peaks. Reports Pearson r / CCC / Dice per SNR
+and, crucially, each method's margin over MSMT-CSD — the quantity PRISM
+reports (+1.6 pp at its best tracking angle) and the only one comparable
+across papers, since absolute r depends on unstated connectivity
+normalisation (doc 004 §18–§19).
+
+Methods:
+  msmt        dipy MSMT-CSD, oracle GM/CSF responses (PRISM's baseline)
+  prism-mse   faithful PRISM, MSE loss, fixed D∥=1.7 D⊥=0.4, random init
+  prism-nll   faithful PRISM, Rician NLL with learned σ
+  plus-nll    PRISM-plus: NLL + learnable D∥/D⊥ (DiSCo needs ~0.6/0.35)
+  plus-warm   PRISM-plus: NLL + learnable D + warm start from §22 library
+
+Usage:
+  uv run python validation/validate_prism_disco_connectivity.py \
+      --methods msmt prism-nll plus-nll --snrs 10 30 50 --n-fibres 5
+"""
+
+import argparse
+import time
+from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
+
+from dmipy_jax.validation.connectivity_metrics import summarize_method
+from dmipy_jax.validation.disco_tracking import track_connectivity
+from dmipy_jax.validation.force_disco import disco_subject_path, load_disco_subject
+from dmipy_jax.validation.force_disco_connectivity import (
+    connectivity_pearson, load_gt_connectivity,
+)
+from dmipy_jax.validation.prism_jax import PrismConfig, fit_prism, prism_fit_to_pam
+
+REF = {  # doc 004 §24.2 headline (§22 multi-shell) and PRISM paper
+    "dmipy_s24": {10: 0.772, 30: 0.811, 50: 0.851},
+    "prism_paper_disco": 0.934, "msmt_paper_disco": 0.920,
+}
+
+
+def _cfg_for(method: str, n_fibres: int, n_iter: int) -> PrismConfig:
+    base = PrismConfig(n_fibres=n_fibres, n_iter=n_iter)
+    return {
+        "prism-mse": base,
+        "prism-nll": replace(base, loss="nll"),
+        "plus-nll": replace(base, loss="nll", learn_diffusivities=True,
+                            d_par=0.6e-9, d_perp=0.35e-9),
+        "plus-warm": replace(base, loss="nll", learn_diffusivities=True,
+                             d_par=0.6e-9, d_perp=0.35e-9),
+    }[method]
+
+
+def _warm_start(out, acq_bvals, acq_bvecs, n_fibres, library_size):
+    """§22 DictionaryMatcher → (init_dirs, init_fracs) for PRISM-plus."""
+    import jax, jax.numpy as jnp
+    from dmipy_jax.acquisition import JaxAcquisition
+    from dmipy_jax.library.generator import LibraryGenerator
+    from dmipy_jax.library.matcher import DictionaryMatcher
+    from dmipy_jax.library.storage import SimulationLibrary
+    from dmipy_jax.validation.dmipy_disco_dict import (
+        build_disco_tuned_3d_stick_zeppelin_simulator,
+    )
+    acq = JaxAcquisition(bvalues=jnp.asarray(acq_bvals),
+                         gradient_directions=jnp.asarray(acq_bvecs))
+    sim = build_disco_tuned_3d_stick_zeppelin_simulator(acq)
+    params, signals = LibraryGenerator(sim, chunk_size=20_000).generate(
+        library_size, key=jax.random.PRNGKey(1))
+    lib = SimulationLibrary(params=params, signals=signals,
+                            parameter_names=sim.parameter_names)
+    maps = DictionaryMatcher(lib, k_best=10).match_volume(
+        out["data"], mask=out["mask"], batch_size=4096)
+    m = out["mask"]
+    def sph(t, p):
+        return np.stack([np.sin(t) * np.cos(p), np.sin(t) * np.sin(p), np.cos(t)], -1)
+    N = int(m.sum())
+    dirs = np.random.default_rng(0).normal(size=(N, n_fibres, 3))
+    dirs[:, 0] = sph(maps["theta1"][m], maps["phi1"][m])
+    if n_fibres > 1:
+        dirs[:, 1] = sph(maps["theta2"][m], maps["phi2"][m])
+    f1, fiso = maps["f1"][m], maps["f_iso"][m]
+    f2 = np.clip(1 - f1 - fiso, 0, 1)
+    fr = np.full((N, n_fibres + 3), 0.02)
+    fr[:, 0] = 0.02; fr[:, 1] = 0.02; fr[:, -1] = fiso
+    fr[:, 2] = f1
+    if n_fibres > 1:
+        fr[:, 3] = f2
+    fr /= fr.sum(1, keepdims=True)
+    return dirs, fr
+
+
+def run_method(method, out, affine, n_fibres, n_iter, library_size):
+    from dipy.data import default_sphere
+    data, mask, rois, gtab = out["data"], out["mask"], out["rois"], out["gtab"]
+    t0 = time.time()
+    extra = {}
+    if method == "msmt":
+        from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
+        pam, info = msmt_csd_pam(data, gtab, mask, default_sphere)
+        extra["n_wm_voxels"] = info["n_wm_voxels"]
+    else:
+        bvals = np.asarray(gtab.bvals) * 1e6
+        bvecs = np.asarray(gtab.bvecs)
+        cfg = _cfg_for(method, n_fibres, n_iter)
+        init_dirs = init_fracs = None
+        if method == "plus-warm":
+            init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
+        fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
+        pam = prism_fit_to_pam(fit, default_sphere, affine=affine)
+        extra.update(d_par=fit.d_par, d_perp=fit.d_perp, sigma=fit.sigma,
+                     fintra_mean=float(fit.fintra.mean()),
+                     final_loss=float(fit.loss_history[-1]),
+                     n_peaks_mean=float((fit.wm_fracs >= 0.05).sum(1).mean()))
+    t_fit = time.time() - t0
+    res = track_connectivity(pam, mask, rois, affine)
+    res.update(extra, t_fit=t_fit)
+    return res
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--methods", nargs="+",
+                    default=["msmt", "prism-mse", "prism-nll", "plus-nll"])
+    ap.add_argument("--snrs", type=int, nargs="+", default=[10, 30, 50])
+    ap.add_argument("--n-fibres", type=int, default=5, help="PRISM uses K=5 on DiSCo")
+    ap.add_argument("--n-iter", type=int, default=300)
+    ap.add_argument("--library-size", type=int, default=500_000)
+    ap.add_argument("--single-shell", action="store_true")
+    ap.add_argument("--tag", default="")
+    args = ap.parse_args()
+
+    import nibabel as nib
+    gt = load_gt_connectivity(subject=1)
+    affine = nib.load(disco_subject_path(1) / "highRes_DiSCo1_DWI.nii.gz").affine
+    ssb = 1900 if args.single_shell else None
+
+    results = {}
+    for snr in args.snrs:
+        out = load_disco_subject(subject=1, snr=snr, single_shell_b=ssb)
+        for m in args.methods:
+            print(f"\n=== {m} @ SNR={snr} ===", flush=True)
+            res = run_method(m, out, affine, args.n_fibres, args.n_iter, args.library_size)
+            res["r"] = connectivity_pearson(res["connectivity"], gt)
+            results[(m, snr)] = res
+            print(f"  r={res['r']:.4f}  streamlines={res['streamlines_count']:,}  "
+                  f"fit {res['t_fit']:.0f}s  " +
+                  "  ".join(f"{k}={v:.3g}" for k, v in res.items()
+                            if isinstance(v, float) and k not in ("r", "t_fit")),
+                  flush=True)
+
+    # summary table with margin over MSMT
+    print("\n" + "=" * 78)
+    print(f"{'method':<11}{'SNR':>4}{'r':>8}{'CCC':>8}{'Dice':>7}{'Δ vs msmt':>11}{'§24':>7}")
+    print("=" * 78)
+    summaries = {}
+    for m in args.methods:
+        cm = {s: results[(m, s)]["connectivity"] for s in args.snrs}
+        summaries[m] = summarize_method(cm, gt, threshold=0.0)
+    for s in args.snrs:
+        for m in args.methods:
+            sm = summaries[m][s]
+            d = (sm["pearson_r"] - summaries["msmt"][s]["pearson_r"]
+                 if "msmt" in summaries else float("nan"))
+            print(f"{m:<11}{s:>4}{sm['pearson_r']:>8.4f}{sm['lin_ccc_sumnorm']:>8.3f}"
+                  f"{sm['dice']:>7.3f}{d:>+11.4f}{REF['dmipy_s24'].get(s, float('nan')):>7.3f}")
+    print(f"\nPRISM paper: r={REF['prism_paper_disco']} vs MSMT {REF['msmt_paper_disco']} "
+          f"(+{100*(REF['prism_paper_disco']-REF['msmt_paper_disco']):.1f} pp) at SNR=50, K=5.")
+
+    tag = f"_{args.tag}" if args.tag else ""
+    outp = Path(f"validation/prism_disco_connectivity_results{tag}.npz")
+    np.savez(outp, methods=np.array(args.methods), snrs=np.array(args.snrs), gt=gt,
+             **{f"cmat_{m}_snr{s}": results[(m, s)]["connectivity"]
+                for m in args.methods for s in args.snrs},
+             **{f"r_{m}": np.array([results[(m, s)]["r"] for s in args.snrs])
+                for m in args.methods})
+    print(f"Wrote {outp}")
+
+
+if __name__ == "__main__":
+    main()
