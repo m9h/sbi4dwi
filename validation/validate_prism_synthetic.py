@@ -22,20 +22,23 @@ def main():
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--warm-noise-deg", type=float, default=15.0,
                     help="stand-in for a dictionary warm start: GT perturbed by this angle")
+    ap.add_argument("--gt-odi", type=float, default=None,
+                    help="generate Watson-dispersed ground truth with this ODI")
     args = ap.parse_args()
 
     rows = {}
     for snr in args.snrs:
-        b = make_benchmark(snr=snr)
+        b = make_benchmark(snr=snr, gt_odi=args.gt_odi)
         for meth in args.methods:
             t0 = time.time()
             if meth == "msmt":
                 dirs, fracs = msmt_peaks_on_benchmark(b)
             else:
                 cfg = PrismConfig(n_fibres=2, n_iter=args.n_iter,
-                                  loss="mse" if meth == "prism-mse" else "nll")
+                                  loss="mse" if meth == "prism-mse" else "nll",
+                                  disperse=meth.startswith("plus-disp"))
                 init = None
-                if meth == "plus-warm":
+                if meth in ("plus-warm", "plus-disp-warm"):
                     rng = np.random.default_rng(2)
                     sd = np.tan(np.radians(args.warm_noise_deg))
                     init = b["gt_dirs"] + rng.normal(0, sd, b["gt_dirs"].shape)
@@ -45,8 +48,14 @@ def main():
             sc = score_by_angle(dirs, fracs, b)
             rows[(meth, snr)] = sc
             e, r = sc["overall"]
-            print(f"{meth:10s} SNR={snr:>4.0f}  overall err={e:5.2f}°  recall={100*r:5.1f}%  "
-                  f"({time.time()-t0:.0f}s)", flush=True)
+            extra = ""
+            if meth != "msmt":
+                fi = fit.fintra
+                extra = f"  f_i={fi.mean():.3f}±{fi.std():.3f} (gt {b['fintra']})"
+                if fit.odi is not None:
+                    extra += f"  odi={fit.odi[b['angle']>0].mean():.3f} (gt {b['gt_odi']})"
+            print(f"{meth:14s} SNR={snr:>4.0f}  overall err={e:5.2f}°  recall={100*r:5.1f}%  "
+                  f"({time.time()-t0:.0f}s){extra}", flush=True)
 
     print("\nper-angle mean error (°) / recall (%):")
     print("angle  " + "".join(f"{m:>18s}" for (m, s) in rows))
@@ -56,7 +65,8 @@ def main():
             e, r = rows[key][a]
             line += f"{e:8.2f} /{100*r:6.1f}"
         print(line)
-    out = Path("validation/prism_synthetic_results.npz")
+    tag = f"_odi{args.gt_odi}" if args.gt_odi is not None else ""
+    out = Path(f"validation/prism_synthetic_results{tag}.npz")
     np.savez(out, **{f"{m}_snr{int(s)}_{a}": np.array(rows[(m, s)][a])
                      for (m, s) in rows for a in list(ANGLES) + [0, "overall"]})
     print(f"Wrote {out}")

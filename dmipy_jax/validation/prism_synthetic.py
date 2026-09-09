@@ -48,11 +48,13 @@ def _unit(v):
 
 def make_benchmark(snr: float | None = 30.0, fintra: float = 0.5,
                    fracs: tuple[float, float] = (0.5, 0.5), seed: int = 0,
-                   n_dirs: int = 64):
+                   n_dirs: int = 64, gt_odi: float | None = None):
     """Returns dict(data (17,10,20,193), mask, bvals, bvecs, gt_dirs (N,2,3),
-    angle_per_voxel (N,), cfg)."""
+    angle_per_voxel (N,), cfg). ``gt_odi`` generates Watson-dispersed
+    fibres (doc 007 §3.3 decisive test); None = PRISM's point fibres."""
     bvals, bvecs = prism_scheme(n_dirs, seed)
-    cfg = PrismConfig(n_fibres=2)
+    cfg = PrismConfig(n_fibres=2, disperse=gt_odi is not None,
+                      odi_init=gt_odi if gt_odi is not None else 0.1)
     n_cond = len(ANGLES) + 1
     shape = (n_cond,) + SLICE
     per = SLICE[0] * SLICE[1]
@@ -78,6 +80,9 @@ def make_benchmark(snr: float | None = 30.0, fintra: float = 0.5,
         "fintra": jnp.full(N, fintra), "d_par": jnp.asarray(cfg.d_par),
         "d_perp": jnp.asarray(cfg.d_perp), "sigma": None,
     }
+    if gt_odi is not None:
+        phys["odi"] = jnp.full((N, 2), gt_odi)
+        phys["kappa"] = 1.0 / jnp.tan(jnp.pi * phys["odi"] / 2.0)
     clean = np.asarray(forward(phys, jnp.asarray(bvals), jnp.asarray(bvecs), cfg))
     if snr is not None:
         rng = np.random.default_rng(seed + 1)
@@ -88,7 +93,7 @@ def make_benchmark(snr: float | None = 30.0, fintra: float = 0.5,
     data[np.ones(shape, bool)] = clean
     return {"data": data, "mask": np.ones(shape, bool), "bvals": bvals,
             "bvecs": bvecs, "gt_dirs": gt, "angle": ang, "gt_fracs": fr,
-            "fintra": fintra, "cfg": cfg}
+            "fintra": fintra, "gt_odi": gt_odi, "cfg": cfg}
 
 
 def score_by_angle(pred_dirs, pred_fracs, bench, frac_min: float = 0.05):
