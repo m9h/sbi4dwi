@@ -241,26 +241,85 @@ def watson_legendre_coeffs(kappa, n_terms, n_quad):
     return (2 * l + 1) / 2.0 * jnp.einsum("...q,lq->...l", f * w, P)
 
 
+def _kernel_quad(bvals, d_par, d_perp, x):
+    """K(b,t) = exp(−b(D∥ t² + D⊥(1−t²))) on quadrature nodes.
+    d_perp scalar → (M,Q); (N,) → (N,M,Q)."""
+    b = bvals[:, None]
+    if jnp.ndim(d_perp) == 0:
+        return jnp.exp(-b * (d_par * x ** 2 + d_perp * (1 - x ** 2)))
+    return jnp.exp(-b[None] * (d_par * x ** 2 + d_perp[:, None, None] * (1 - x ** 2)))
+
+
+@jax.custom_vjp
+def _kernel_legendre_core(bvals, d_par, d_perp, P, x, w):
+    K = _kernel_quad(bvals, d_par, d_perp, x)
+    return 2.0 * jnp.pi * jnp.einsum("...q,lq->...l", K * w, P)
+
+
+def _klc_fwd(bvals, d_par, d_perp, P, x, w):
+    K = _kernel_quad(bvals, d_par, d_perp, x)
+    lam = 2.0 * jnp.pi * jnp.einsum("...q,lq->...l", K * w, P)
+    return lam, (bvals, d_perp, K, P, x, w)
+
+
+def _klc_bwd(res, ct):
+    # Analytic adjoint: ∂λ_l/∂D∥ = 2π∫(−b t²) K P_l, ∂λ_l/∂D⊥ = 2π∫(−b(1−t²)) K P_l.
+    # Written out so the GPU compiler never sees reverse-mode through the
+    # quadrature einsum (which hangs XLA on GB10 in jax 0.8 when fused
+    # with the rest of the forward model).
+    bvals, d_perp, K, P, x, w = res
+    A = 2.0 * jnp.pi * jnp.einsum("...l,lq->...q", ct, P) * w * K     # (...,M,Q)
+    b = bvals[:, None]
+    g_par = -jnp.sum(A * b * x ** 2)
+    g_perp_full = -(A * b * (1 - x ** 2))
+    if jnp.ndim(d_perp) == 0:
+        g_perp = jnp.sum(g_perp_full)
+    else:
+        g_perp = jnp.sum(g_perp_full, axis=(-2, -1))
+    return (jnp.zeros_like(bvals), g_par, g_perp,
+            jnp.zeros_like(P), jnp.zeros_like(x), jnp.zeros_like(w))
+
+
+_kernel_legendre_core.defvjp(_klc_fwd, _klc_bwd)
+
+
 def kernel_legendre_coeffs(bvals, d_par, d_perp, n_terms, n_quad):
     """λ_l(b) = 2π ∫ K(b,t) P_l(t) dt for the axially symmetric kernel
-    K = exp(−b(D∥ t² + D⊥(1−t²))). d_perp scalar → (M, L); (N,) → (N, M, L)."""
+    K = exp(−b(D∥ t² + D⊥(1−t²))). d_perp scalar → (M, L); (N,) → (N, M, L).
+    Gradients w.r.t. D∥ / D⊥ use an analytic adjoint (see _klc_bwd)."""
     x, w = _gauss_legendre(n_quad)
     P = _legendre_even(x, n_terms)                   # (L,Q)
-    b = bvals[:, None]                               # (M,1)
-    if jnp.ndim(d_perp) == 0:
-        K = jnp.exp(-b * (d_par * x ** 2 + d_perp * (1 - x ** 2)))       # (M,Q)
-        return 2.0 * jnp.pi * jnp.einsum("mq,lq->ml", K * w, P)
-    dp = d_perp[:, None, None]                                           # (N,1,1)
-    K = jnp.exp(-b[None] * (d_par * x ** 2 + dp * (1 - x ** 2)))         # (N,M,Q)
-    return 2.0 * jnp.pi * jnp.einsum("nmq,lq->nml", K * w, P)
+    return _kernel_legendre_core(bvals, jnp.asarray(d_par), jnp.asarray(d_perp), P, x, w)
 
 
 def dispersed_signal(a, lam, c):
-    """Σ_l a_l λ_l P_l(c). a: (N,K,L); lam: (M,L) or (N,M,L); c: (N,K,M)."""
-    P = _legendre_even(c, a.shape[-1])               # (L,N,K,M)
-    if lam.ndim == 2:
-        return jnp.einsum("nkl,ml,lnkm->nkm", a, lam, P)
-    return jnp.einsum("nkl,nml,lnkm->nkm", a, lam, P)
+    """Σ_l a_l λ_l P_l(c). a: (N,K,L); lam: (M,L) or (N,M,L); c: (N,K,M).
+
+    Runs the Bonnet recurrence as a ``lax.scan`` over l = 0 … 2(L−1),
+    accumulating the even terms. An unrolled recurrence made the GPU
+    backward pass compile exponentially in L on GB10 / jax 0.8 (XLA
+    re-materialises the chain inside every fusion); a scan keeps it a
+    loop in both directions."""
+    L = a.shape[-1]
+    n_steps = 2 * L - 1
+    # even-l coefficients spread onto every l (odd slots zero)
+    a2 = jnp.zeros(a.shape[:-1] + (n_steps,), a.dtype).at[..., ::2].set(a)
+    lam2 = jnp.zeros(lam.shape[:-1] + (n_steps,), lam.dtype).at[..., ::2].set(lam)
+    if lam2.ndim == 2:
+        lam2 = lam2[None, None]                       # (1,1,M,S)
+    else:
+        lam2 = lam2[:, None]                          # (N,1,M,S)
+
+    def step(carry, j):
+        p_prev, p_curr, acc = carry                   # P_{j-1}, P_j, Σ_{<j}
+        coef = a2[..., j][..., None] * lam2[..., j]   # (N,K,M)
+        acc = acc + coef * p_curr
+        p_next = ((2 * j + 1) * c * p_curr - j * p_prev) / (j + 1)
+        return (p_curr, p_next, acc), None
+
+    init = (jnp.zeros_like(c), jnp.ones_like(c), jnp.zeros_like(c))   # P_{-1}:=0, P_0=1
+    (_, _, out), _ = jax.lax.scan(step, init, jnp.arange(n_steps))
+    return out
 
 
 # --------------------------------------------------------------------------- #
