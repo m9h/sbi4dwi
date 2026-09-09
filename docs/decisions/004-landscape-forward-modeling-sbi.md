@@ -1855,6 +1855,15 @@ scalar microstructure metrics on FORCE are reproducible (§14–§16.7);
 connectivity-matrix headline result is not, and now we know that's
 true regardless of which deterministic streamline tool is used.
 
+### 18.5 Addendum (2026-06-23, recorded 2026-09-08): MRtrix 3.0.4 re-run
+
+The §18.2 pipeline was re-run unchanged after an MRtrix3 upgrade to
+3.0.4 to rule out a version-dependent artifact in the SD_STREAM
+reference. Mean Pearson r across SNR {10, 30, 50}: **0.11789 →
+0.11794**. The SD_STREAM structural gap is version-stable to 5e-5.
+Files: `validation/mrtrix_disco_connectivity_results.npz` (current),
+`validation/mrtrix_disco_connectivity_results.v3.0.4.npz` (pinned copy).
+
 ---
 
 ## 19. Connectivity-metric flag + variant sweep (2026-05-10)

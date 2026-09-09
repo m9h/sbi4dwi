@@ -88,8 +88,8 @@ dmipy_jax/
 │   ├── monte_carlo.py         # Ground-truth MC with SDF geometry
 │   ├── differentiable_walker.py  # Differentiable confined Brownian walker
 │   ├── simulator.py           # End-to-end SDE simulator (Diffrax)
-│   ├── oracle.py              # OracleSimulator protocol (ABC)
-│   └── oracles/               # Oracle registry + implementations
+│   ├── oracle.py              # [PLANNED — not yet written] OracleSimulator protocol (ABC)
+│   └── oracles/               # [PLANNED — not yet written] registry + implementations
 │       ├── __init__.py         #   get_oracle("dipy"|"remidi"|"mcmr")
 │       ├── dipy_sim.py         #   DIPYMultiTensorOracle
 │       ├── remidi.py           #   ReMiDiOracle (Python API + Docker)
@@ -100,8 +100,8 @@ dmipy_jax/
 │   ├── config.py              # SBIPipelineConfig
 │   ├── checkpoint.py          # save/load checkpoint (.eqx + .config.json)
 │   ├── deploy.py              # SBIPredictor for NIfTI volume inference
-│   ├── oracle_adapter.py      # OracleModelSimulator (library → ModelSimulator)
-│   ├── multi_fidelity.py      # train_multi_fidelity_sbi(), validate_against_oracle()
+│   ├── oracle_adapter.py      # [PLANNED — not yet written] OracleModelSimulator
+│   ├── multi_fidelity.py      # [PLANNED — not yet written] train_multi_fidelity_sbi()
 │   ├── comparison.py          # ComparisonRunner + SimulationComparisonRunner
 │   ├── ensemble.py            # Multi-model ensemble inference
 │   ├── conformal.py           # Conformal prediction intervals
@@ -122,7 +122,7 @@ dmipy_jax/
 │   ├── score_posterior.py     # Score-based diffusion posterior (NEW)
 │   └── trainer.py             # Generic training utilities
 ├── fitting/                   # Classical parameter fitting
-├── io/                        # Data loaders (BIDS, HCP, mesh, SWC, multi-TE)
+├── io/                        # Data loaders (BIDS, HCP, mesh, multi-TE; no SWC loader yet)
 ├── inverse/                   # AMICO-style linear inversions
 └── viz/                       # Surface mapping, visualisation
 ```
@@ -193,6 +193,13 @@ Key features:
 - `construct_fem_matrices_sparse()` — BCOO sparse for meshes >2K vertices
 
 ## Oracle system
+
+> **Status (2026-09-08):** the oracle protocol below is the *intended*
+> design. None of `simulation/oracle.py`, `simulation/oracles/`,
+> `pipeline/oracle_adapter.py`, `pipeline/multi_fidelity.py` exist yet.
+> The only substrate-oracle code in the tree is
+> `dmipy_jax/validation/caterpillar.py` (`CATERPillarOracle`). See
+> `docs/decisions/006-octopus-differentiable-substrate-landscape.md` §7.
 
 The oracle protocol separates **simulation fidelity** from **JAX requirements**:
 

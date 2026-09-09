@@ -1,6 +1,6 @@
 # Task: Manage ReMiDi Oracle
 
-**Objective**: Utilize the [ReMiDi (Reference MRI Diffusion)](https://github.com/BioMedAI-UCSC/ReMiDi) project as a robust test oracle. This involves managing its Docker container to produce reference reconstructions.
+**Objective**: Utilize the [ReMiDi (Reconstruction of Microstructure using a Differentiable diffusion MRI simulator)](https://github.com/BioMedAI-UCSC/ReMiDi) project as a robust test oracle. This involves managing its Docker container to produce reference reconstructions.
 
 **Infrastructure**: NVIDIA DGX / Spark Cluster.
 **Target**: `remidi_oracle` interface.

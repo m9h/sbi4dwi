@@ -21,26 +21,43 @@ Removed during repo cleanup (2026-03-25) to reduce tracked size.
 
 ## CATERPillar
 
-- **Source**: https://github.com/RafaelNH/CATERPillar
-- **Was located at**: `vendor/CATERPillar/`
-- **Purpose**: C++ tool for generating realistic axon geometry phantoms
-  (Computer-Assisted Tissue Engineering for Reproducible Phantoms in
-  Localised fibre arrangements). Intended for generating ground-truth
-  mesh geometries to feed into the FEM `MatrixFormalismSimulator`
-  (`dmipy_jax/simulation/mesh_sim.py`).
-- **Why removed**: Directory was empty (placeholder only, never populated).
-  If needed in future, clone the upstream repo or add as a git submodule.
+- **Source**: https://github.com/jazz031195/CATERPillar
+  (Nguyen-Duc J et al., CHUV/EPFL — bioRxiv 10.1101/2025.06.20.660694,
+  PubMed 41576825). Not `RafaelNH/CATERPillar` — that GitHub user is Rafael
+  Neto Henriques (DIPY), a name collision with author Jonathan Rafael-Patiño.
+- **Was located at**: `vendor/CATERPillar/` (this repo — placeholder only).
+- **Live checkout**: `/home/mhough/dev/dmipy/vendor/CATERPillar`, cloned and
+  compiled. `dmipy_jax/validation/caterpillar.py` (`CATERPillarOracle`)
+  defaults to that binary path.
+- **Purpose**: C++ tool for generating realistic axon + glial numerical
+  substrates (**Computational Axonal Threading Engine for Realistic
+  Proliferation**). Grows axons from overlapping spheres with controllable
+  density, tortuosity and beading. Output: `*_spheres.csv`
+  `(x, y, z, radius, type, id)`, consumed by
+  `dmipy_jax/simulation/sphere_sdf.py::MultiSphereSDF`.
+- **Why removed from this repo**: the `vendor/` placeholder here was never
+  populated; the sibling checkout above is the working copy.
+- **Related**: OCTOPUS (same lab, same primitives, adds neurons/glia with
+  branching/tapering/undulation/spines) — see
+  `docs/decisions/006-octopus-differentiable-substrate-landscape.md`.
 
 ## ReMiDi
 
-- **Source**: https://remidi.org / https://github.com/jingrebeccali/ReMiDi
+- **Source**: https://github.com/BioMedAI-UCSC/ReMiDi
+  (Khole PP, …, Li J-R, Ianus A, Marinescu R — arXiv:2502.01988, ISMRM 2025).
 - **Was located at**: `ReMiDi/` (root)
-- **Purpose**: Realistic Microstructure Diffusion simulator. GPU-accelerated
-  Monte Carlo random-walk simulator for diffusion MRI in complex geometries.
-  Used as an oracle simulator in the multi-fidelity pipeline.
-- **Integration**: The oracle wrapper lives at
-  `dmipy_jax/simulation/oracles/remidi.py` and communicates with ReMiDi via
-  Docker (`docker/Dockerfile.remidi`) or subprocess — it does not require
-  vendored source.
+- **Purpose**: **Re**construction of **Mi**crostructure using a
+  **Di**fferentiable diffusion MRI simulator. A PyTorch re-implementation of
+  SpinDoctor's FEM matrix formalism (Bloch–Torrey), made differentiable so a
+  signal-matching loss can be backpropagated into 3D mesh vertices. It is
+  **not** a Monte Carlo random-walk simulator.
+- **Integration status**: no wrapper exists in this repo.
+  `dmipy_jax/simulation/oracles/remidi.py` and `docker/Dockerfile.remidi`
+  were planned (see `docs/prompts/remidi_manager.md`) but never written.
+  The same solver family is implemented natively in JAX at
+  `dmipy_jax/simulation/mesh_sim.py::MatrixFormalismSimulator`, so the
+  honest comparison is solver-vs-solver on identical meshes rather than an
+  oracle wrap.
+- **Successor**: Spinverse (arXiv:2603.04638, Mar 2026) — differentiable
+  Bloch–Torrey on tetrahedral grids with learnable per-face permeability.
 - **Why removed**: Directory was empty (placeholder only, never populated).
-  The Docker-based oracle integration is the intended interface.
