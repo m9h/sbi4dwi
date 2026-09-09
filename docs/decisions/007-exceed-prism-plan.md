@@ -531,6 +531,56 @@ Cost: the dispersed fit is ~30 s vs 1–7 s for 3,400 voxels (13-term
 Legendre scan through Rprop's 300 iterations); the GPU compile
 pathology that made this minutes-to-never is fixed (`b47bb8f`).
 
+### 6.9 Dispersion on DiSCo — K=5, pf=0.10, 45°, warm + tortuosity + learned D (2026-09-09)
+
+`validation/prism_disco_connectivity_results_disp.npz`
+
+| SNR | PRISM-plus warm+tort (§6.5/6.6) | **+ Watson dispersion** | Δ | ODI recovered | peaks/voxel | Dice | fit time |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10 | 0.850 | **0.855** | +0.005 | 0.020 | 3.7 | 0.350 | 349 s |
+| 30 | 0.857 | 0.839 | −0.018 | 0.025 | 3.1 | 0.391 | 349 s |
+| 50 | 0.843 | **0.850** | +0.007 | 0.030 | 2.9 | **0.420** | 408 s |
+
+- **On DiSCo, dispersion is a wash for connectivity** (+0.5 / −1.8 / +0.7
+  pp) — as §3.3 predicted: the strands are nearly straight and the fit
+  says so (ODI 0.02–0.03, at the bottom of the allowed range). The
+  SNR 30 loss is a single deterministic run; treat as noise until a
+  library-seed sweep says otherwise.
+- **It does buy specificity**: 2.9 peaks/voxel and Dice 0.42 at SNR 50
+  vs 3.6 / 0.38 undispersed — the best Dice of any differentiable
+  variant, closing a third of the gap to MSMT's 0.565. A model that can
+  explain angular blur as dispersion no longer needs a spurious extra
+  fibre to do it.
+- **SNR 50 now equals the §24 dictionary (0.850 vs 0.851)** while also
+  beating it at SNR 10/30; the last model-form difference between
+  PRISM-plus and §24 is gone, and with it the last item on doc 004
+  §24.7.
+- Cost: ~6 min per fit vs 30 s. The 13-term Legendre scan over
+  (N,K,M) with 300 Rprop iterations is memory-bound (~66 GB on GB10).
+  Halving `n_legendre` to 7 is safe for ODI ≥ 0.05 and would roughly
+  halve this; on DiSCo specifically, dispersion should simply be
+  switched off.
+
+### 6.10 Where this leaves the §4 targets
+
+| Target | Status |
+|---|---|
+| Synthetic error < 2.0° / recall ≥ 99% | met on our protocol (1.52° / 100%); protocol caveat stands |
+| DiSCo margin over MSMT > +1.6 pp | met: +6.7 / +9.9 / +12.8 pp (SNR 50/30/10) |
+| Beat faithful PRISM-JAX at every SNR | met; fixed-D PRISM is undefined on DiSCo |
+| Restricted-compartment ablation with learned D | **not run** — next |
+| Calibrated fixel uncertainty | **not started** — §3.4, the qualitative axis |
+| Misspecified substrates | **not started** — §3.5 / doc 006 Phase 2 |
+
+Honest summary of what "exceeding PRISM" currently rests on: (i) fixing
+a design flaw PRISM shares with FORCE (fixed in-vivo diffusivities),
+(ii) implementing the warm start PRISM proposed but did not build, and
+(iii) modelling dispersion, which PRISM lists as future work and which
+we show it otherwise absorbs into f_i. None of these is a new
+estimator; all are things the JAX forward-model stack made a one-day
+job each. The uncertainty axis (§3.4) is where the claim would become
+qualitative.
+
 ---
 
 ## 7. Risks
