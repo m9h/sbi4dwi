@@ -65,6 +65,11 @@ class PrismConfig:
     # PRISM-plus: Szafer–Stanisz tortuosity, D⊥ = D∥·(1 − f_i) per voxel
     # (as in the §22 simulator). Overrides d_perp / d_perp_range.
     tortuosity: bool = False
+    # PRISM-plus: weak Gaussian prior on learned log D∥ around cfg.d_par,
+    # λ·(log D∥ − log d_par)²/sd². Stops D∥ absorbing noise at low SNR
+    # (doc 007 §6.6). 0 disables.
+    lam_diffusivity_prior: float = 0.0
+    diffusivity_prior_sd: float = 0.3      # in log units (~±30 %)
     d_par_range: tuple[float, float] = (0.3e-9, 3.0e-9)
     d_perp_range: tuple[float, float] = (0.02e-9, 1.5e-9)
     loss: str = "mse"                # "mse" | "nll"
@@ -288,7 +293,12 @@ def total_loss(params, y, bvals, bvecs, nb, cfg: PrismConfig):
         data_term = mse_loss(pred, y)
     K = cfg.n_fibres
     f_wm = phys["fracs"][:, 2:2 + K]
-    reg = (cfg.lam_spatial * huber_laplacian(phys["fracs"], nb, cfg.huber_delta)
+    d_prior = 0.0
+    if cfg.learn_diffusivities and cfg.lam_diffusivity_prior > 0:
+        z = (jnp.log(phys["d_par"]) - jnp.log(cfg.d_par)) / cfg.diffusivity_prior_sd
+        d_prior = cfg.lam_diffusivity_prior * z ** 2
+    reg = (d_prior
+           + cfg.lam_spatial * huber_laplacian(phys["fracs"], nb, cfg.huber_delta)
            + cfg.lam_repulsion * direction_repulsion(f_wm, phys["dirs"])
            + cfg.lam_sparse * minor_fibre_sparsity(f_wm, cfg.tau_sparse)
            + cfg.lam_continuity * directional_continuity(f_wm, phys["dirs"], nb))

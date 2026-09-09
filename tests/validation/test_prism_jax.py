@@ -81,6 +81,23 @@ class TestForward:
         assert out.shape == (4, len(bvals)) and np.isfinite(np.asarray(out)).all()
 
 
+    def test_diffusivity_prior_penalises_drift(self):
+        cfg = pj.PrismConfig(n_fibres=1, learn_diffusivities=True,
+                             lam_diffusivity_prior=1.0, diffusivity_prior_sd=0.3)
+        bvals, bvecs = _scheme()
+        nb = jnp.asarray(pj.build_neighbour_table(np.ones((1, 1, 1), bool)))
+        y = jnp.ones((1, len(bvals)))
+        p = pj.init_params(1, cfg, jax.random.PRNGKey(0))
+        l0 = float(pj.total_loss(p, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg))
+        cfg0 = pj.PrismConfig(n_fibres=1, learn_diffusivities=True)
+        l0_noprior = float(pj.total_loss(p, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg0))
+        assert l0 == pytest.approx(l0_noprior, rel=1e-5)     # at init, prior is 0
+        p2 = dict(p); p2["dpar_logit"] = p["dpar_logit"] + 3.0
+        l1 = float(pj.total_loss(p2, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg))
+        l1_noprior = float(pj.total_loss(p2, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg0))
+        assert l1 - l1_noprior > 0.5                          # drift is penalised
+
+
 # --------------------------------------------------------------------------- #
 # 2. Priors
 # --------------------------------------------------------------------------- #

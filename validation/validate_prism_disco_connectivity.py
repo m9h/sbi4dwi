@@ -43,8 +43,8 @@ REF = {  # doc 004 §24.2 headline (§22 multi-shell) and PRISM paper
 }
 
 
-def _cfg_for(method: str, n_fibres: int, n_iter: int) -> PrismConfig:
-    base = PrismConfig(n_fibres=n_fibres, n_iter=n_iter)
+def _cfg_for(method: str, n_fibres: int, n_iter: int, seed: int = 0) -> PrismConfig:
+    base = PrismConfig(n_fibres=n_fibres, n_iter=n_iter, seed=seed)
     return {
         "prism-mse": base,
         "prism-nll": replace(base, loss="nll"),
@@ -59,6 +59,10 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int) -> PrismConfig:
                              d_par=0.6e-9, tortuosity=True),
         "plus-tort-warm": replace(base, loss="nll", learn_diffusivities=True,
                                   d_par=0.6e-9, tortuosity=True),
+        # + weak prior on D∥ (λ=1, sd=0.3 log units) against low-SNR drift
+        "plus-dprior-warm": replace(base, loss="nll", learn_diffusivities=True,
+                                    d_par=0.6e-9, tortuosity=True,
+                                    lam_diffusivity_prior=1.0),
     }[method]
 
 
@@ -101,7 +105,7 @@ def _warm_start(out, acq_bvals, acq_bvecs, n_fibres, library_size):
 
 
 def run_method(method, out, affine, n_fibres, n_iter, library_size,
-               peak_frac_min=0.05, max_angle=45.0):
+               peak_frac_min=0.05, max_angle=45.0, seed=0):
     from dipy.data import default_sphere
     data, mask, rois, gtab = out["data"], out["mask"], out["rois"], out["gtab"]
     t0 = time.time()
@@ -113,9 +117,9 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
     else:
         bvals = np.asarray(gtab.bvals) * 1e6
         bvecs = np.asarray(gtab.bvecs)
-        cfg = _cfg_for(method, n_fibres, n_iter)
+        cfg = _cfg_for(method, n_fibres, n_iter, seed)
         init_dirs = init_fracs = None
-        if method in ("plus-warm", "plus-tort-warm"):
+        if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm"):
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
         pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,
@@ -125,7 +129,8 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
                      final_loss=float(fit.loss_history[-1]),
                      n_peaks_mean=float((fit.wm_fracs >= peak_frac_min).sum(1).mean()))
     t_fit = time.time() - t0
-    res = track_connectivity(pam, mask, rois, affine, max_angle=max_angle)
+    res = track_connectivity(pam, mask, rois, affine, max_angle=max_angle,
+                             random_seed=seed)
     res.update(extra, t_fit=t_fit)
     return res
 
@@ -142,6 +147,9 @@ def main():
     ap.add_argument("--peak-frac-min", type=float, default=0.05)
     ap.add_argument("--max-angle", type=float, default=45.0,
                     help="PRISM sweeps 15-30 and reports the best; §21 used 45")
+    ap.add_argument("--seeds", type=int, nargs="+", default=[0],
+                    help="fit + tracking seeds; results keyed (method, snr) use the "
+                         "mean r over seeds and store per-seed r")
     ap.add_argument("--tag", default="")
     args = ap.parse_args()
 
@@ -155,11 +163,21 @@ def main():
         out = load_disco_subject(subject=1, snr=snr, single_shell_b=ssb)
         for m in args.methods:
             print(f"\n=== {m} @ SNR={snr} ===", flush=True)
-            res = run_method(m, out, affine, args.n_fibres, args.n_iter,
-                             args.library_size, args.peak_frac_min, args.max_angle)
-            res["r"] = connectivity_pearson(res["connectivity"], gt)
+            per_seed = []
+            for sd in args.seeds:
+                res = run_method(m, out, affine, args.n_fibres, args.n_iter,
+                                 args.library_size, args.peak_frac_min, args.max_angle, sd)
+                res["r"] = connectivity_pearson(res["connectivity"], gt)
+                per_seed.append(res)
+                if len(args.seeds) > 1:
+                    print(f"  seed {sd}: r={res['r']:.4f}", flush=True)
+            res = per_seed[0]
+            res["r_seeds"] = np.array([p["r"] for p in per_seed])
+            res["r"] = float(res["r_seeds"].mean())
+            res["r_sd"] = float(res["r_seeds"].std(ddof=1)) if len(per_seed) > 1 else 0.0
+            res["connectivity"] = np.mean([p["connectivity"] for p in per_seed], axis=0)
             results[(m, snr)] = res
-            print(f"  r={res['r']:.4f}  streamlines={res['streamlines_count']:,}  "
+            print(f"  r={res['r']:.4f}±{res['r_sd']:.4f}  streamlines={res['streamlines_count']:,}  "
                   f"fit {res['t_fit']:.0f}s  " +
                   "  ".join(f"{k}={v:.3g}" for k, v in res.items()
                             if isinstance(v, float) and k not in ("r", "t_fit")),
@@ -189,7 +207,9 @@ def main():
              **{f"cmat_{m}_snr{s}": results[(m, s)]["connectivity"]
                 for m in args.methods for s in args.snrs},
              **{f"r_{m}": np.array([results[(m, s)]["r"] for s in args.snrs])
-                for m in args.methods})
+                for m in args.methods},
+             **{f"rseeds_{m}_snr{s}": results[(m, s)]["r_seeds"]
+                for m in args.methods for s in args.snrs})
     print(f"Wrote {outp}")
 
 
