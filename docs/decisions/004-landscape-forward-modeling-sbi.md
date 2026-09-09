@@ -1864,6 +1864,18 @@ reference. Mean Pearson r across SNR {10, 30, 50}: **0.11789 →
 Files: `validation/mrtrix_disco_connectivity_results.npz` (current),
 `validation/mrtrix_disco_connectivity_results.v3.0.4.npz` (pinned copy).
 
+### 18.6 Amendment (2026-09-08): the gap was tracker-specific, not structural
+
+Doc 007 §6.1 ran MSMT-CSD (dipy `MultiShellDeconvModel`, oracle
+responses) through the §21.2 eudx pipeline on the same DiSCo data and
+obtained **r = 0.776 at SNR=50** with Dice 0.565 — the best specificity
+of any method in this document. The §18.2 MRtrix SD_STREAM result
+(r = 0.13) therefore reflects the SD_STREAM/tck2connectome path, not
+the benchmark. §18.4's "structural to the benchmark setup" conclusion
+is withdrawn; §19.4's reproducibility critique of the FORCE paper's
+*methods text* stands (the paper still does not specify its tracker or
+normalisation). See doc 007 for the PRISM-era comparison.
+
 ---
 
 ## 19. Connectivity-metric flag + variant sweep (2026-05-10)

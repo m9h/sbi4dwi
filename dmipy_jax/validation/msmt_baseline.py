@@ -27,6 +27,7 @@ def msmt_csd_pam(
     relative_peak_threshold: float = 0.5,
     min_separation_angle: float = 25.0,
     npeaks: int = 5,
+    wm_mask: np.ndarray | None = None,
 ):
     """Fit MSMT-CSD and return a dipy PeaksAndMetrics (+ response info)."""
     from dipy.core.gradients import unique_bvals_tolerance
@@ -37,11 +38,16 @@ def msmt_csd_pam(
     )
 
     mask = np.asarray(mask, dtype=bool)
-    # single-fibre WM mask from DTI FA (same rule as doc 004 §18.1 step 3)
-    fa = TensorModel(gtab).fit(data, mask=mask).fa
-    fa = np.nan_to_num(fa)
-    thr = np.percentile(fa[mask], wm_fa_percentile)
-    mask_wm = mask & (fa >= thr)
+    if wm_mask is not None:
+        # oracle single-fibre voxels supplied by the caller (PRISM: "response
+        # function from ground-truth single-fiber voxels")
+        mask_wm = np.asarray(wm_mask, dtype=bool) & mask
+        thr = float("nan")
+    else:
+        # single-fibre WM mask from DTI FA (same rule as doc 004 §18.1 step 3)
+        fa = np.nan_to_num(TensorModel(gtab).fit(data, mask=mask).fa)
+        thr = np.percentile(fa[mask], wm_fa_percentile)
+        mask_wm = mask & (fa >= thr)
 
     wm_rf, _, _ = response_from_mask_msmt(gtab, data, mask_wm, mask_wm, mask_wm)
     ubv = unique_bvals_tolerance(gtab.bvals)

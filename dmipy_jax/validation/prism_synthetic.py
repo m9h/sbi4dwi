@@ -114,8 +114,10 @@ def msmt_peaks_on_benchmark(bench, sh_order_max: int = 8):
     from dipy.data import default_sphere
     from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
     gtab = gradient_table(bench["bvals"] / 1e6, bvecs=bench["bvecs"])
+    wm = np.zeros(bench["mask"].shape, bool)
+    wm[bench["mask"]] = bench["angle"] == 0          # GT single-fibre voxels
     pam, _ = msmt_csd_pam(bench["data"], gtab, bench["mask"], default_sphere,
-                          sh_order_max=sh_order_max)
+                          sh_order_max=sh_order_max, wm_mask=wm)
     m = bench["mask"]
     dirs = pam.peak_dirs[m]
     vals = pam.peak_values[m]

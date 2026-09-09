@@ -248,3 +248,28 @@ class TestSyntheticBenchmark:
         sc = ps.score_by_angle(b["gt_dirs"], b["gt_fracs"][:, 2:4], b)
         e, r = sc["overall"]
         assert e == pytest.approx(0.0, abs=1e-6) and r == 1.0
+
+    def test_msmt_oracle_response_mask_is_used(self):
+        """Synthetic MSMT must build its WM response from the GT single-fibre
+        voxels, not an FA percentile (which selects crossing voxels here)."""
+        from dmipy_jax.validation import prism_synthetic as ps
+        from dmipy_jax.validation import msmt_baseline as mb
+        b = ps.make_benchmark(snr=None)
+        wm = np.zeros(b["mask"].shape, bool); wm[b["mask"]] = b["angle"] == 0
+        assert wm.sum() == 200
+        captured = {}
+        orig = mb.response_from_mask_msmt if hasattr(mb, "response_from_mask_msmt") else None
+        import dipy.reconst.mcsd as mcsd
+        real = mcsd.response_from_mask_msmt
+        def spy(gtab, data, m_wm, m_gm, m_csf, **kw):
+            captured["n"] = int(m_wm.sum()); return real(gtab, data, m_wm, m_gm, m_csf, **kw)
+        mcsd.response_from_mask_msmt = spy
+        try:
+            from dipy.core.gradients import gradient_table
+            from dipy.data import default_sphere
+            gtab = gradient_table(b["bvals"] / 1e6, bvecs=b["bvecs"])
+            sub = np.zeros_like(b["mask"]); sub[16] = True; sub[0, :2, :2] = True
+            mb.msmt_csd_pam(b["data"], gtab, sub, default_sphere, wm_mask=wm)
+        finally:
+            mcsd.response_from_mask_msmt = real
+        assert captured["n"] == 200
