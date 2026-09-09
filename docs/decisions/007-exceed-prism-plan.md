@@ -462,6 +462,35 @@ Updated §4 status: *beat faithful PRISM-JAX at every SNR* — **met**
 (faithful fixed-D is undefined; oracle-tuned PRISM is beaten at 10/30
 and tied at 50). *Margin > +1.6 pp* — **met at all SNRs**.
 
+### 6.7 Seeds and the D∥ prior (2026-09-09)
+
+**Seeds.** `plus-tort-warm` at SNR=50 with seeds {0,1,2}: r = 0.8437 all
+three, sd 0. With a warm start the pipeline is deterministic — the
+library key is fixed, eudx tracking is deterministic given the seed
+mask, and DiSCo ships one noise realisation per SNR. The 0.008 between
+0.843 and §24's 0.851 is therefore *not* seed noise in this pipeline;
+the sources of variance that remain are the library key (warm start)
+and random direction init (non-warm variants). Treat 0.008 as real but
+small until a library-seed sweep says otherwise.
+
+**D∥ prior** (`lam_diffusivity_prior=1.0`, sd = 0.3 log units around
+D∥ = 0.6e-9), warm + tortuosity, pf 0.10, 45°:
+
+| SNR | no prior (§6.5/6.6) | with prior | D∥ no prior → with |
+|---:|---:|---:|---|
+| 10 | 0.850 | 0.837 | 1.03e-9 → **0.73e-9** |
+| 30 | 0.857 | 0.848 | 0.72e-9 → 0.65e-9 |
+| 50 | 0.843 | 0.837 | 0.64e-9 → 0.64e-9 |
+
+The prior does its job — D∥ is pulled back inside the phantom's band at
+SNR 10 — at a cost of ~1 pp connectivity at every SNR. So the
+out-of-band D∥ at low SNR was *helping* tractography: a longer stick
+sharpens the angular contrast the tracker uses, at the expense of the
+microstructure being wrong. Two honest deployments, then: connectivity-
+optimal (no prior, D free) and microstructure-honest (prior). Neither
+is "the" PRISM-plus; report both. Still +11.6 / +9.0 / +6.1 pp over
+MSMT with the prior on.
+
 ---
 
 ## 7. Risks

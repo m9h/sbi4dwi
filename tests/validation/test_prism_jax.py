@@ -302,3 +302,82 @@ class TestSyntheticBenchmark:
         finally:
             mcsd.response_from_mask_msmt = real
         assert captured["n"] == 200
+
+
+# --------------------------------------------------------------------------- #
+# 5. Watson dispersion via Legendre convolution
+# --------------------------------------------------------------------------- #
+
+class TestDispersion:
+    def test_isotropic_limit_is_powder_average(self):
+        """κ→0: Σ a_l λ_l P_l = a_0 λ_0 = ½∫K(t)dt for every direction."""
+        bvals, bvecs = _scheme()
+        a = pj.watson_legendre_coeffs(jnp.array([[1e-6]]), 13, 128)
+        lam = pj.kernel_legendre_coeffs(jnp.asarray(bvals), 1.7e-9, jnp.asarray(0.0), 13, 128)
+        c = jnp.asarray(bvecs @ _unit([0.3, 0.4, 0.5]))[None, None]
+        s = np.asarray(pj.dispersed_signal(a, lam, c))[0, 0]
+        x, w = np.polynomial.legendre.leggauss(256)
+        powder = 0.5 * np.array([np.sum(w * np.exp(-b * 1.7e-9 * x ** 2)) for b in bvals])
+        np.testing.assert_allclose(s, powder, rtol=2e-3, atol=2e-3)
+
+    def test_sharp_limit_matches_stick(self):
+        """ODI=0.01 (κ≈64) at b≤3000: mean deviation from the undispersed
+        stick must be small. (A single near-perpendicular b=3000 measurement
+        legitimately differs by ~3% — that is dispersion, not truncation —
+        so the max is checked against the grid Bingham instead, below.)"""
+        bvals, bvecs = _scheme()
+        n = _unit([1, 1, 0.3])
+        kappa = 1.0 / np.tan(np.pi * 0.01 / 2)
+        a = pj.watson_legendre_coeffs(jnp.array([[kappa]]), 13, 128)
+        lam = pj.kernel_legendre_coeffs(jnp.asarray(bvals), 1.7e-9, jnp.asarray(0.0), 13, 128)
+        c = jnp.asarray(bvecs @ n)[None, None]
+        s = np.asarray(pj.dispersed_signal(a, lam, c))[0, 0]
+        stick = np.exp(-bvals * 1.7e-9 * (bvecs @ n) ** 2)
+        assert np.abs(s - stick).mean() < 1e-2
+        assert np.abs(s - stick).max() < 5e-2
+
+    def test_matches_grid_bingham_at_moderate_odi(self):
+        """Cross-check against BinghamNODDI(κ,κ) numeric integration."""
+        from dmipy_jax.signal_models.bingham import BinghamNODDI
+        bvals, bvecs = _scheme(bvals_mm2=(1000, 2000))
+        n = _unit([0.2, 0.9, 0.4]); odi = 0.2
+        kappa = 1.0 / np.tan(np.pi * odi / 2)
+        a = pj.watson_legendre_coeffs(jnp.array([[kappa]]), 13, 128)
+        lam = pj.kernel_legendre_coeffs(jnp.asarray(bvals), 1.7e-9, jnp.asarray(0.0), 13, 128)
+        c = jnp.asarray(bvecs @ n)[None, None]
+        s = np.asarray(pj.dispersed_signal(a, lam, c))[0, 0]
+        ref = np.asarray(BinghamNODDI(grid_points=2000)(
+            jnp.asarray(bvals), jnp.asarray(bvecs), mu=jnp.asarray(n),
+            kappa1=kappa, kappa2=kappa, lambda_par=1.7e-9))
+        np.testing.assert_allclose(s, ref, atol=1.5e-2)
+
+    def test_dispersed_forward_reduces_to_plain_at_sharp_odi(self):
+        cfg = pj.PrismConfig(n_fibres=2, disperse=True, odi_init=0.01)
+        p = pj.init_params(3, cfg, jax.random.PRNGKey(0))
+        bvals, bvecs = _scheme()
+        phys = pj.unpack(p, cfg)
+        s_disp = np.asarray(pj.forward(phys, jnp.asarray(bvals), jnp.asarray(bvecs), cfg))
+        cfg0 = pj.PrismConfig(n_fibres=2)
+        s_plain = np.asarray(pj.forward(pj.unpack(p, cfg0), jnp.asarray(bvals), jnp.asarray(bvecs), cfg0))
+        assert np.abs(s_disp - s_plain).max() < 3e-2
+        assert phys["odi"].shape == (3, 2)
+
+    def test_recovers_odi_on_dispersed_crossing(self):
+        """Generate a 60° crossing with ODI 0.25 from the dispersed model; the
+        dispersed fit must recover ODI within 0.08 and directions within 5°."""
+        cfg = pj.PrismConfig(n_fibres=2, disperse=True, odi_init=0.25)
+        bvals, bvecs = _scheme()
+        shape = (4, 4, 2); N = 32
+        n1 = _unit([1, 0, 0]); n2 = _unit([0.5, np.sqrt(3) / 2, 0])
+        p = pj.init_params(N, cfg, jax.random.PRNGKey(0),
+                           init_dirs=np.tile([[n1, n2]], (N, 1, 1)),
+                           init_fracs=np.tile([[0, 0, 0.5, 0.5, 0]], (N, 1)))
+        phys = pj.unpack(p, cfg)
+        clean = np.asarray(pj.forward(phys, jnp.asarray(bvals), jnp.asarray(bvecs), cfg))
+        data = np.zeros(shape + (len(bvals),), np.float32); data[np.ones(shape, bool)] = clean
+        fit = pj.fit_prism(data, np.ones(shape, bool), bvals, bvecs,
+                           replace_cfg(cfg, odi_init=0.1, n_iter=500))
+        gt = np.tile([[n1, n2]], (N, 1, 1))
+        err, rec = pj.angular_error_best_match(fit.dirs, fit.wm_fracs, gt)
+        assert rec == 1.0 and err < 5.0, (err, rec)
+        assert np.abs(fit.odi[:, :2].mean() - 0.25) < 0.08, fit.odi.mean(0)

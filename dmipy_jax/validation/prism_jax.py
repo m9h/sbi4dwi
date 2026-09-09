@@ -70,6 +70,15 @@ class PrismConfig:
     # (doc 007 §6.6). 0 disables.
     lam_diffusivity_prior: float = 0.0
     diffusivity_prior_sd: float = 0.3      # in log units (~±30 %)
+    # PRISM-plus: Watson (axially-symmetric Bingham) dispersion per fibre,
+    # learnable ODI ∈ odi_range. Implemented as a Legendre (Funk–Hecke)
+    # convolution of the Watson FOD with the stick / zeppelin kernels, so
+    # cost is O(n_legendre) forward evaluations instead of a sphere grid.
+    disperse: bool = False
+    odi_init: float = 0.1
+    odi_range: tuple[float, float] = (0.01, 0.5)
+    n_legendre: int = 13                   # even orders 0..24
+    n_quad: int = 128
     d_par_range: tuple[float, float] = (0.3e-9, 3.0e-9)
     d_perp_range: tuple[float, float] = (0.02e-9, 1.5e-9)
     loss: str = "mse"                # "mse" | "nll"
@@ -154,6 +163,9 @@ def init_params(n_vox: int, cfg: PrismConfig, key,
     }
     if cfg.loss == "nll":
         params["log_sigma"] = jnp.asarray(np.log(cfg.sigma_init))
+    if cfg.disperse:
+        lo, hi = cfg.odi_range
+        params["odi_logit"] = jnp.full((n_vox, K), _logit((cfg.odi_init - lo) / (hi - lo)))
     if cfg.learn_diffusivities:
         lo, hi = cfg.d_par_range
         params["dpar_logit"] = jnp.asarray(_logit((cfg.d_par - lo) / (hi - lo)))
@@ -182,8 +194,73 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
         out["d_perp"] = jnp.asarray(cfg.d_perp)
     if cfg.tortuosity:
         out["d_perp"] = out["d_par"] * (1.0 - out["fintra"])       # (N,)
+    if cfg.disperse:
+        lo, hi = cfg.odi_range
+        out["odi"] = lo + (hi - lo) * jax.nn.sigmoid(params["odi_logit"])   # (N,K)
+        out["kappa"] = 1.0 / jnp.tan(jnp.pi * out["odi"] / 2.0)
     out["sigma"] = jnp.exp(params["log_sigma"]) if "log_sigma" in params else None
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Watson dispersion via Funk–Hecke / Legendre convolution
+# --------------------------------------------------------------------------- #
+
+def _legendre_even(t, n_terms):
+    """Even Legendre polynomials P_0, P_2, …, P_{2(n_terms−1)} at t. Returns
+    (n_terms, *t.shape). Bonnet recurrence."""
+    p_prev = jnp.ones_like(t)          # P_0
+    p_curr = t                         # P_1
+    out = [p_prev]
+    l = 1
+    while len(out) < n_terms:
+        p_next = ((2 * l + 1) * t * p_curr - l * p_prev) / (l + 1)   # P_{l+1}
+        p_prev, p_curr = p_curr, p_next
+        l += 1
+        if l % 2 == 0:
+            out.append(p_curr)
+    return jnp.stack(out)
+
+
+def _gauss_legendre(n):
+    x, w = np.polynomial.legendre.leggauss(n)
+    return jnp.asarray(x, jnp.float32), jnp.asarray(w, jnp.float32)
+
+
+def watson_legendre_coeffs(kappa, n_terms, n_quad):
+    """a_l for the Watson FOD f(t) = exp(κ t²)/Z on S² (∫_{S²} f = 1),
+    f(v·μ) = Σ_l a_l P_l(v·μ), a_l = (2l+1)/2 ∫ f(t) P_l(t) dt.
+    kappa: (...); returns (..., n_terms)."""
+    x, w = _gauss_legendre(n_quad)
+    k = kappa[..., None]
+    g = jnp.exp(k * x ** 2 - k)                      # shift for stability
+    z = 2.0 * jnp.pi * jnp.sum(w * g, axis=-1, keepdims=True)
+    f = g / z
+    P = _legendre_even(x, n_terms)                   # (L,Q)
+    l = 2.0 * jnp.arange(n_terms)
+    return (2 * l + 1) / 2.0 * jnp.einsum("...q,lq->...l", f * w, P)
+
+
+def kernel_legendre_coeffs(bvals, d_par, d_perp, n_terms, n_quad):
+    """λ_l(b) = 2π ∫ K(b,t) P_l(t) dt for the axially symmetric kernel
+    K = exp(−b(D∥ t² + D⊥(1−t²))). d_perp scalar → (M, L); (N,) → (N, M, L)."""
+    x, w = _gauss_legendre(n_quad)
+    P = _legendre_even(x, n_terms)                   # (L,Q)
+    b = bvals[:, None]                               # (M,1)
+    if jnp.ndim(d_perp) == 0:
+        K = jnp.exp(-b * (d_par * x ** 2 + d_perp * (1 - x ** 2)))       # (M,Q)
+        return 2.0 * jnp.pi * jnp.einsum("mq,lq->ml", K * w, P)
+    dp = d_perp[:, None, None]                                           # (N,1,1)
+    K = jnp.exp(-b[None] * (d_par * x ** 2 + dp * (1 - x ** 2)))         # (N,M,Q)
+    return 2.0 * jnp.pi * jnp.einsum("nmq,lq->nml", K * w, P)
+
+
+def dispersed_signal(a, lam, c):
+    """Σ_l a_l λ_l P_l(c). a: (N,K,L); lam: (M,L) or (N,M,L); c: (N,K,M)."""
+    P = _legendre_even(c, a.shape[-1])               # (L,N,K,M)
+    if lam.ndim == 2:
+        return jnp.einsum("nkl,ml,lnkm->nkm", a, lam, P)
+    return jnp.einsum("nkl,nml,lnkm->nkm", a, lam, P)
 
 
 # --------------------------------------------------------------------------- #
@@ -202,6 +279,14 @@ def forward(phys: dict, bvals, bvecs, cfg: PrismConfig):
     e_stick = jnp.exp(-b * d_par * c2)
     e_zep = jnp.exp(-b * (d_par * c2 + d_perp * (1.0 - c2)))
     fi = phys["fintra"][:, None, None]
+    if cfg.disperse:
+        a = watson_legendre_coeffs(phys["kappa"], cfg.n_legendre, cfg.n_quad)   # (N,K,L)
+        lam_stick = kernel_legendre_coeffs(bvals, d_par, jnp.asarray(0.0),
+                                           cfg.n_legendre, cfg.n_quad)
+        lam_zep = kernel_legendre_coeffs(bvals, d_par, phys["d_perp"],
+                                         cfg.n_legendre, cfg.n_quad)
+        e_stick = dispersed_signal(a, lam_stick, gdotn)
+        e_zep = dispersed_signal(a, lam_zep, gdotn)
     e_wm = fi * e_stick + (1.0 - fi) * e_zep                   # (N,K,M)
 
     f = phys["fracs"]                                          # (N,K+3)
@@ -321,6 +406,7 @@ class PrismFit:
     loss_history: np.ndarray
     mask: np.ndarray
     cfg: PrismConfig
+    odi: Optional[np.ndarray] = None      # (N,K), fibre-sorted, if disperse
 
     @property
     def wm_fracs(self) -> np.ndarray:
@@ -375,13 +461,15 @@ def fit_prism(
     dirs = np.take_along_axis(np.asarray(phys["dirs"]), order[..., None], axis=1)
     fracs = np.asarray(phys["fracs"]).copy()
     fracs[:, 2:2 + cfg.n_fibres] = np.take_along_axis(f_wm, order, axis=1)
+    odi = (np.take_along_axis(np.asarray(phys["odi"]), order, axis=1)
+           if cfg.disperse else None)
 
     return PrismFit(
         dirs=dirs, fracs=fracs,
         fintra=np.asarray(phys["fintra"]), s0=np.asarray(phys["s0"]) * scale,
         d_par=float(phys["d_par"]), d_perp=float(jnp.mean(phys["d_perp"])),
         sigma=None if phys["sigma"] is None else float(phys["sigma"]) * scale,
-        loss_history=np.asarray(hist), mask=mask, cfg=cfg,
+        loss_history=np.asarray(hist), mask=mask, cfg=cfg, odi=odi,
     )
 
 

@@ -59,6 +59,9 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int, seed: int = 0) -> PrismCon
                              d_par=0.6e-9, tortuosity=True),
         "plus-tort-warm": replace(base, loss="nll", learn_diffusivities=True,
                                   d_par=0.6e-9, tortuosity=True),
+        # + Watson dispersion per fibre (learned ODI), tortuosity, warm start
+        "plus-disp-warm": replace(base, loss="nll", learn_diffusivities=True,
+                                  d_par=0.6e-9, tortuosity=True, disperse=True),
         # + weak prior on D∥ (λ=1, sd=0.3 log units) against low-SNR drift
         "plus-dprior-warm": replace(base, loss="nll", learn_diffusivities=True,
                                     d_par=0.6e-9, tortuosity=True,
@@ -119,7 +122,7 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
         bvecs = np.asarray(gtab.bvecs)
         cfg = _cfg_for(method, n_fibres, n_iter, seed)
         init_dirs = init_fracs = None
-        if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm"):
+        if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm", "plus-disp-warm"):
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
         pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,
@@ -127,7 +130,8 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
         extra.update(d_par=fit.d_par, d_perp=fit.d_perp, sigma=fit.sigma,
                      fintra_mean=float(fit.fintra.mean()),
                      final_loss=float(fit.loss_history[-1]),
-                     n_peaks_mean=float((fit.wm_fracs >= peak_frac_min).sum(1).mean()))
+                     n_peaks_mean=float((fit.wm_fracs >= peak_frac_min).sum(1).mean()),
+                     **({"odi_mean": float(fit.odi[:, 0].mean())} if fit.odi is not None else {}))
     t_fit = time.time() - t0
     res = track_connectivity(pam, mask, rois, affine, max_angle=max_angle,
                              random_seed=seed)
