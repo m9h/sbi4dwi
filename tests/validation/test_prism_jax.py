@@ -69,6 +69,18 @@ class TestForward:
         assert float(phys["d_perp"]) == pytest.approx(cfg.d_perp, rel=1e-5)
 
 
+    def test_tortuosity_couples_dperp_to_fintra(self):
+        cfg = pj.PrismConfig(n_fibres=2, learn_diffusivities=True, tortuosity=True)
+        p = pj.init_params(4, cfg, jax.random.PRNGKey(0))
+        p["fintra_logit"] = jnp.array([-2.0, 0.0, 2.0, 4.0])
+        phys = pj.unpack(p, cfg)
+        np.testing.assert_allclose(np.asarray(phys["d_perp"]),
+                                   float(phys["d_par"]) * (1 - np.asarray(phys["fintra"])), rtol=1e-6)
+        bvals, bvecs = _scheme()
+        out = pj.forward(phys, jnp.asarray(bvals), jnp.asarray(bvecs), cfg)
+        assert out.shape == (4, len(bvals)) and np.isfinite(np.asarray(out)).all()
+
+
 # --------------------------------------------------------------------------- #
 # 2. Priors
 # --------------------------------------------------------------------------- #

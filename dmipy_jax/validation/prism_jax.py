@@ -62,6 +62,9 @@ class PrismConfig:
     d_perp: float = 0.4e-9
     # PRISM-plus: learn global D∥/D⊥ inside a band (sigmoid-parameterised)
     learn_diffusivities: bool = False
+    # PRISM-plus: Szafer–Stanisz tortuosity, D⊥ = D∥·(1 − f_i) per voxel
+    # (as in the §22 simulator). Overrides d_perp / d_perp_range.
+    tortuosity: bool = False
     d_par_range: tuple[float, float] = (0.3e-9, 3.0e-9)
     d_perp_range: tuple[float, float] = (0.02e-9, 1.5e-9)
     loss: str = "mse"                # "mse" | "nll"
@@ -172,6 +175,8 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
     else:
         out["d_par"] = jnp.asarray(cfg.d_par)
         out["d_perp"] = jnp.asarray(cfg.d_perp)
+    if cfg.tortuosity:
+        out["d_perp"] = out["d_par"] * (1.0 - out["fintra"])       # (N,)
     out["sigma"] = jnp.exp(params["log_sigma"]) if "log_sigma" in params else None
     return out
 
@@ -185,7 +190,10 @@ def forward(phys: dict, bvals, bvecs, cfg: PrismConfig):
     b = bvals[None, None, :]                                   # (1,1,M)
     gdotn = jnp.einsum("nkj,mj->nkm", phys["dirs"], bvecs)     # (N,K,M)
     c2 = gdotn ** 2
-    d_par, d_perp = phys["d_par"], phys["d_perp"]
+    d_par = phys["d_par"]
+    d_perp = phys["d_perp"]
+    if jnp.ndim(d_perp) == 1:                                  # per-voxel (tortuosity)
+        d_perp = d_perp[:, None, None]
     e_stick = jnp.exp(-b * d_par * c2)
     e_zep = jnp.exp(-b * (d_par * c2 + d_perp * (1.0 - c2)))
     fi = phys["fintra"][:, None, None]
@@ -361,7 +369,7 @@ def fit_prism(
     return PrismFit(
         dirs=dirs, fracs=fracs,
         fintra=np.asarray(phys["fintra"]), s0=np.asarray(phys["s0"]) * scale,
-        d_par=float(phys["d_par"]), d_perp=float(phys["d_perp"]),
+        d_par=float(phys["d_par"]), d_perp=float(jnp.mean(phys["d_perp"])),
         sigma=None if phys["sigma"] is None else float(phys["sigma"]) * scale,
         loss_history=np.asarray(hist), mask=mask, cfg=cfg,
     )

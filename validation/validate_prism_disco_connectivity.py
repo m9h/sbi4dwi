@@ -55,6 +55,10 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int) -> PrismConfig:
                             d_par=0.6e-9, d_perp=0.35e-9),
         "plus-warm": replace(base, loss="nll", learn_diffusivities=True,
                              d_par=0.6e-9, d_perp=0.35e-9),
+        "plus-tort": replace(base, loss="nll", learn_diffusivities=True,
+                             d_par=0.6e-9, tortuosity=True),
+        "plus-tort-warm": replace(base, loss="nll", learn_diffusivities=True,
+                                  d_par=0.6e-9, tortuosity=True),
     }[method]
 
 
@@ -111,7 +115,7 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
         bvecs = np.asarray(gtab.bvecs)
         cfg = _cfg_for(method, n_fibres, n_iter)
         init_dirs = init_fracs = None
-        if method == "plus-warm":
+        if method in ("plus-warm", "plus-tort-warm"):
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
         pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,

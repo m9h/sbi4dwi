@@ -332,12 +332,17 @@ Reading:
 - Recall is 100% everywhere for PRISM-JAX, including 15°. The paper's
   95%/99% suggests their harder setting or their orphan/ordering priors
   interacting with detection; ours has no such loss.
-- Our first-pass MSMT baseline is *worse* than the paper's (10.5° vs
-  6.8°) with recall collapsing at 30–50°. Cause: the WM response was
-  taken from top-FA-percentile voxels, which on this set are mostly
-  crossing voxels → contaminated response → merged FOD lobes. Fixed by
-  passing the GT single-fibre voxels as the response mask (which is
-  what "oracle response" means in the paper); re-run pending.
+- Our MSMT baseline: 10.2° / 85.7% recall after switching the WM
+  response to the GT single-fibre voxels (the paper's "oracle
+  response"; the FA-percentile mask made no difference). Recall matches
+  the paper's 83%; error is worse (10.2° vs 6.8°). Diagnosis at 45°:
+  dipy's `MultiShellDeconvModel` returns a single merged lobe for
+  every voxel regardless of sphere / peak thresholds / SH order 8–10,
+  while single-shell CSD on b=3000 resolves 87% of them — the
+  multi-shell fit is dominated by the unresolvable b=1000 shell. Volume
+  fractions are sane (WM 1.07, iso 0), so it is not tissue leakage.
+  Treat our MSMT row as "dipy MSMT-CSD" and do not tune it further; the
+  DiSCo MSMT row (r=0.776) is the one that matters for the margin.
 - Timing: whole-set joint fit is 4–5 s on GB10 for 3,400 voxels × 193
   measurements; the warm-started fit converges in 1 s.
 
