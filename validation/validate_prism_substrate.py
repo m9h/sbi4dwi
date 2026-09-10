@@ -26,7 +26,7 @@ def main():
     ap.add_argument("--n-particles", type=int, default=4000)
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--methods", nargs="+",
-                    default=["prism-nll", "plus", "plus-x", "plus-x-disp", "plus-disp", "msmt"])
+                    default=["prism-nll", "plus-x", "plus-x-disp", "select", "msmt"])
     args = ap.parse_args()
 
     bvals, bvecs = prism_scheme()
@@ -69,6 +69,19 @@ def main():
                     sel = np.zeros_like(m_both); sel[:, :, 0] = True
                     dirs = pam.peak_dirs[sel]; v = pam.peak_values[sel]
                     fr = v / np.maximum(v.sum(1, keepdims=True), 1e-12); fi = np.full(N, np.nan)
+                elif meth == "select":
+                    # per-voxel Laplace-evidence selection between plus-x and plus-x-disp
+                    from dmipy_jax.validation import prism_uncertainty as pu
+                    cfgx = replace(pj.PrismConfig(n_fibres=2, n_iter=args.n_iter, loss="nll"),
+                                   learn_diffusivities=True, tortuosity=True, use_restricted=False,
+                                   separate_extra_dpar=True, lam_diffusivity_prior=1.0,
+                                   diffusivity_prior_centre=2.0e-9, diffusivity_prior_sd=0.2, d_par=2.0e-9)
+                    fx = pj.fit_prism(data, mask, bvals, bvecs, cfgx)
+                    fd = pj.fit_prism(data, mask, bvals, bvecs, replace(cfgx, disperse=True))
+                    out = pu.select_per_voxel([fx, fd], data, bvals, bvecs)
+                    dirs, fr, fi = out["dirs"], out["wm_fracs"], out["fintra"]
+                    cfg = cfgx; fit = fx
+                    extra_sel = f"  chose disp in {100*np.mean(out['choice']==1):.0f}% of voxels"
                 else:
                     cfg = pj.PrismConfig(n_fibres=2, n_iter=args.n_iter, loss="nll")
                     if meth.startswith("plus"):
@@ -86,7 +99,9 @@ def main():
                     dirs, fr, fi = fit.dirs, fit.wm_fracs, fit.fintra
                 err, rec = pj.angular_error_best_match(dirs, fr, gt)
                 extra = "" if np.isnan(fi).all() else f"  f_i={np.nanmean(fi):.3f} (geom {sub.f_intra:.3f})"
-                if meth != "msmt" and cfg.learn_diffusivities:
+                if meth == "select":
+                    extra += extra_sel
+                if meth not in ("msmt", "select") and cfg.learn_diffusivities:
                     extra += f"  D∥={fit.d_par*1e9:.2f}"
                     if cfg.separate_extra_dpar:
                         extra += f"  D∥ex={fit.d_par_extra*1e9:.2f}"

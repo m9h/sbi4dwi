@@ -91,7 +91,8 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
     dirs0 = jnp.asarray(fit.dirs, jnp.float32)
     e1, e2 = _tangent_basis(dirs0)
     s0 = jnp.asarray(fit.s0 / scale, jnp.float32)
-    fi_logit0 = jnp.log(fit.fintra / (1 - fit.fintra)).astype(jnp.float32)
+    fic = np.clip(fit.fintra, 1e-4, 1 - 1e-4)
+    fi_logit0 = jnp.asarray(np.log(fic / (1 - fic)), jnp.float32)
     frac_logit0 = jnp.log(jnp.clip(jnp.asarray(fit.fracs, jnp.float32), 1e-6, 1.0))
     sigma = None if fit.sigma is None else jnp.asarray(fit.sigma / scale)
     d_par = jnp.asarray(fit.d_par); d_perp_g = jnp.asarray(fit.d_perp)
@@ -228,3 +229,107 @@ def threshold_connectome(res: dict, rule: str = "cv", cv_max: float = 0.3,
     else:
         raise ValueError(rule)
     return np.where(keep, mean, 0.0)
+
+
+# --------------------------------------------------------------------------- #
+# Per-voxel model selection via Laplace evidence
+# --------------------------------------------------------------------------- #
+
+def voxel_log_evidence(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
+                       dir_prior_sd_rad: float = 1.0, jitter: float = 1e-6) -> np.ndarray:
+    """Per-voxel Laplace log-evidence of a fitted PRISM model:
+        log Z ≈ −NLL(θ̂) + log p(θ̂) + ½ log det(2π H⁻¹),
+    with the Gauss–Newton curvature H = JᵀJ/σ² + prior precision over the
+    per-voxel parameters [tangent coords, f_i logit, fraction logits (+ODI
+    logits when dispersed)], the same weak priors as the Laplace posterior,
+    globals fixed at the fit. Comparable across models fitted to the same
+    voxels (same data, same likelihood, same prior family). Spatial-prior
+    coupling is ignored, as in ``laplace_fixel_posterior``."""
+    cfg = fit.cfg; K = cfg.n_fibres; mask = fit.mask
+    y = np.asarray(data, np.float32)[mask]
+    b0 = np.asarray(bvals_si) < 50e6
+    scale = float(y[:, b0].mean()); y = jnp.asarray(y / scale)
+    bvals = jnp.asarray(np.asarray(bvals_si, np.float32)); bv = jnp.asarray(np.asarray(bvecs, np.float32))
+    dirs0 = jnp.asarray(fit.dirs, jnp.float32); e1, e2 = _tangent_basis(dirs0)
+    s0 = jnp.asarray(fit.s0 / scale, jnp.float32)
+    fic = np.clip(fit.fintra, 1e-4, 1 - 1e-4)
+    fi_logit0 = jnp.asarray(np.log(fic / (1 - fic)), jnp.float32)
+    frac_logit0 = jnp.log(jnp.clip(jnp.asarray(fit.fracs, jnp.float32), 1e-6, 1.0))
+    if fit.sigma is None:
+        raise ValueError("evidence needs the NLL fit (loss='nll')")
+    sigma = jnp.asarray(fit.sigma / scale)
+    d_par = jnp.asarray(fit.d_par); d_perp_g = jnp.asarray(fit.d_perp)
+    d_par_ex = jnp.asarray(fit.d_par if fit.d_par_extra is None else fit.d_par_extra)
+    lo_o, hi_o = cfg.odi_range
+    if cfg.disperse:
+        o = np.clip(fit.odi, lo_o + 1e-4 * (hi_o - lo_o), hi_o - 1e-4 * (hi_o - lo_o))
+        odi_logit0 = jnp.asarray(np.log((o - lo_o) / (hi_o - o)), jnp.float32)
+    else:
+        odi_logit0 = jnp.zeros((dirs0.shape[0], K), jnp.float32)
+    n_t = 2 * K; n_f = 1 + (K + 3); n_o = K if cfg.disperse else 0
+
+    def unpack_local(th, n, e1n, e2n, s0n):
+        t = th[:n_t].reshape(K, 2)
+        d = n + t[:, 0:1] * e1n + t[:, 1:2] * e2n
+        d = d / jnp.linalg.norm(d, axis=-1, keepdims=True)
+        fi = jax.nn.sigmoid(th[n_t]); logits = th[n_t + 1:n_t + n_f]
+        if not cfg.use_restricted:
+            logits = logits.at[-1].set(-1e9)
+        fr = jax.nn.softmax(logits)
+        dpe = d_par_ex
+        phys = {"s0": s0n[None], "fracs": fr[None], "dirs": d[None], "fintra": fi[None],
+                "d_par": d_par, "d_par_extra": dpe,
+                "d_perp": (dpe * (1 - fi))[None] if cfg.tortuosity else d_perp_g, "sigma": sigma}
+        if cfg.disperse:
+            odi = lo_o + (hi_o - lo_o) * jax.nn.sigmoid(th[n_t + n_f:])
+            phys["odi"] = odi[None]; phys["kappa"] = 1.0 / jnp.tan(jnp.pi * phys["odi"] / 2.0)
+        return phys
+
+    def pred(th, n, e1n, e2n, s0n):
+        return pj.forward(unpack_local(th, n, e1n, e2n, s0n), bvals, bv, cfg)[0]
+
+    def nll(yv, p):
+        s2 = sigma ** 2; z = yv * p / s2
+        log_i0 = jnp.log(jnp.maximum(jax.scipy.special.i0e(z), 1e-30)) + jnp.abs(z)
+        return jnp.sum(jnp.log(s2) + (yv ** 2 + p ** 2) / (2 * s2) - log_i0)
+
+    prior_prec = jnp.concatenate([jnp.full((n_t,), 1.0 / dir_prior_sd_rad ** 2),
+                                  jnp.full((n_f,), 1.0 / 9.0), jnp.full((n_o,), 1.0 / 9.0)])
+
+    def voxel(yv, n, e1n, e2n, s0n, fil, frl, ol):
+        th0 = jnp.concatenate([jnp.zeros(n_t), fil[None], frl, ol[:n_o]])
+        p = pred(th0, n, e1n, e2n, s0n)
+        J = jax.jacfwd(pred)(th0, n, e1n, e2n, s0n)
+        H = J.T @ J / sigma ** 2 + jnp.diag(prior_prec) + jitter * jnp.eye(th0.shape[0])
+        H = 0.5 * (H + H.T)
+        # log p(θ̂) under the same Gaussian priors (tangent coords are 0 at the MAP)
+        th_pr = jnp.concatenate([fil[None], frl, ol[:n_o]])
+        logp = -0.5 * jnp.sum(th_pr ** 2 / 9.0) - 0.5 * jnp.sum(jnp.log(2 * jnp.pi / prior_prec))
+        sign, logdet = jnp.linalg.slogdet(H)
+        return -nll(yv, p) + logp + 0.5 * (th0.shape[0] * jnp.log(2 * jnp.pi) - logdet)
+
+    return np.asarray(jax.vmap(voxel)(y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_logit0))
+
+
+def select_per_voxel(fits: list, data, bvals_si, bvecs, margin_nats: float = 3.0) -> dict:
+    """Pick, per voxel, the fit with the highest Laplace evidence. ``fits``
+    are ordered simplest first; a later (richer) model is chosen only if
+    its log-evidence exceeds the current choice by ``margin_nats`` (3 nats
+    ≈ Bayes factor 20, "strong"), so a nested model that merely matches
+    does not win by Laplace-approximation noise. Returns merged dirs /
+    wm_fracs / fintra / odi (nan where the chosen model has none), the
+    chosen index per voxel and the evidence matrix."""
+    ev = np.stack([voxel_log_evidence(f, data, bvals_si, bvecs) for f in fits], 1)   # (N,M)
+    choice = np.zeros(ev.shape[0], int)
+    for m in range(1, ev.shape[1]):
+        better = ev[:, m] > ev[np.arange(ev.shape[0]), choice] + margin_nats
+        choice = np.where(better, m, choice)
+    N = choice.shape[0]; K = fits[0].cfg.n_fibres
+    dirs = np.zeros((N, K, 3)); fr = np.zeros((N, K)); fi = np.zeros(N); odi = np.full((N, K), np.nan)
+    for m, f in enumerate(fits):
+        sel = choice == m
+        dirs[sel] = f.dirs[sel]; fr[sel] = f.wm_fracs[sel]; fi[sel] = f.fintra[sel]
+        if f.odi is not None:
+            odi[sel] = f.odi[sel]
+    return {"dirs": dirs, "wm_fracs": fr, "fintra": fi, "odi": odi, "choice": choice,
+            "evidence": ev}

@@ -80,3 +80,23 @@ def test_threshold_connectome_rules():
     assert cv[0, 1] == 10 and cv[0, 2] == 0 and cv[1, 2] == 0
     ci = pu.threshold_connectome(res, "ci", lo_frac=0.5)
     assert ci[0, 1] == 10 and ci[0, 2] == 0
+
+
+def test_evidence_prefers_true_model_class():
+    """Undispersed GT → the undispersed model should win most voxels;
+    dispersed GT (ODI 0.25) → the dispersed model should win most."""
+    from dataclasses import replace
+    base = pj.PrismConfig(n_fibres=2, n_iter=300, loss="nll", learn_diffusivities=False)
+    for gt_odi, expect_disp in ((None, False), (0.25, True)):
+        b = ps.make_benchmark(snr=30, gt_odi=gt_odi)
+        sel = np.zeros(b["mask"].shape, bool); sel[[9, 15]] = True      # 60° and 90° slices
+        m = b["mask"] & sel
+        f_plain = pj.fit_prism(b["data"], m, b["bvals"], b["bvecs"], base)
+        f_disp = pj.fit_prism(b["data"], m, b["bvals"], b["bvecs"], replace(base, disperse=True))
+        out = pu.select_per_voxel([f_plain, f_disp], b["data"], b["bvals"], b["bvecs"])
+        frac_disp = float(np.mean(out["choice"] == 1))
+        assert np.isfinite(out["evidence"]).all()
+        if expect_disp:
+            assert frac_disp > 0.7, frac_disp
+        else:
+            assert frac_disp < 0.5, frac_disp
