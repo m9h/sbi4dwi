@@ -976,6 +976,44 @@ Same rules as §6.17, **unchanged**, applied to fresh PRISM-plus-x fits
   of the rule is the CATERPillar substrates (no tractography there) and
   eventually in-vivo test–retest.
 
+### 6.19 Per-voxel model selection by Laplace evidence — negative result (2026-09-10)
+
+Slurm job 1744, `validation/prism_substrate_results_slurm1744.log`.
+`prism_uncertainty.select_per_voxel`: PRISM-plus-x vs PRISM-plus-x +
+dispersion, chosen per voxel by Gauss–Newton Laplace log-evidence with
+a 3-nat margin for the richer model. Unit-tested to pick the right
+class on in-model data (undispersed GT → plain; ODI 0.25 → dispersed).
+On the CATERPillar substrates:
+
+| condition | plus-x | plus-x-disp | **select** | disp chosen |
+|---|---:|---:|---:|---:|
+| straight, single | 6.9° | **2.4°** | 6.6° | 6 % |
+| tortuous, single | 7.3° | **2.4°** | 6.3° | 19 % |
+| straight, 30° | 7.0° | 6.9° | 7.1° | 31 % |
+| straight, 45° | **4.7°** | 5.3° | 4.8° | 31 % |
+| tortuous, 45° | **4.4°** | 7.2° | 5.8° | 44 % |
+| tortuous, 60° | **3.0°** | 4.7° | 3.7° | 41 % |
+
+**It does not recover the best of both.** On single bundles — where the
+dispersed model is 3× more accurate — the evidence picks it in only
+6–19 % of voxels; at crossings — where -x is better — it picks
+dispersion in 30–50 %. Selection lands close to -x everywhere and is
+never the best column. The reason is instructive: the evidence
+measures how well and how parsimoniously a model explains the *signal*,
+and both models explain these off-model signals about equally well
+(the -x model spends D∥,ex, the dispersed model spends ODI and f_i);
+neither explanation is right, and angular accuracy is a property of
+which *wrong* explanation happens to put the fibre in the right place.
+Signal-space evidence cannot see that. Same lesson as §6.14's f_i: under
+misspecification the likelihood does not rank models by the parameter
+you care about.
+
+Consequence: leave selection off. Choose the variant by prior knowledge
+of the tissue (dispersion for single-population / when a high-b shell
+makes ODI identifiable; -x for crossings), or run both and report the
+disagreement as an additional uncertainty. The machinery stays (it is
+correct in-model) but is not a default.
+
 ---
 
 ## 7. Risks

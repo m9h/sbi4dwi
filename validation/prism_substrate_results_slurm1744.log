@@ -1,0 +1,65 @@
+
+### straight: 7345 spheres, 59 axons, axis [-0.018 -0.018  1.   ]
+  angle    0: f_intra=0.483  MC 7s  S(b3000) mean intra=0.299 extra=0.030
+    prism-nll  err=  8.11°  recall=100.0%  f_i=0.708 (geom 0.483)  (3s)
+    plus-x     err=  6.93°  recall=100.0%  f_i=0.600 (geom 0.483)  D∥=1.86  D∥ex=0.83  (2s)
+    plus-x-disp err=  2.43°  recall=100.0%  f_i=0.759 (geom 0.483)  D∥=1.93  D∥ex=1.18  (3s)
+    select     err=  6.62°  recall=100.0%  f_i=0.617 (geom 0.483)  chose disp in 6% of voxels  (14s)
+    msmt       err=  2.69°  recall=100.0%  (3s)
+  angle   30: f_intra=0.474  MC 4s  S(b3000) mean intra=0.360 extra=0.032
+    prism-nll  err=  7.61°  recall=100.0%  f_i=0.746 (geom 0.474)  (1s)
+    plus-x     err=  6.95°  recall= 99.2%  f_i=0.575 (geom 0.474)  D∥=1.70  D∥ex=0.57  (1s)
+    plus-x-disp err=  6.90°  recall= 96.9%  f_i=0.738 (geom 0.474)  D∥=1.93  D∥ex=0.65  (3s)
+    select     err=  7.09°  recall= 97.7%  f_i=0.636 (geom 0.474)  chose disp in 31% of voxels  (3s)
+    msmt       err= 15.00°  recall=100.0%  (3s)
+  angle   45: f_intra=0.473  MC 4s  S(b3000) mean intra=0.384 extra=0.033
+    prism-nll  err=  4.35°  recall=100.0%  f_i=0.664 (geom 0.473)  (1s)
+    plus-x     err=  4.72°  recall=100.0%  f_i=0.581 (geom 0.473)  D∥=1.70  D∥ex=0.57  (1s)
+    plus-x-disp err=  5.26°  recall=100.0%  f_i=0.755 (geom 0.473)  D∥=1.90  D∥ex=0.88  (3s)
+    select     err=  4.80°  recall=100.0%  f_i=0.641 (geom 0.473)  chose disp in 31% of voxels  (3s)
+    msmt       err= 18.60°  recall= 60.2%  (2s)
+  angle   60: f_intra=0.481  MC 4s  S(b3000) mean intra=0.432 extra=0.038
+    prism-nll  err=  3.91°  recall=100.0%  f_i=0.576 (geom 0.481)  (1s)
+    plus-x     err=  4.35°  recall=100.0%  f_i=0.604 (geom 0.481)  D∥=1.66  D∥ex=0.52  (1s)
+    plus-x-disp err=  4.35°  recall=100.0%  f_i=0.785 (geom 0.481)  D∥=1.93  D∥ex=0.83  (3s)
+    select     err=  4.37°  recall=100.0%  f_i=0.698 (geom 0.481)  chose disp in 41% of voxels  (3s)
+    msmt       err=  3.94°  recall=100.0%  (3s)
+  angle   90: f_intra=0.488  MC 4s  S(b3000) mean intra=0.455 extra=0.041
+    prism-nll  err=  3.25°  recall=100.0%  f_i=0.554 (geom 0.488)  (1s)
+    plus-x     err=  2.90°  recall=100.0%  f_i=0.602 (geom 0.488)  D∥=1.57  D∥ex=0.70  (1s)
+    plus-x-disp err=  2.65°  recall=100.0%  f_i=0.745 (geom 0.488)  D∥=1.92  D∥ex=0.88  (3s)
+    select     err=  2.82°  recall=100.0%  f_i=0.656 (geom 0.488)  chose disp in 28% of voxels  (3s)
+    msmt       err=  5.31°  recall=100.0%  (3s)
+
+### tortuous: 5926 spheres, 49 axons, axis [ 0.016 -0.012  1.   ]
+  angle    0: f_intra=0.554  MC 4s  S(b3000) mean intra=0.284 extra=0.033
+    prism-nll  err=  7.54°  recall=100.0%  f_i=0.668 (geom 0.554)  (1s)
+    plus-x     err=  7.30°  recall=100.0%  f_i=0.581 (geom 0.554)  D∥=1.92  D∥ex=0.82  (1s)
+    plus-x-disp err=  2.43°  recall=100.0%  f_i=0.722 (geom 0.554)  D∥=1.97  D∥ex=1.23  (3s)
+    select     err=  6.29°  recall=100.0%  f_i=0.611 (geom 0.554)  chose disp in 19% of voxels  (3s)
+    msmt       err=  4.22°  recall=100.0%  (3s)
+  angle   30: f_intra=0.551  MC 3s  S(b3000) mean intra=0.319 extra=0.045
+    prism-nll  err=  9.28°  recall= 98.4%  f_i=0.824 (geom 0.551)  (1s)
+    plus-x     err=  8.13°  recall=100.0%  f_i=0.564 (geom 0.551)  D∥=1.70  D∥ex=0.64  (1s)
+    plus-x-disp err=  8.18°  recall= 97.7%  f_i=0.734 (geom 0.551)  D∥=1.88  D∥ex=0.83  (3s)
+    select     err=  8.11°  recall= 97.7%  f_i=0.662 (geom 0.551)  chose disp in 52% of voxels  (3s)
+    msmt       err= 15.19°  recall=100.0%  (2s)
+  angle   45: f_intra=0.550  MC 3s  S(b3000) mean intra=0.354 extra=0.036
+    prism-nll  err=  4.49°  recall=100.0%  f_i=0.686 (geom 0.550)  (1s)
+    plus-x     err=  4.35°  recall=100.0%  f_i=0.568 (geom 0.550)  D∥=1.75  D∥ex=0.54  (1s)
+    plus-x-disp err=  7.16°  recall= 98.4%  f_i=0.712 (geom 0.550)  D∥=1.92  D∥ex=0.91  (3s)
+    select     err=  5.77°  recall= 99.2%  f_i=0.639 (geom 0.550)  chose disp in 44% of voxels  (3s)
+    msmt       err= 22.78°  recall= 50.0%  (3s)
+  angle   60: f_intra=0.553  MC 3s  S(b3000) mean intra=0.403 extra=0.045
+    prism-nll  err=  2.73°  recall=100.0%  f_i=0.571 (geom 0.553)  (1s)
+    plus-x     err=  2.95°  recall=100.0%  f_i=0.606 (geom 0.553)  D∥=1.77  D∥ex=0.36  (1s)
+    plus-x-disp err=  4.73°  recall=100.0%  f_i=0.713 (geom 0.553)  D∥=2.01  D∥ex=0.63  (3s)
+    select     err=  3.68°  recall=100.0%  f_i=0.661 (geom 0.553)  chose disp in 41% of voxels  (4s)
+    msmt       err=  4.54°  recall=100.0%  (3s)
+  angle   90: f_intra=0.557  MC 3s  S(b3000) mean intra=0.413 extra=0.045
+    prism-nll  err=  1.81°  recall=100.0%  f_i=0.570 (geom 0.557)  (1s)
+    plus-x     err=  1.66°  recall=100.0%  f_i=0.610 (geom 0.557)  D∥=1.68  D∥ex=0.63  (1s)
+    plus-x-disp err=  1.61°  recall=100.0%  f_i=0.704 (geom 0.557)  D∥=2.00  D∥ex=0.63  (3s)
+    select     err=  1.67°  recall=100.0%  f_i=0.635 (geom 0.557)  chose disp in 11% of voxels  (3s)
+    msmt       err=  4.49°  recall=100.0%  (2s)
+exit 0
