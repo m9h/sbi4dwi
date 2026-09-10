@@ -574,7 +574,7 @@ pathology that made this minutes-to-never is fixed (`b47bb8f`).
 | Beat faithful PRISM-JAX at every SNR | met; fixed-D PRISM is undefined on DiSCo |
 | Restricted-compartment ablation with learned D | **done** — learned-D model is better *without* it (+1.4 pp); fixed-D loses 1.9 pp vs PRISM's 9.4 (§6.11) |
 | Calibrated fixel uncertainty | **done** — 90 % cones cover 87–88 % at SNR ≥ 30 (§6.12); posterior-mean connectome r = 0.859, FP edges 4.7× more uncertain (§6.13) |
-| Misspecified substrates | **not started** — §3.5 / doc 006 Phase 2 |
+| Misspecified substrates | **done** (§6.14) — dispersion-aware PRISM-plus best on single bundles; fixed-D PRISM matches/beats learned-D at crossings; all methods over-estimate f_i under hindrance |
 
 Honest summary of what "exceeding PRISM" currently rests on: (i) fixing
 a design flaw PRISM shares with FORCE (fixed in-vivo diffusivities),
@@ -696,6 +696,119 @@ percentile 17°) → 20 direction-field samples → 21 connectomes on the
 - Honest caveats: the Laplace ignores spatial-prior coupling (intervals
   are per-voxel conservative); the 90 % cones under-cover at crossings
   ≤ 20° (§6.12); this is one noise realisation, one tracking seed.
+
+### 6.14 Model misspecification — Monte Carlo on CATERPillar substrates (2026-09-09)
+
+`dmipy_jax/validation/substrate_benchmark.py`, `validation/validate_prism_substrate.py`,
+Slurm job 1739 log. Every earlier benchmark was in-model (PRISM's own
+stick+zeppelin) or near-model (DiSCo cylinders). Here the signal comes
+from Brownian walkers in CATERPillar axon substrates (overlapping-sphere
+axons, ICVF ≈ 0.5, c₂ = 0.98, 20 µm box; a second population rotated
+into a sheet crossing; intra walkers periodic along y/z, extra periodic
+in all axes, elastic reflection with an axon-id check that forbids
+tunnelling between axons — the first version leaked and gave
+free-diffusion signals, caught by the physics tests). Two geometries:
+*straight* and *tortuous + beaded* (beading amplitude 0.3). PRISM's
+3-shell scheme, δ = 6 ms, Δ = 12 ms, D = 2.0 µm²/ms in both
+compartments, SNR 30, 64 voxels per condition. No method is told any of
+this; PRISM-plus variants start from D∥ = 1.7. MSMT gets its WM response
+from the single-bundle voxels of the same geometry.
+
+**All 10 conditions (2 geometries × 5 angles)**
+
+| method | mean error | mean recall | mean f_i bias (est − geom) |
+|---|---:|---:|---:|
+| prism-nll | 5.63° | 99.8 % | +0.150 |
+| plus | 5.53° | 98.4 % | +0.086 |
+| plus-dprior | 5.63° | 98.2 % | +0.098 |
+| plus-disp | 5.20° | 99.1 % | +0.187 |
+| msmt | 10.46° | 88.5 % | — |
+
+**Single bundles (angle 0), straight + tortuous**
+
+| method | mean error | mean recall | mean f_i bias (est − geom) |
+|---|---:|---:|---:|
+| prism-nll | 7.58° | 100.0 % | +0.124 |
+| plus | 5.00° | 100.0 % | +0.097 |
+| plus-dprior | 5.18° | 100.0 % | +0.106 |
+| plus-disp | 2.43° | 100.0 % | +0.159 |
+| msmt | 4.74° | 100.0 % | — |
+
+**Crossings (30–90°), straight + tortuous**
+
+| method | mean error | mean recall | mean f_i bias (est − geom) |
+|---|---:|---:|---:|
+| prism-nll | 5.14° | 99.7 % | +0.156 |
+| plus | 5.66° | 98.0 % | +0.083 |
+| plus-dprior | 5.75° | 97.8 % | +0.096 |
+| plus-disp | 5.89° | 98.8 % | +0.195 |
+| msmt | 11.89° | 85.6 % | — |
+
+**Tortuous + beaded geometry only**
+
+| method | mean error | mean recall | mean f_i bias (est − geom) |
+|---|---:|---:|---:|
+| prism-nll | 5.86° | 99.7 % | +0.204 |
+| plus | 5.63° | 98.1 % | +0.094 |
+| plus-dprior | 5.75° | 98.0 % | +0.109 |
+| plus-disp | 5.84° | 98.9 % | +0.210 |
+| msmt | 10.35° | 88.0 % | — |
+
+Per-condition angular error / recall:
+
+| geom | angle | fixed-D PRISM | plus | plus-dprior | plus-disp | MSMT |
+|---|---:|---:|---:|---:|---:|---:|
+| straight | 0 | 7.6° / 100% | 5.6° / 100% | 5.7° / 100% | 3.1° / 100% | 4.8° / 100% |
+| straight | 30 | 7.5° / 100% | 8.5° / 93% | 8.6° / 92% | 7.3° / 96% | 15.1° / 100% |
+| straight | 45 | 4.3° / 100% | 5.9° / 100% | 6.0° / 100% | 4.4° / 100% | 22.3° / 45% |
+| straight | 60 | 3.5° / 100% | 4.1° / 100% | 4.1° / 100% | 4.8° / 100% | 5.4° / 100% |
+| straight | 90 | 4.0° / 99% | 3.1° / 100% | 3.1° / 100% | 3.2° / 100% | 5.2° / 100% |
+| tortuous | 0 | 7.6° / 100% | 4.4° / 100% | 4.6° / 100% | 1.8° / 100% | 4.6° / 100% |
+| tortuous | 30 | 9.9° / 98% | 11.3° / 91% | 11.6° / 90% | 10.3° / 97% | 15.3° / 100% |
+| tortuous | 45 | 5.4° / 100% | 7.3° / 100% | 7.5° / 100% | 8.1° / 98% | 22.7° / 40% |
+| tortuous | 60 | 4.2° / 100% | 3.4° / 100% | 3.3° / 100% | 7.2° / 100% | 5.8° / 100% |
+| tortuous | 90 | 2.1° / 100% | 1.7° / 100% | 1.7° / 100% | 1.9° / 100% | 3.4° / 100% |
+
+Reading, in order of what it changes:
+
+1. **Off-model, no variant of PRISM dominates.** On single bundles the
+   dispersion-aware PRISM-plus is clearly best (3.1° / 1.8° vs fixed-D
+   PRISM's 7.6° / 7.6°) — real axons are never perfectly parallel and
+   a model that can say so places the fibre better. At crossings the
+   ordering flips: fixed-D PRISM is as good or better at 30–60°. The
+   extra freedom of learned D∥ is spent absorbing extra-cellular
+   hindrance (D∥ collapses to 1.0–1.3 vs the true 2.0, worst in the
+   tortuous geometry) and that costs angular precision where two
+   populations compete. The weak D prior (§6.7) does not rescue it
+   (+0.1° everywhere) — the prior is centred on 1.7, not 2.0, and the
+   pull is too gentle.
+2. **Every method over-estimates f_i by 0.05–0.3.** Dense packing makes
+   the extra-cellular space so hindered (S_extra at b = 3000 ≈ 0.03–0.05
+   vs 0.0025 free) that it reads as intra-cellular. Fixed-D PRISM is the
+   worst offender in the tortuous geometry (f_i 0.85 / 0.80 at 30° / 60°
+   vs 0.53) — the same absorb-into-f_i behaviour as §6.8. The learned-D
+   variants are least biased (+0.05–0.10) because D∥ absorbs it instead.
+   Either way the microstructure is wrong; the question is which
+   parameter takes the hit.
+3. **MSMT-CSD with an honest oracle response fails at 30–45°** (recall
+   40–45 % at 45°, error 15–22°) and is competitive only at ≥ 60°.
+   Consistent with §6.2's in-model finding; not a fluke of the response.
+4. **What this does to the "exceed PRISM" claim.** In-model and on
+   DiSCo, PRISM-plus exceeds PRISM on every metric (§6.1–6.13). Off-model
+   it exceeds PRISM on single fibres and on average, and *matches or
+   trails it at crossings* because learned diffusivities are a
+   liability under extra-cellular hindrance. The honest statement is
+   therefore: learned D fixes the DiSCo-type failure (wrong regime,
+   §6.1) but is not free under misspecification; a tortuosity-consistent
+   extra-cellular model or a physically-anchored D prior at 2.0 is the
+   next lever, and dispersion is the one lever that helped everywhere it
+   was identifiable.
+
+Cost: 4–7 s of Monte Carlo per substrate on the GB10 (4,000 walkers ×
+1,800 steps × 5–8k spheres); the whole 10-condition, 5-method benchmark
+runs in ~5 min as a Slurm job. Direct background runs of it were killed
+by the session harness twice with no error; `sbatch` is the reliable
+route for anything over a couple of minutes.
 
 ---
 
