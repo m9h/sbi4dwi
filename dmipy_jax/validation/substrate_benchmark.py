@@ -67,12 +67,13 @@ def bundle_axis(df) -> np.ndarray:
 
 @dataclass
 class Substrate:
-    centers_m: np.ndarray      # (S,3) in metres, inside [0, L)^3
+    centers_m: np.ndarray      # (S,3) in metres
     radii_m: np.ndarray        # (S,)
     box_m: float
     axes: np.ndarray           # (n_bundles,3) GT fibre directions
     f_intra: float             # measured intra-cellular volume fraction
     meta: dict
+    axon_ids: np.ndarray = None   # (S,) which axon each sphere belongs to
 
 
 def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) -> Substrate:
@@ -84,8 +85,9 @@ def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) 
     a = bundle_axis(df)
     c = df[["x", "y", "z"]].values.astype(np.float64)
     r = df["radius"].values.astype(np.float64)
+    ids = df["id"].values.astype(np.int32)
     L = float(box_um)
-    cs, rs, axes = [c], [r], [a]
+    cs, rs, axes, ids_all = [c], [r], [a], [ids]
     if angle_deg > 0:
         R = _rotation_about_x(np.radians(angle_deg))
         cb = (c - L / 2) @ R.T + L / 2
@@ -97,10 +99,12 @@ def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) 
                     keep[i] = False
                     break
         cs.append(cb[keep]); rs.append(r[keep]); axes.append(R @ a)
+        ids_all.append(ids[keep] + ids.max() + 1)
     C = np.concatenate(cs); Rr = np.concatenate(rs)
     sub = Substrate(C * 1e-6, Rr * 1e-6, L * 1e-6, np.array(axes), float("nan"),
                     {"angle_deg": angle_deg, "n_spheres": len(C),
-                     "n_dropped": 0 if angle_deg == 0 else int((~keep).sum())})
+                     "n_dropped": 0 if angle_deg == 0 else int((~keep).sum())},
+                    axon_ids=np.concatenate(ids_all))
     sub.f_intra = measure_intra_fraction(sub, seed=seed)
     return sub
 
@@ -117,6 +121,18 @@ def union_sdf(sub: Substrate, periodic=(False, False, False)):
         d = d - per * L * jnp.round(d / L)
         return jnp.min(jnp.linalg.norm(d, axis=1) - Rr)
     return sdf
+
+
+def nearest_axon_fn(sub: Substrate, periodic=(False, False, False)):
+    """Axon id of the sphere with the smallest signed distance to p."""
+    C = jnp.asarray(sub.centers_m); Rr = jnp.asarray(sub.radii_m); L = sub.box_m
+    ids = jnp.asarray(sub.axon_ids); per = jnp.asarray(periodic, dtype=jnp.float32)
+
+    def axon_of(p):
+        d = p - C
+        d = d - per * L * jnp.round(d / L)
+        return ids[jnp.argmin(jnp.linalg.norm(d, axis=1) - Rr)]
+    return axon_of
 
 
 def confine_box(p, L, periodic):
@@ -186,21 +202,31 @@ def pgse_lobe_sums(sub: Substrate, intra: bool, D: float, dt: float, n_particles
     n1 = int(round(delta / dt)); s2 = int(round(Delta / dt))
     lobe = jnp.zeros(n_steps).at[:n1].set(1.0).at[s2:s2 + n1].set(-1.0)   # +1, 0, −1
 
+    axon_of = nearest_axon_fn(sub, periodic)
+    step_sd = jnp.sqrt(2 * D * dt)
+
     def valid(p):
         return (sdf(p) <= 0) if intra else (sdf(p) > 0)
 
     def step(carry, w):
         pos, upos, acc, k = carry
         k, sk = jax.random.split(k)
-        prop = pos + jnp.sqrt(2 * D * dt) * jax.random.normal(sk, pos.shape)
+        prop = pos + step_sd * jax.random.normal(sk, pos.shape)
         prop = jax.vmap(lambda p: confine_box(p, L, periodic))(prop)
 
         def fix(p, o):
             bad = ~valid(p)
             p2 = jax.lax.cond(bad, lambda: _reflect(p, o, sdf), lambda: p)
-            # if the reflection still lands in the wrong compartment (corner
-            # cases), reject the move
-            return jax.lax.cond(valid(p2), lambda: p2, lambda: o)
+            # Reject the move if the reflection lands in the wrong compartment,
+            # in a *different axon* (the union SDF's nearest surface may belong
+            # to a neighbouring axon → tunnelling), or implausibly far away
+            # (reflection through a thin wall into the far side).
+            dm = p2 - o
+            dm = dm - jnp.asarray(periodic, jnp.float32) * L * jnp.round(dm / L)
+            ok = valid(p2) & (jnp.linalg.norm(dm) < 4.0 * step_sd)
+            if intra:
+                ok = ok & (axon_of(p2) == axon_of(o))
+            return jax.lax.cond(ok, lambda: p2, lambda: o)
         new = jax.vmap(fix)(prop, pos)
         # unwrapped displacement for the phase (wrapping is a bookkeeping
         # device; the spin physically moved by the minimum-image step)
