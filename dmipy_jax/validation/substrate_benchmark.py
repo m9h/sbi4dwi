@@ -13,9 +13,9 @@ gracefully?
 Pipeline
   CATERPillar (one population, c₂=⟨cos²ψ⟩≈0.98 so growth ≈ z) → sphere
     list A (µm; the duplicated type-2 rows are dropped)
-  → B = A rotated by the crossing angle about the box centre; B spheres
-    that overlap A are removed (B axons are severed where they pass
-    through A — an "interwoven" crossing) → union SDF
+  → sheet crossing: A fills x < L/2, B = A rotated by the crossing angle
+    about x fills x ≥ L/2 (CATERPillar's two-population "sheet" option;
+    dense bundles cannot interpenetrate) → union SDF
   → box [0, L]³: intra walkers periodic along z only (axons span the
     box; a wrapped x/y image would land in another axon — the substrate
     is not periodic-consistent, wrapping all axes made the intra space
@@ -77,34 +77,31 @@ class Substrate:
 
 
 def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) -> Substrate:
-    """Two copies of one CATERPillar bundle crossing at ``angle_deg``
-    (second copy rotated about x through the box centre; its spheres that
-    overlap the first copy are dropped). angle 0 → single bundle.
-    Spheres outside the box are kept — the walls at [0, L] do the clipping."""
-    from scipy.spatial import cKDTree
+    """Two copies of one CATERPillar bundle crossing at ``angle_deg`` in a
+    *sheet* configuration (CATERPillar's own two-population option): the
+    first copy fills x < L/2, the second — rotated about x through the box
+    centre — fills x ≥ L/2. Dense bundles cannot interpenetrate (dropping
+    overlapping spheres removed almost all of the second bundle), so the
+    voxel is split instead; both bundles keep the single-bundle packing.
+    angle 0 → single bundle in the whole box."""
     a = bundle_axis(df)
     c = df[["x", "y", "z"]].values.astype(np.float64)
     r = df["radius"].values.astype(np.float64)
     ids = df["id"].values.astype(np.int32)
     L = float(box_um)
-    cs, rs, axes, ids_all = [c], [r], [a], [ids]
-    if angle_deg > 0:
+    if angle_deg <= 0:
+        C, Rr, I, axes, n_b = c, r, ids, [a], 0
+    else:
         R = _rotation_about_x(np.radians(angle_deg))
         cb = (c - L / 2) @ R.T + L / 2
-        t = cKDTree(c)
-        keep = np.ones(len(cb), bool)
-        for i, (p, rb) in enumerate(zip(cb, r)):
-            for j in t.query_ball_point(p, rb + r.max()):
-                if np.linalg.norm(p - c[j]) < rb + r[j]:
-                    keep[i] = False
-                    break
-        cs.append(cb[keep]); rs.append(r[keep]); axes.append(R @ a)
-        ids_all.append(ids[keep] + ids.max() + 1)
-    C = np.concatenate(cs); Rr = np.concatenate(rs)
+        ka = c[:, 0] < L / 2
+        kb = cb[:, 0] >= L / 2
+        C = np.concatenate([c[ka], cb[kb]]); Rr = np.concatenate([r[ka], r[kb]])
+        I = np.concatenate([ids[ka], ids[kb] + ids.max() + 1])
+        axes = [a, R @ a]; n_b = int(kb.sum())
     sub = Substrate(C * 1e-6, Rr * 1e-6, L * 1e-6, np.array(axes), float("nan"),
-                    {"angle_deg": angle_deg, "n_spheres": len(C),
-                     "n_dropped": 0 if angle_deg == 0 else int((~keep).sum())},
-                    axon_ids=np.concatenate(ids_all))
+                    {"angle_deg": angle_deg, "n_spheres": len(C), "n_spheres_b": n_b},
+                    axon_ids=I)
     sub.f_intra = measure_intra_fraction(sub, seed=seed)
     return sub
 
@@ -144,18 +141,21 @@ def confine_box(p, L, periodic):
     return jnp.where(per, wrapped, refl)
 
 
-# Intra walkers: periodic along z (the growth axis — axons span the box),
-# reflecting in x, y (a wrapped image would land in another axon).
-# Extra walkers: periodic in all three (a wrapped image landing inside a
-# sphere is simply rejected).
-PERIODIC_INTRA = (False, False, True)
+# Intra walkers: periodic in y and z (axons span the box along z; the
+# rotated sheet's axons lie in the y–z plane), reflecting in x. A wrapped
+# image that lands in a different axon is rejected by the axon-id check,
+# so periodicity can only help a walker continue along its *own* axon.
+# Extra walkers: periodic in all three (an image landing inside a sphere
+# is rejected).
+PERIODIC_INTRA = (False, True, True)
 PERIODIC_EXTRA = (True, True, True)
 
 
 def measure_intra_fraction(sub: Substrate, n: int = 200_000, seed: int = 0) -> float:
     sdf = union_sdf(sub, PERIODIC_INTRA)
     p = jax.random.uniform(jax.random.PRNGKey(seed), (n, 3)) * sub.box_m
-    inside = jax.vmap(sdf)(p) <= 0
+    # chunked: vmap over 200k × n_spheres would materialise tens of GB
+    inside = jax.lax.map(lambda q: jax.vmap(sdf)(q) <= 0, p.reshape(-1, 2000, 3))
     return float(jnp.mean(inside))
 
 
@@ -170,7 +170,9 @@ def _init_fn(sub: Substrate, intra: bool):
         # requested compartment (oversampled; loops avoided so this stays
         # jit-able)
         p = jax.random.uniform(key, (n_try * n, 3)) * L
-        ok = jax.vmap(sdf)(p) <= 0
+        ok = jax.lax.map(lambda q: jax.vmap(sdf)(q) <= 0,
+                         p.reshape(-1, 1000, 3)).reshape(-1) if (n_try * n) % 1000 == 0 \
+            else jax.vmap(sdf)(p) <= 0
         ok = ok if intra else ~ok
         idx = jnp.argsort(~ok)[:n]           # ok=True first
         return p[idx]

@@ -41,20 +41,17 @@ def test_bundle_axis_and_rotation():
     assert 0.05 < sub.f_intra < 0.9
 
 
-def test_box_confinement_and_crossing_overlap_removal():
+def test_box_confinement_and_sheet_crossing():
     L = 10e-6
     p = jnp.array([-1e-6, 5e-6, 11e-6])
     np.testing.assert_allclose(np.asarray(sb.confine_box(p, L, (False, False, False))), [1e-6, 5e-6, 9e-6], atol=1e-11)
     np.testing.assert_allclose(np.asarray(sb.confine_box(p, L, (True, True, True))), [9e-6, 5e-6, 1e-6], atol=1e-11)
-    df = _straight_bundle(n_axons=6, r=0.8)
+    df = _straight_bundle(n_axons=9, r=0.8, box=10.0)
     sub = sb.make_crossing_substrate(df, 90.0, 10.0)
-    assert sub.meta["n_dropped"] > 0
-    # no remaining inter-bundle overlaps
-    nA = len(df)
-    A, B = sub.centers_m[:nA], sub.centers_m[nA:]
-    rA, rB = sub.radii_m[:nA], sub.radii_m[nA:]
-    d = np.linalg.norm(A[:, None] - B[None], axis=-1)
-    assert np.all(d >= rA[:, None] + rB[None] - 1e-12)
+    assert sub.meta["n_spheres_b"] > 0
+    nA = len(sub.centers_m) - sub.meta["n_spheres_b"]
+    assert np.all(sub.centers_m[:nA, 0] < 5e-6) and np.all(sub.centers_m[nA:, 0] >= 5e-6)
+    assert len(np.unique(sub.axon_ids[:nA])) + len(np.unique(sub.axon_ids[nA:])) == len(np.unique(sub.axon_ids))
 
 
 def test_free_diffusion_matches_exp_minus_bD():
