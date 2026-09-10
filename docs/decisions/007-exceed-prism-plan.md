@@ -916,6 +916,38 @@ therefore safe to make the default: it costs nothing where the shared
 model is adequate and removes the crossing liability where it is not
 (§6.15).
 
+### 6.17 Uncertainty-thresholded connectome — the Dice gap (2026-09-10)
+
+From the §6.13 posterior samples (SNR 50, K=5, 20 samples). Every
+differentiable variant has had Dice ≈ 0.35–0.42 against MSMT-CSD's
+0.565: high sensitivity, poor specificity (§6.6). The per-edge posterior
+gives a principled way to remove unreliable edges: keep an edge only if
+its count is *stably* non-zero across direction samples.
+
+| connectome | r | Dice | precision | recall | FP edges (of 95) |
+|---|---:|---:|---:|---:|---:|
+| MAP (point estimate) | 0.851 | 0.388 | 0.24 | 1.00 | 79 |
+| posterior mean | 0.859 | 0.347 | 0.21 | 1.00 | 94 |
+| posterior mean, edges with 5th pct > 0 | 0.859 | 0.417 | 0.26 | 1.00 | 70 |
+| posterior mean, 5th pct > 0.5 × mean | 0.862 | 0.686 | 0.53 | 0.96 | 21 |
+| **posterior mean, CV = sd/mean < 0.3** | **0.865** | **0.857** | 0.77 | 0.96 | **7** |
+| posterior mean, 5th pct > 0.75 × mean | 0.812 | 0.889 | 1.00 | 0.80 | 0 |
+| MSMT-CSD (§6.1) | 0.776 | 0.565 | — | — | — |
+
+- **CV < 0.3 turns 79 false-positive edges into 7 while keeping 24 of 25
+  true edges, and r rises to 0.865** — the best value in the document on
+  both metrics at once. Dice 0.857 vs MSMT's 0.565 closes and reverses
+  the specificity gap that §6.6 identified as the open weakness.
+- The mechanism is the §6.13 finding: spurious edges come from fixels
+  whose direction is uncertain, so their streamline counts fluctuate
+  across posterior samples; true edges are supported by well-determined
+  fixels and do not. A point-estimate method has no access to this.
+- **Caveat, stated plainly: the thresholds were chosen on this data.**
+  They are now fixed in `prism_uncertainty.threshold_connectome`
+  (CV < 0.3; CI 5th pct > 0.5 × mean) and are being validated unchanged
+  at SNR 30 and 10 (Slurm job below). If they hold, this is a default;
+  if not, it is a tuning knob and will be labelled as such.
+
 ---
 
 ## 7. Risks
