@@ -28,17 +28,23 @@ def test_bundle_axis_and_rotation():
     assert sub.axes.shape == (2, 3)
     got = np.degrees(np.arccos(abs(sub.axes[0] @ sub.axes[1])))
     assert got == pytest.approx(60.0, abs=1e-6)
-    assert sub.centers_m.min() >= 0 and sub.centers_m.max() < 10e-6
     assert 0.05 < sub.f_intra < 0.9
 
 
-def test_periodic_sdf_minimum_image():
-    df = _straight_bundle(n_axons=1)
-    sub = sb.make_crossing_substrate(df, 0.0, 10.0)
-    sdf = sb.periodic_sdf(sub)
-    c = sub.centers_m[0]
-    assert float(sdf(jnp.asarray(c))) < 0
-    assert float(sdf(jnp.asarray(c + np.array([10e-6, 0, 0])))) == pytest.approx(float(sdf(jnp.asarray(c))), abs=1e-12)
+def test_box_confinement_and_crossing_overlap_removal():
+    L = 10e-6
+    p = jnp.array([-1e-6, 5e-6, 11e-6])
+    np.testing.assert_allclose(np.asarray(sb.confine_box(p, L, (False, False, False))), [1e-6, 5e-6, 9e-6], atol=1e-11)
+    np.testing.assert_allclose(np.asarray(sb.confine_box(p, L, (True, True, True))), [9e-6, 5e-6, 1e-6], atol=1e-11)
+    df = _straight_bundle(n_axons=6, r=0.8)
+    sub = sb.make_crossing_substrate(df, 90.0, 10.0)
+    assert sub.meta["n_dropped"] > 0
+    # no remaining inter-bundle overlaps
+    nA = len(df)
+    A, B = sub.centers_m[:nA], sub.centers_m[nA:]
+    rA, rB = sub.radii_m[:nA], sub.radii_m[nA:]
+    d = np.linalg.norm(A[:, None] - B[None], axis=-1)
+    assert np.all(d >= rA[:, None] + rB[None] - 1e-12)
 
 
 def test_free_diffusion_matches_exp_minus_bD():
@@ -49,21 +55,25 @@ def test_free_diffusion_matches_exp_minus_bD():
     b = np.array([0, 1000, 2000, 3000]) * 1e6
     u = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1.0]])
     D = 2.0e-9
-    R = sb.pgse_lobe_sums(sub, False, D, 2e-5, 3000, 17.74e-3, 35.78e-3, jax.random.PRNGKey(0))
-    S = np.asarray(sb.signals_from_lobe_sums(R, b, u, 17.74e-3, 35.78e-3))
+    # extra walkers are fully periodic → exactly free diffusion
+    df = _straight_bundle(n_axons=1, r=0.3, box=20.0)
+    sub = sb.make_crossing_substrate(df, 0.0, 20.0)
+    R = sb.pgse_lobe_sums(sub, False, D, 1e-5, 3000, 6e-3, 12e-3, jax.random.PRNGKey(0))
+    S = np.asarray(sb.signals_from_lobe_sums(R, b, u, 6e-3, 12e-3))
     np.testing.assert_allclose(S, np.exp(-b * D), atol=0.03)
 
 
 def test_intra_restricted_perpendicular_but_free_parallel():
     """Walkers inside straight z-axons: along z ≈ free, across ≈ restricted."""
-    df = _straight_bundle(n_axons=8, r=1.0)
-    sub = sb.make_crossing_substrate(df, 0.0, 10.0)
+    # intra walkers are periodic along z → parallel diffusion is free
+    df = _straight_bundle(n_axons=8, r=1.0, box=20.0)
+    sub = sb.make_crossing_substrate(df, 0.0, 20.0)
     b = np.array([3000, 3000]) * 1e6
     u = np.array([[0, 0, 1.0], [1, 0, 0]])
     D = 2.0e-9
-    R = sb.pgse_lobe_sums(sub, True, D, 2e-5, 3000, 17.74e-3, 35.78e-3, jax.random.PRNGKey(1))
-    S = np.asarray(sb.signals_from_lobe_sums(R, b, u, 17.74e-3, 35.78e-3))
-    assert S[0] == pytest.approx(np.exp(-3000e6 * D), abs=0.05)     # parallel ≈ free
+    R = sb.pgse_lobe_sums(sub, True, D, 1e-5, 3000, 6e-3, 12e-3, jax.random.PRNGKey(1))
+    S = np.asarray(sb.signals_from_lobe_sums(R, b, u, 6e-3, 12e-3))
+    assert S[0] == pytest.approx(np.exp(-3000e6 * D), abs=0.03)     # parallel = free
     assert S[1] > 0.6                                               # perpendicular restricted
 
 

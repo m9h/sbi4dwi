@@ -11,9 +11,15 @@ told about. Question: which of PRISM / PRISM-plus / MSMT-CSD degrades
 gracefully?
 
 Pipeline
-  CATERPillar (one population, growth ≈ z) → sphere list A (µm)
-  → B = A rotated by the crossing angle about x, both wrapped into the
-    periodic voxel box → union SDF (periodic via jnp.mod)
+  CATERPillar (one population, c₂=⟨cos²ψ⟩≈0.98 so growth ≈ z) → sphere
+    list A (µm; the duplicated type-2 rows are dropped)
+  → B = A rotated by the crossing angle about the box centre; B spheres
+    that overlap A are removed (B axons are severed where they pass
+    through A — an "interwoven" crossing) → union SDF
+  → box [0, L]³: intra walkers periodic along z only (axons span the
+    box; a wrapped x/y image would land in another axon — the substrate
+    is not periodic-consistent, wrapping all axes made the intra space
+    percolate, measured 2026-09-09), extra walkers periodic in all axes
   → intra walkers (inside spheres) and extra walkers (outside spheres),
     Brownian + elastic reflection, positions accumulated over the two
     PGSE lobes → phase for any (G, u) is γ G u·(R₁ − R₂) dt
@@ -71,9 +77,10 @@ class Substrate:
 
 def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) -> Substrate:
     """Two copies of one CATERPillar bundle crossing at ``angle_deg``
-    (second copy rotated about x, offset by a random shift, wrapped into
-    the periodic box). angle 0 → single bundle."""
-    rng = np.random.default_rng(seed)
+    (second copy rotated about x through the box centre; its spheres that
+    overlap the first copy are dropped). angle 0 → single bundle.
+    Spheres outside the box are kept — the walls at [0, L] do the clipping."""
+    from scipy.spatial import cKDTree
     a = bundle_axis(df)
     c = df[["x", "y", "z"]].values.astype(np.float64)
     r = df["radius"].values.astype(np.float64)
@@ -81,46 +88,71 @@ def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) 
     cs, rs, axes = [c], [r], [a]
     if angle_deg > 0:
         R = _rotation_about_x(np.radians(angle_deg))
-        cb = (c - L / 2) @ R.T + L / 2 + rng.uniform(0, L, 3)
-        cs.append(cb); rs.append(r); axes.append(R @ a)
-    C = np.mod(np.concatenate(cs), L)
-    Rr = np.concatenate(rs)
+        cb = (c - L / 2) @ R.T + L / 2
+        t = cKDTree(c)
+        keep = np.ones(len(cb), bool)
+        for i, (p, rb) in enumerate(zip(cb, r)):
+            for j in t.query_ball_point(p, rb + r.max()):
+                if np.linalg.norm(p - c[j]) < rb + r[j]:
+                    keep[i] = False
+                    break
+        cs.append(cb[keep]); rs.append(r[keep]); axes.append(R @ a)
+    C = np.concatenate(cs); Rr = np.concatenate(rs)
     sub = Substrate(C * 1e-6, Rr * 1e-6, L * 1e-6, np.array(axes), float("nan"),
-                    {"angle_deg": angle_deg, "n_spheres": len(C)})
+                    {"angle_deg": angle_deg, "n_spheres": len(C),
+                     "n_dropped": 0 if angle_deg == 0 else int((~keep).sum())})
     sub.f_intra = measure_intra_fraction(sub, seed=seed)
     return sub
 
 
-def periodic_sdf(sub: Substrate):
-    """Union-of-spheres SDF with the query point wrapped into the box, so
-    walkers see a periodic tiling. Uses a 3×3×3 neighbour-image check on
-    the sphere set nearest the boundaries via wrapping the *difference*."""
+def union_sdf(sub: Substrate, periodic=(False, False, False)):
+    """Union-of-spheres SDF. Axes flagged periodic use the minimum-image
+    difference (period = box length) so walkers wrapping across that face
+    see the substrate's image."""
     C = jnp.asarray(sub.centers_m); Rr = jnp.asarray(sub.radii_m); L = sub.box_m
+    per = jnp.asarray(periodic, dtype=jnp.float32)
 
     def sdf(p):
         d = p - C
-        d = d - L * jnp.round(d / L)          # minimum-image difference
+        d = d - per * L * jnp.round(d / L)
         return jnp.min(jnp.linalg.norm(d, axis=1) - Rr)
     return sdf
 
 
+def confine_box(p, L, periodic):
+    """Wrap periodic axes with mod, mirror-reflect the others."""
+    per = jnp.asarray(periodic, dtype=bool)
+    wrapped = jnp.mod(p, L)
+    refl = jnp.where(p < 0, -p, p)
+    refl = jnp.where(refl > L, 2 * L - refl, refl)
+    return jnp.where(per, wrapped, refl)
+
+
+# Intra walkers: periodic along z (the growth axis — axons span the box),
+# reflecting in x, y (a wrapped image would land in another axon).
+# Extra walkers: periodic in all three (a wrapped image landing inside a
+# sphere is simply rejected).
+PERIODIC_INTRA = (False, False, True)
+PERIODIC_EXTRA = (True, True, True)
+
+
 def measure_intra_fraction(sub: Substrate, n: int = 200_000, seed: int = 0) -> float:
-    sdf = periodic_sdf(sub)
+    sdf = union_sdf(sub, PERIODIC_INTRA)
     p = jax.random.uniform(jax.random.PRNGKey(seed), (n, 3)) * sub.box_m
     inside = jax.vmap(sdf)(p) <= 0
     return float(jnp.mean(inside))
 
 
 def _init_fn(sub: Substrate, intra: bool):
-    sdf = periodic_sdf(sub)
+    sdf = union_sdf(sub, PERIODIC_INTRA if intra else PERIODIC_EXTRA)
     L = sub.box_m
-    n_try = 8
+    f = sub.f_intra if intra else 1.0 - sub.f_intra
+    n_try = int(np.ceil(3.0 / max(f, 1e-3)))     # oversample so ≥ n valid w.h.p.
 
     def init(key, n):
         # rejection-sample uniform points in the box, keep those in the
-        # requested compartment; oversample and take the first n (loops
-        # are avoided so this stays jit-able; with f≈0.3–0.7 a factor 8
-        # oversample is always enough)
+        # requested compartment (oversampled; loops avoided so this stays
+        # jit-able)
         p = jax.random.uniform(key, (n_try * n, 3)) * L
         ok = jax.vmap(sdf)(p) <= 0
         ok = ok if intra else ~ok
@@ -146,8 +178,10 @@ def pgse_lobe_sums(sub: Substrate, intra: bool, D: float, dt: float, n_particles
     """Run walkers for T = Δ + δ and return R1, R2: the position sums
     (× dt) over the first and second gradient lobes, (n,3) each, in metres·s.
     Phase for gradient amplitude G along unit u is then γ G u·(R1 − R2)."""
-    sdf = periodic_sdf(sub)
+    periodic = PERIODIC_INTRA if intra else PERIODIC_EXTRA
+    sdf = union_sdf(sub, periodic)
     init = _init_fn(sub, intra)
+    L = sub.box_m
     n_steps = int(round((Delta + delta) / dt))
     n1 = int(round(delta / dt)); s2 = int(round(Delta / dt))
     lobe = jnp.zeros(n_steps).at[:n1].set(1.0).at[s2:s2 + n1].set(-1.0)   # +1, 0, −1
@@ -156,9 +190,10 @@ def pgse_lobe_sums(sub: Substrate, intra: bool, D: float, dt: float, n_particles
         return (sdf(p) <= 0) if intra else (sdf(p) > 0)
 
     def step(carry, w):
-        pos, acc, k = carry
+        pos, upos, acc, k = carry
         k, sk = jax.random.split(k)
         prop = pos + jnp.sqrt(2 * D * dt) * jax.random.normal(sk, pos.shape)
+        prop = jax.vmap(lambda p: confine_box(p, L, periodic))(prop)
 
         def fix(p, o):
             bad = ~valid(p)
@@ -167,12 +202,17 @@ def pgse_lobe_sums(sub: Substrate, intra: bool, D: float, dt: float, n_particles
             # cases), reject the move
             return jax.lax.cond(valid(p2), lambda: p2, lambda: o)
         new = jax.vmap(fix)(prop, pos)
-        acc = acc + w * new * dt
-        return (new, acc, k), None
+        # unwrapped displacement for the phase (wrapping is a bookkeeping
+        # device; the spin physically moved by the minimum-image step)
+        step_vec = new - pos
+        step_vec = step_vec - jnp.asarray(periodic, jnp.float32) * L * jnp.round(step_vec / L)
+        upos = upos + step_vec
+        acc = acc + w * upos * dt
+        return (new, upos, acc, k), None
 
     k0, k1 = jax.random.split(key)
     pos0 = init(k0, n_particles)
-    (pos, acc, _), _ = jax.lax.scan(step, (pos0, jnp.zeros_like(pos0), k1), lobe)
+    (pos, _, acc, _), _ = jax.lax.scan(step, (pos0, pos0, jnp.zeros_like(pos0), k1), lobe)
     return acc          # (n,3) = R1 − R2 already (lobe weights ±1)
 
 
@@ -184,7 +224,7 @@ def signals_from_lobe_sums(R, bvals_si, bvecs, delta, Delta):
 
 
 def simulate_substrate_signal(sub: Substrate, bvals_si, bvecs, *, D_intra=2.0e-9, D_extra=2.0e-9,
-                              delta=17.74e-3, Delta=35.78e-3, dt=2e-5, n_particles=4000, seed=0):
+                              delta=6e-3, Delta=12e-3, dt=1e-5, n_particles=4000, seed=0):
     """Returns (S_total, S_intra, S_extra) on the given scheme."""
     k1, k2 = jax.random.split(jax.random.PRNGKey(seed))
     R_in = pgse_lobe_sums(sub, True, D_intra, dt, n_particles, delta, Delta, k1)
@@ -199,7 +239,10 @@ def simulate_substrate_signal(sub: Substrate, bvals_si, bvecs, *, D_intra=2.0e-9
 # Benchmark assembly
 # --------------------------------------------------------------------------- #
 
-def caterpillar_bundle(icvf=0.5, box_um=10.0, tortuous=0, beading=0.0, seed=0, threads=8):
+def caterpillar_bundle(icvf=0.5, box_um=20.0, tortuous=0, beading=0.0, c2=0.98, seed=0, threads=8):
+    """One CATERPillar axon population. ``c2`` = ⟨cos²ψ⟩ of growth direction
+    vs z (CATERPillar's default 0.5 is an almost isotropic fODF). The
+    duplicated type-2 sphere rows are dropped."""
     from dmipy_jax.validation.caterpillar import CATERPillarOracle
     o = CATERPillarOracle()
     cfg = o.get_default_config()
@@ -207,8 +250,9 @@ def caterpillar_bundle(icvf=0.5, box_um=10.0, tortuous=0, beading=0.0, seed=0, t
                 "glial_pop1_icvf_soma": 0.0, "glial_pop1_icvf_branches": 0.0,
                 "tortuous": tortuous, "beading_variation": beading,
                 "beading_variation_std": beading / 2 if beading > 0 else 0.0,
-                "nbr_threads": threads})
-    return o.generate(cfg)
+                "c2": c2, "nbr_threads": threads})
+    df = o.generate(cfg)
+    return df[df["type"] == 0].reset_index(drop=True)
 
 
 def build_volume(signal: np.ndarray, shape=(8, 8, 1), snr: float = 30.0, seed: int = 0):
