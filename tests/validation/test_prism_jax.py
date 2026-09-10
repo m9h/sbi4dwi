@@ -389,3 +389,37 @@ def test_restricted_ablation_zeroes_fraction():
     phys = pj.unpack(p, cfg)
     assert np.allclose(np.asarray(phys["fracs"][:, -1]), 0.0)
     np.testing.assert_allclose(np.asarray(phys["fracs"]).sum(-1), 1.0, atol=1e-6)
+
+
+class TestSeparateExtraDpar:
+    def test_default_is_shared(self):
+        cfg = pj.PrismConfig(n_fibres=2, learn_diffusivities=True, tortuosity=True)
+        p = pj.init_params(2, cfg, jax.random.PRNGKey(0))
+        phys = pj.unpack(p, cfg)
+        assert float(phys["d_par_extra"]) == float(phys["d_par"])
+
+    def test_decoupled_extra_is_bounded_and_used(self):
+        cfg = pj.PrismConfig(n_fibres=2, learn_diffusivities=True, tortuosity=True,
+                             separate_extra_dpar=True, d_par_extra_init_ratio=0.5)
+        p = pj.init_params(2, cfg, jax.random.PRNGKey(0))
+        phys = pj.unpack(p, cfg)
+        assert float(phys["d_par_extra"]) == pytest.approx(0.5 * float(phys["d_par"]), rel=1e-5)
+        np.testing.assert_allclose(np.asarray(phys["d_perp"]),
+                                   float(phys["d_par_extra"]) * (1 - np.asarray(phys["fintra"])), rtol=1e-6)
+        bvals, bvecs = _scheme()
+        s_dec = pj.forward(phys, jnp.asarray(bvals), jnp.asarray(bvecs), cfg)
+        phys2 = dict(phys); phys2["d_par_extra"] = phys["d_par"]
+        s_shared = pj.forward(phys2, jnp.asarray(bvals), jnp.asarray(bvecs), cfg)
+        assert float(jnp.abs(s_dec - s_shared).max()) > 1e-3     # the extra D∥ matters
+
+    def test_prior_centre_override(self):
+        cfg = pj.PrismConfig(n_fibres=1, learn_diffusivities=True, lam_diffusivity_prior=1.0,
+                             diffusivity_prior_centre=2.0e-9, d_par=1.7e-9)
+        bvals, bvecs = _scheme()
+        nb = jnp.asarray(pj.build_neighbour_table(np.ones((1, 1, 1), bool)))
+        y = jnp.ones((1, len(bvals)))
+        p = pj.init_params(1, cfg, jax.random.PRNGKey(0))
+        l = float(pj.total_loss(p, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg))
+        cfg0 = pj.PrismConfig(n_fibres=1, learn_diffusivities=True, d_par=1.7e-9)
+        l0 = float(pj.total_loss(p, y, jnp.asarray(bvals), jnp.asarray(bvecs), nb, cfg0))
+        assert l - l0 == pytest.approx((np.log(1.7 / 2.0) / 0.3) ** 2, rel=1e-4)

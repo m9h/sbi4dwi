@@ -95,6 +95,7 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
     frac_logit0 = jnp.log(jnp.clip(jnp.asarray(fit.fracs, jnp.float32), 1e-6, 1.0))
     sigma = None if fit.sigma is None else jnp.asarray(fit.sigma / scale)
     d_par = jnp.asarray(fit.d_par); d_perp_g = jnp.asarray(fit.d_perp)
+    d_par_ex = jnp.asarray(fit.d_par if fit.d_par_extra is None else fit.d_par_extra)
     odi0 = None if fit.odi is None else jnp.asarray(fit.odi, jnp.float32)
 
     n_t = 2 * K
@@ -108,8 +109,8 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
             logits = logits.at[-1].set(-1e9)
         fr = jax.nn.softmax(logits)
         phys = {"s0": s0n[None], "fracs": fr[None], "dirs": d[None], "fintra": fi[None],
-                "d_par": d_par,
-                "d_perp": (d_par * (1 - fi))[None] if cfg.tortuosity else d_perp_g,
+                "d_par": d_par, "d_par_extra": d_par_ex,
+                "d_perp": (d_par_ex * (1 - fi))[None] if cfg.tortuosity else d_perp_g,
                 "sigma": sigma}
         if cfg.disperse:
             phys["odi"] = odin[None]

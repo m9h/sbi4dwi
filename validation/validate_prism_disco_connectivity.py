@@ -68,6 +68,9 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int, seed: int = 0) -> PrismCon
         "prism-nll-nores": replace(base, loss="nll", use_restricted=False),
         "plus-tort-warm-nores": replace(base, loss="nll", learn_diffusivities=True,
                                         d_par=0.6e-9, tortuosity=True, use_restricted=False),
+        # decoupled extra-cellular D∥ (doc 007 §6.14 lever), no restricted pool
+        "plus-x-warm": replace(base, loss="nll", learn_diffusivities=True, d_par=0.6e-9,
+                               tortuosity=True, use_restricted=False, separate_extra_dpar=True),
         # + weak prior on D∥ (λ=1, sd=0.3 log units) against low-SNR drift
         "plus-dprior-warm": replace(base, loss="nll", learn_diffusivities=True,
                                     d_par=0.6e-9, tortuosity=True,
@@ -129,12 +132,13 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
         cfg = _cfg_for(method, n_fibres, n_iter, seed)
         init_dirs = init_fracs = None
         if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm", "plus-disp-warm",
-                      "plus-tort-warm-nores"):
+                      "plus-tort-warm-nores", "plus-x-warm"):
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
         pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,
                                affine=affine)
         extra.update(d_par=fit.d_par, d_perp=fit.d_perp, sigma=fit.sigma,
+                     d_par_extra=fit.d_par_extra,
                      fintra_mean=float(fit.fintra.mean()),
                      final_loss=float(fit.loss_history[-1]),
                      n_peaks_mean=float((fit.wm_fracs >= peak_frac_min).sum(1).mean()),

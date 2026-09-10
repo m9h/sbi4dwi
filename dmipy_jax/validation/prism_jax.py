@@ -70,6 +70,14 @@ class PrismConfig:
     # (doc 007 §6.6). 0 disables.
     lam_diffusivity_prior: float = 0.0
     diffusivity_prior_sd: float = 0.3      # in log units (~±30 %)
+    diffusivity_prior_centre: Optional[float] = None   # None → cfg.d_par
+    # PRISM-plus (doc 007 §6.14 lever): give the extra-cellular zeppelin its
+    # own axial diffusivity D∥,ex ≤ D∥ (dense packing hinders the axial
+    # direction too); with `tortuosity`, D⊥,ex = D∥,ex·(1 − f_i). Keeps the
+    # intra stick's D∥ free to stay near the intrinsic value instead of
+    # collapsing to absorb extra-cellular hindrance.
+    separate_extra_dpar: bool = False
+    d_par_extra_init_ratio: float = 0.7
     # PRISM-plus: Watson (axially-symmetric Bingham) dispersion per fibre,
     # learnable ODI ∈ odi_range. Implemented as a Legendre (Funk–Hecke)
     # convolution of the Watson FOD with the stick / zeppelin kernels, so
@@ -173,6 +181,8 @@ def init_params(n_vox: int, cfg: PrismConfig, key,
         params["dpar_logit"] = jnp.asarray(_logit((cfg.d_par - lo) / (hi - lo)))
         lo, hi = cfg.d_perp_range
         params["dperp_logit"] = jnp.asarray(_logit((cfg.d_perp - lo) / (hi - lo)))
+    if cfg.separate_extra_dpar:
+        params["dpar_extra_frac_logit"] = jnp.asarray(_logit(cfg.d_par_extra_init_ratio))
     return params
 
 
@@ -197,8 +207,12 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
     else:
         out["d_par"] = jnp.asarray(cfg.d_par)
         out["d_perp"] = jnp.asarray(cfg.d_perp)
+    # extra-cellular axial diffusivity: shared with the stick unless decoupled
+    out["d_par_extra"] = out["d_par"]
+    if cfg.separate_extra_dpar:
+        out["d_par_extra"] = out["d_par"] * jax.nn.sigmoid(params["dpar_extra_frac_logit"])
     if cfg.tortuosity:
-        out["d_perp"] = out["d_par"] * (1.0 - out["fintra"])       # (N,)
+        out["d_perp"] = out["d_par_extra"] * (1.0 - out["fintra"])       # (N,)
     if cfg.disperse:
         lo, hi = cfg.odi_range
         out["odi"] = lo + (hi - lo) * jax.nn.sigmoid(params["odi_logit"])   # (N,K)
@@ -340,14 +354,15 @@ def forward(phys: dict, bvals, bvecs, cfg: PrismConfig):
     d_perp = phys["d_perp"]
     if jnp.ndim(d_perp) == 1:                                  # per-voxel (tortuosity)
         d_perp = d_perp[:, None, None]
+    d_par_ex = phys.get("d_par_extra", d_par)
     e_stick = jnp.exp(-b * d_par * c2)
-    e_zep = jnp.exp(-b * (d_par * c2 + d_perp * (1.0 - c2)))
+    e_zep = jnp.exp(-b * (d_par_ex * c2 + d_perp * (1.0 - c2)))
     fi = phys["fintra"][:, None, None]
     if cfg.disperse:
         a = watson_legendre_coeffs(phys["kappa"], cfg.n_legendre, cfg.n_quad)   # (N,K,L)
         lam_stick = kernel_legendre_coeffs(bvals, d_par, jnp.asarray(0.0),
                                            cfg.n_legendre, cfg.n_quad)
-        lam_zep = kernel_legendre_coeffs(bvals, d_par, phys["d_perp"],
+        lam_zep = kernel_legendre_coeffs(bvals, d_par_ex, phys["d_perp"],
                                          cfg.n_legendre, cfg.n_quad)
         e_stick = dispersed_signal(a, lam_stick, gdotn)
         e_zep = dispersed_signal(a, lam_zep, gdotn)
@@ -445,7 +460,8 @@ def total_loss(params, y, bvals, bvecs, nb, cfg: PrismConfig):
     f_wm = phys["fracs"][:, 2:2 + K]
     d_prior = 0.0
     if cfg.learn_diffusivities and cfg.lam_diffusivity_prior > 0:
-        z = (jnp.log(phys["d_par"]) - jnp.log(cfg.d_par)) / cfg.diffusivity_prior_sd
+        centre = cfg.d_par if cfg.diffusivity_prior_centre is None else cfg.diffusivity_prior_centre
+        z = (jnp.log(phys["d_par"]) - jnp.log(centre)) / cfg.diffusivity_prior_sd
         d_prior = cfg.lam_diffusivity_prior * z ** 2
     reg = (d_prior
            + cfg.lam_spatial * huber_laplacian(phys["fracs"], nb, cfg.huber_delta)
@@ -472,6 +488,7 @@ class PrismFit:
     mask: np.ndarray
     cfg: PrismConfig
     odi: Optional[np.ndarray] = None      # (N,K), fibre-sorted, if disperse
+    d_par_extra: Optional[float] = None   # extra-cellular axial D (== d_par unless decoupled)
 
     @property
     def wm_fracs(self) -> np.ndarray:
@@ -535,6 +552,7 @@ def fit_prism(
         d_par=float(phys["d_par"]), d_perp=float(jnp.mean(phys["d_perp"])),
         sigma=None if phys["sigma"] is None else float(phys["sigma"]) * scale,
         loss_history=np.asarray(hist), mask=mask, cfg=cfg, odi=odi,
+        d_par_extra=float(phys["d_par_extra"]),
     )
 
 

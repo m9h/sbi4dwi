@@ -26,7 +26,7 @@ def main():
     ap.add_argument("--n-particles", type=int, default=4000)
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--methods", nargs="+",
-                    default=["prism-nll", "plus", "plus-dprior", "plus-disp", "msmt"])
+                    default=["prism-nll", "plus", "plus-x", "plus-x-disp", "plus-disp", "msmt"])
     args = ap.parse_args()
 
     bvals, bvecs = prism_scheme()
@@ -74,14 +74,22 @@ def main():
                     if meth.startswith("plus"):
                         cfg = replace(cfg, learn_diffusivities=True, tortuosity=True,
                                       use_restricted=False, d_par=1.7e-9,
-                                      disperse=meth == "plus-disp",
+                                      disperse=meth.endswith("disp"),
                                       lam_diffusivity_prior=1.0 if meth == "plus-dprior" else 0.0)
+                    if meth.startswith("plus-x"):
+                        # decoupled extra-cellular D∥ + intra D∥ anchored at the
+                        # intrinsic 2.0 µm²/ms (a physical bound, not a data-set fact)
+                        cfg = replace(cfg, separate_extra_dpar=True, lam_diffusivity_prior=1.0,
+                                      diffusivity_prior_centre=2.0e-9, diffusivity_prior_sd=0.2,
+                                      d_par=2.0e-9)
                     fit = pj.fit_prism(data, mask, bvals, bvecs, cfg)
                     dirs, fr, fi = fit.dirs, fit.wm_fracs, fit.fintra
                 err, rec = pj.angular_error_best_match(dirs, fr, gt)
                 extra = "" if np.isnan(fi).all() else f"  f_i={np.nanmean(fi):.3f} (geom {sub.f_intra:.3f})"
                 if meth != "msmt" and cfg.learn_diffusivities:
                     extra += f"  D∥={fit.d_par*1e9:.2f}"
+                    if cfg.separate_extra_dpar:
+                        extra += f"  D∥ex={fit.d_par_extra*1e9:.2f}"
                 print(f"    {meth:10s} err={err:6.2f}°  recall={100*rec:5.1f}%{extra}  ({time.time()-t0:.0f}s)", flush=True)
                 results[(geom, ang, meth)] = (err, rec, float(np.nanmean(fi)) if not np.isnan(fi).all() else np.nan, sub.f_intra)
     np.savez("validation/prism_substrate_results.npz",
