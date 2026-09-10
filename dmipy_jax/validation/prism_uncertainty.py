@@ -127,7 +127,7 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
         # Gauss–Newton / Fisher form: H ≈ Jᵀ J / σ², positive semi-definite by
         # construction. The exact Hessian is indefinite at a not-fully-
         # converged MAP and its clipped inverse produces σ_θ of 10³–10⁴°.
-        J = jax.jacfwd(pred_voxel)(th0, n, e1n, e2n, s0n, odin)     # (M,P)
+        J = jax.jacrev(pred_voxel)(th0, n, e1n, e2n, s0n, odin)     # (M,P)
         if sigma is not None:
             s2 = sigma ** 2
         else:
@@ -299,7 +299,7 @@ def voxel_log_evidence(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
     def voxel(yv, n, e1n, e2n, s0n, fil, frl, ol):
         th0 = jnp.concatenate([jnp.zeros(n_t), fil[None], frl, ol[:n_o]])
         p = pred(th0, n, e1n, e2n, s0n)
-        J = jax.jacfwd(pred)(th0, n, e1n, e2n, s0n)
+        J = jax.jacrev(pred)(th0, n, e1n, e2n, s0n)
         H = J.T @ J / sigma ** 2 + jnp.diag(prior_prec) + jitter * jnp.eye(th0.shape[0])
         H = 0.5 * (H + H.T)
         # log p(θ̂) under the same Gaussian priors (tangent coords are 0 at the MAP)
