@@ -572,8 +572,8 @@ pathology that made this minutes-to-never is fixed (`b47bb8f`).
 | Synthetic error < 2.0° / recall ≥ 99% | met on our protocol (1.52° / 100%); protocol caveat stands |
 | DiSCo margin over MSMT > +1.6 pp | met: +6.7 / +9.9 / +12.8 pp (SNR 50/30/10) |
 | Beat faithful PRISM-JAX at every SNR | met; fixed-D PRISM is undefined on DiSCo |
-| Restricted-compartment ablation with learned D | **not run** — next |
-| Calibrated fixel uncertainty | **not started** — §3.4, the qualitative axis |
+| Restricted-compartment ablation with learned D | **done** — learned-D model is better *without* it (+1.4 pp); fixed-D loses 1.9 pp vs PRISM's 9.4 (§6.11) |
+| Calibrated fixel uncertainty | **done** — 90 % cones cover 87–88 % at SNR ≥ 30 (§6.12); posterior-mean connectome r = 0.859, FP edges 4.7× more uncertain (§6.13) |
 | Misspecified substrates | **not started** — §3.5 / doc 006 Phase 2 |
 
 Honest summary of what "exceeding PRISM" currently rests on: (i) fixing
@@ -659,6 +659,43 @@ This is the first of the §3.4 deliverables: a per-fixel angular
 uncertainty that is calibrated where PRISM's point estimate is most
 confident and flags where it isn't. Cost: one vmapped Hessian, 1–12 s
 for 3,400–15,000 voxels.
+
+### 6.13 Posterior-sampled tractography on DiSCo — SNR 50, K=5, 20 samples (2026-09-09)
+
+`validation/validate_prism_posterior_disco.py`; `validation/prism_posterior_disco_snr50.npz`.
+Best PRISM-plus (learned D, tortuosity, no restricted pool, warm start)
+→ Gauss–Newton Laplace posterior per fixel (median σ_θ = 4.9°, 90th
+percentile 17°) → 20 direction-field samples → 21 connectomes on the
+§21.2 tracker.
+
+| quantity | value |
+|---|---:|
+| r(MAP connectome) | 0.851 |
+| **r(posterior-mean connectome)** | **0.859** |
+| r over the 20 samples | 0.852 ± 0.009 [0.839, 0.868] |
+| median 90 % CI relative width, GT-positive edges | 0.39 |
+| median 90 % CI relative width, GT-zero edges | 1.61 |
+| GT-zero edges whose CI lower bound reaches 0 | 26 % (of 95) |
+| coefficient of variation, GT-zero vs GT-positive edges | 0.61 vs 0.13 (Mann–Whitney p = 1.3 × 10⁻¹³) |
+
+- **The posterior-mean connectome is the best DiSCo number in this
+  document (0.859)** — above the MAP (0.851) and above the §24
+  dictionary (0.851). Averaging over direction uncertainty acts as a
+  principled version of the probabilistic-tracking smoothing that
+  helped the FORCE paper's own results.
+- **The uncertainty separates false-positive edges from true ones.**
+  Spurious connections have ~4.7× the relative spread of real ones, and
+  a quarter of them have a credible interval that includes zero. This
+  is the qualitative capability §3.4 was after: PRISM's Dice deficit
+  vs MSMT (§6.6) is a *specificity* problem, and per-edge credible
+  intervals are a direct handle on it that no point-estimate method
+  can offer. A CI-thresholded connectome is the obvious next
+  experiment.
+- Cost: fit 5 s (warm) + Laplace 4 s + 21 trackings 17 s. The whole
+  posterior connectome takes less time than one MSMT-CSD fit.
+- Honest caveats: the Laplace ignores spatial-prior coupling (intervals
+  are per-voxel conservative); the 90 % cones under-cover at crossings
+  ≤ 20° (§6.12); this is one noise realisation, one tracking seed.
 
 ---
 
