@@ -25,7 +25,8 @@ def main():
     ap.add_argument("--box-um", type=float, default=10.0)
     ap.add_argument("--n-particles", type=int, default=4000)
     ap.add_argument("--n-iter", type=int, default=300)
-    ap.add_argument("--methods", nargs="+", default=["prism-nll", "plus", "plus-disp", "msmt"])
+    ap.add_argument("--methods", nargs="+",
+                    default=["prism-nll", "plus", "plus-dprior", "plus-disp", "msmt"])
     args = ap.parse_args()
 
     bvals, bvecs = prism_scheme()
@@ -36,6 +37,7 @@ def main():
                                    beading=0.3 if geom == "tortuous" else 0.0)
         print(f"\n### {geom}: {len(df)} spheres, {df['id'].nunique()} axons, "
               f"axis {np.round(sb.bundle_axis(df), 3)}", flush=True)
+        sf_data = None          # single-bundle voxels → MSMT response function
         for ang in args.angles:
             sub = sb.make_crossing_substrate(df, ang, args.box_um)
             t0 = time.time()
@@ -44,6 +46,8 @@ def main():
                   f"S(b3000) mean intra={S_in[-64:].mean():.3f} extra={S_ex[-64:].mean():.3f}", flush=True)
             data, mask = sb.build_volume(S, (8, 8, 1), args.snr)
             N = 64
+            if ang == 0:
+                sf_data = data
             gt = np.zeros((N, 2, 3)); gt[:, 0] = sub.axes[0]
             if ang > 0:
                 gt[:, 1] = sub.axes[1]
@@ -54,16 +58,24 @@ def main():
                     from dipy.data import default_sphere
                     from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
                     gtab = gradient_table(bvals / 1e6, bvecs=bvecs)
-                    # oracle-ish response: this voxel set is homogeneous, so use all
-                    pam, _ = msmt_csd_pam(data, gtab, mask, default_sphere, wm_mask=mask)
-                    dirs = pam.peak_dirs[mask]; v = pam.peak_values[mask]
+                    # oracle response: WM response estimated from the *single-bundle*
+                    # voxels of the same geometry (appended as a second slice)
+                    if sf_data is None:
+                        raise RuntimeError("run angle 0 first so the MSMT response can be estimated")
+                    both = np.concatenate([data, sf_data], axis=2)          # (8,8,2,M)
+                    m_both = np.ones(both.shape[:3], bool)
+                    wm = np.zeros_like(m_both); wm[:, :, 1] = True
+                    pam, _ = msmt_csd_pam(both, gtab, m_both, default_sphere, wm_mask=wm)
+                    sel = np.zeros_like(m_both); sel[:, :, 0] = True
+                    dirs = pam.peak_dirs[sel]; v = pam.peak_values[sel]
                     fr = v / np.maximum(v.sum(1, keepdims=True), 1e-12); fi = np.full(N, np.nan)
                 else:
                     cfg = pj.PrismConfig(n_fibres=2, n_iter=args.n_iter, loss="nll")
                     if meth.startswith("plus"):
                         cfg = replace(cfg, learn_diffusivities=True, tortuosity=True,
                                       use_restricted=False, d_par=1.7e-9,
-                                      disperse=meth == "plus-disp")
+                                      disperse=meth == "plus-disp",
+                                      lam_diffusivity_prior=1.0 if meth == "plus-dprior" else 0.0)
                     fit = pj.fit_prism(data, mask, bvals, bvecs, cfg)
                     dirs, fr, fi = fit.dirs, fit.wm_fracs, fit.fintra
                 err, rec = pj.angular_error_best_match(dirs, fr, gt)
