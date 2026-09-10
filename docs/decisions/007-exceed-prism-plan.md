@@ -815,6 +815,88 @@ runs in ~5 min as a Slurm job. Direct background runs of it were killed
 by the session harness twice with no error; `sbatch` is the reliable
 route for anything over a couple of minutes.
 
+### 6.15 Decoupled extra-cellular D∥ + anchored intra D∥ (2026-09-10)
+
+Slurm job 1740, `validation/prism_substrate_results_slurm1740.log`. The
+§6.14 lever: the extra-cellular zeppelin gets its own axial diffusivity
+D∥,ex = D∥·sigmoid(·) ≤ D∥ (radial still D∥,ex·(1 − f_i)), and the intra
+stick's D∥ is held near the intrinsic 2.0 µm²/ms by a prior (sd 0.2 log
+units) — a physical bound, not a phantom fact. New CATERPillar draw, so
+compare rows within this table, not against §6.14's numbers.
+
+**All 10 conditions**
+
+| method | mean error | recall | f_i bias | D∥ (intra) | D∥,ex |
+|---|---:|---:|---:|---:|---:|
+| fixed-D PRISM-JAX | 6.30° | 98.8 % | +0.225 | — | — |
+| PRISM-plus (learned D) | 5.66° | 99.1 % | +0.099 | 1.01 | — |
+| **PRISM-plus-x** (decoupled D∥,ex, D∥ anchored 2.0) | 5.71° | 99.0 % | +0.092 | 1.69 | 0.51 |
+| PRISM-plus + dispersion | 6.44° | 98.6 % | +0.214 | 1.50 | — |
+| PRISM-plus-x + dispersion | 6.39° | 98.7 % | +0.261 | 1.90 | 0.84 |
+| MSMT-CSD | 10.09° | 85.9 % | — | — | — |
+
+**Single bundles**
+
+| method | mean error | recall | f_i bias | D∥ (intra) | D∥,ex |
+|---|---:|---:|---:|---:|---:|
+| fixed-D PRISM-JAX | 9.47° | 100.0 % | +0.223 | — | — |
+| PRISM-plus (learned D) | 5.88° | 100.0 % | +0.107 | 1.31 | — |
+| **PRISM-plus-x** (decoupled D∥,ex, D∥ anchored 2.0) | 8.32° | 100.0 % | +0.101 | 1.79 | 0.81 |
+| PRISM-plus + dispersion | 2.34° | 100.0 % | +0.177 | 1.64 | — |
+| PRISM-plus-x + dispersion | 2.84° | 100.0 % | +0.262 | 1.89 | 1.38 |
+| MSMT-CSD | 4.37° | 100.0 % | — | — | — |
+
+**Crossings 30–90°**
+
+| method | mean error | recall | f_i bias | D∥ (intra) | D∥,ex |
+|---|---:|---:|---:|---:|---:|
+| fixed-D PRISM-JAX | 5.51° | 98.4 % | +0.226 | — | — |
+| PRISM-plus (learned D) | 5.60° | 98.8 % | +0.096 | 0.94 | — |
+| **PRISM-plus-x** (decoupled D∥,ex, D∥ anchored 2.0) | 5.06° | 98.7 % | +0.089 | 1.66 | 0.43 |
+| PRISM-plus + dispersion | 7.46° | 98.2 % | +0.223 | 1.47 | — |
+| PRISM-plus-x + dispersion | 7.28° | 98.4 % | +0.260 | 1.90 | 0.71 |
+| MSMT-CSD | 11.52° | 82.3 % | — | — | — |
+
+**Narrow crossings 30–45° (where §6.14 said learned D was a liability)**
+
+| method | mean error | recall | f_i bias | D∥ (intra) | D∥,ex |
+|---|---:|---:|---:|---:|---:|
+| fixed-D PRISM-JAX | 7.74° | 96.9 % | +0.273 | — | — |
+| PRISM-plus (learned D) | 8.35° | 97.7 % | +0.069 | 0.92 | — |
+| **PRISM-plus-x** (decoupled D∥,ex, D∥ anchored 2.0) | 7.01° | 97.5 % | +0.091 | 1.70 | 0.43 |
+| PRISM-plus + dispersion | 10.44° | 96.7 % | +0.234 | 1.53 | — |
+| PRISM-plus-x + dispersion | 9.96° | 98.6 % | +0.310 | 1.91 | 0.81 |
+| MSMT-CSD | 18.08° | 64.7 % | — | — | — |
+
+Reading:
+
+1. **The decoupling does what it was built for.** Intra D∥ now stays at
+   1.6–1.8 (was collapsing to 0.8–1.3) while D∥,ex takes the hindrance
+   (0.3–0.9). At 30–45° crossings PRISM-plus-x is the best of every
+   method in both geometries (straight 7.2° / 4.5°, tortuous 11.9° /
+   4.4°) and has the smallest f_i bias of the learned variants there.
+   The §6.14 liability is removed: learned diffusivities no longer cost
+   angular precision at crossings.
+2. **It does not replace dispersion on single bundles** (7.6° / 9.1° vs
+   2.4° / 2.3° for the dispersed model). The two levers fix different
+   misspecifications — hindrance vs orientation spread — and combining
+   them (plus-x-disp) does not stack: the dispersed model spends the
+   freed D∥,ex on a larger ODI/f_i trade-off (f_i bias +0.25–0.30, the
+   worst row). Model selection between "-x" and "-disp" per voxel is
+   the obvious next step, and the Laplace machinery (§6.12) gives the
+   evidence for it cheaply.
+3. **f_i is still over-estimated by every method** (+0.05 to +0.30).
+   The extra-cellular space in these substrates is hindered *and*
+   restricted (S_ex at b=3000 is 0.03–0.05, ×15 the free value); no
+   Gaussian-compartment model recovers the volume fraction from it.
+   This is the misspecification that only a substrate-trained
+   (OCTOPUS/CATERPillar) forward model — doc 006 Phase 3 — can address.
+
+Updated stance for the plan: default PRISM-plus = learned D + decoupled
+D∥,ex + tortuosity + warm start, no restricted pool; dispersion on when
+the tissue is single-population or the ODI is identifiable (high-b
+shell present).
+
 ---
 
 ## 7. Risks
