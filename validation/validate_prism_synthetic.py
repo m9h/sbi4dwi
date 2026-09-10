@@ -22,6 +22,10 @@ def main():
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--warm-noise-deg", type=float, default=15.0,
                     help="stand-in for a dictionary warm start: GT perturbed by this angle")
+    ap.add_argument("--warm", choices=["dict", "gt"], default="dict",
+                    help="warm start source: 'dict' = DictionaryMatcher on a PRISM-model "
+                         "library (what we do on DiSCo); 'gt' = GT perturbed by --warm-noise-deg")
+    ap.add_argument("--library-size", type=int, default=300_000)
     ap.add_argument("--gt-odi", type=float, default=None,
                     help="generate Watson-dispersed ground truth with this ODI")
     args = ap.parse_args()
@@ -39,10 +43,14 @@ def main():
                                   disperse=meth.startswith("plus-disp"))
                 init = None
                 if meth in ("plus-warm", "plus-disp-warm"):
-                    rng = np.random.default_rng(2)
-                    sd = np.tan(np.radians(args.warm_noise_deg))
-                    init = b["gt_dirs"] + rng.normal(0, sd, b["gt_dirs"].shape)
-                    init[b["angle"] == 0, 1] = rng.normal(size=3)
+                    if args.warm == "gt":
+                        rng = np.random.default_rng(2)
+                        sd = np.tan(np.radians(args.warm_noise_deg))
+                        init = b["gt_dirs"] + rng.normal(0, sd, b["gt_dirs"].shape)
+                        init[b["angle"] == 0, 1] = rng.normal(size=3)
+                    else:
+                        from dmipy_jax.validation.prism_synthetic import dictionary_warm_start
+                        init, _ = dictionary_warm_start(b, args.library_size)
                 fit = fit_prism(b["data"], b["mask"], b["bvals"], b["bvecs"], cfg, init_dirs=init)
                 dirs, fracs = fit.dirs, fit.wm_fracs
             sc = score_by_angle(dirs, fracs, b)
