@@ -897,6 +897,25 @@ D∥,ex + tortuosity + warm start, no restricted pool; dispersion on when
 the tissue is single-population or the ODI is identifiable (high-b
 shell present).
 
+### 6.16 Decoupled D∥,ex on DiSCo — in-regime check (2026-09-10)
+
+Slurm job 1741, `validation/prism_disco_connectivity_results_xdpar.npz`.
+K=5, pf 0.10, 45°, warm start, no restricted pool, tortuosity.
+
+| SNR | PRISM-plus (shared D∥) | PRISM-plus-x (decoupled D∥,ex) | Δ | D∥ / D∥,ex learned |
+|---:|---:|---:|---:|---|
+| 50 | 0.855 | 0.847 | −0.8 pp | 0.67 / 0.56 |
+| 30 | 0.846 | 0.848 | +0.2 pp | 0.70 / 0.58 |
+| 10 | 0.825 | 0.829 | +0.4 pp | 0.95 / 0.70 |
+
+All three differences are inside the ±0.7 pp cross-process floor
+(§6.11): **neutral in-regime**, as it should be — DiSCo's extra-cellular
+space is not hindered the way a packed CATERPillar substrate is, and the
+fit correctly finds D∥,ex only ~15 % below D∥. The decoupling is
+therefore safe to make the default: it costs nothing where the shared
+model is adequate and removes the crossing liability where it is not
+(§6.15).
+
 ---
 
 ## 7. Risks
