@@ -948,6 +948,34 @@ its count is *stably* non-zero across direction samples.
   at SNR 30 and 10 (Slurm job below). If they hold, this is a default;
   if not, it is a tuning knob and will be labelled as such.
 
+### 6.18 Fixed-threshold validation across SNR (2026-09-10)
+
+Slurm job 1742, `validation/prism_posterior_disco_snr{50,30,10}.npz`.
+Same rules as §6.17, **unchanged**, applied to fresh PRISM-plus-x fits
+(new process, so the SNR-50 row is an independent draw from §6.17's).
+
+| SNR | MAP r / Dice | posterior mean r / Dice | **CV < 0.3** r / Dice / FP | CI 5th pct > 0.5·mean r / Dice / FP | MSMT Dice (§6.6) |
+|---:|---|---|---|---|---:|
+| 50 | 0.847 / 0.376 | 0.851 / 0.347 | **0.858 / 0.800 / 11** | 0.855 / 0.676 / 22 | 0.565 |
+| 30 | 0.847 / 0.365 | 0.853 / 0.347 | **0.859 / 0.793 / 10** | 0.856 / 0.649 / 27 | 0.548 |
+| 10 | 0.829 / 0.345 | 0.850 / 0.345 | **0.871 / 0.708 / 17** | 0.852 / 0.527 / 42 | 0.474 |
+
+- **The CV < 0.3 rule holds at every SNR without retuning**: Dice 0.80 /
+  0.79 / 0.71 against MSMT's 0.57 / 0.55 / 0.47, with recall 0.92–0.96
+  and 10–17 false-positive edges instead of 83–95. The §6.17 value
+  (0.857) was the in-sample optimum; 0.80 is the honest out-of-sample
+  number at SNR 50.
+- **r = 0.871 at SNR 10** is the highest connectivity correlation in the
+  document, at the lowest SNR — the posterior averaging plus edge
+  pruning is worth most where the point estimate is noisiest
+  (MAP 0.829 → 0.871).
+- The CI rule is the weaker of the two and degrades faster with noise;
+  CV is the default.
+- It is now a default in `prism_uncertainty.threshold_connectome`, not a
+  knob. Everything here is one phantom and one tracker; the next test
+  of the rule is the CATERPillar substrates (no tractography there) and
+  eventually in-vivo test–retest.
+
 ---
 
 ## 7. Risks

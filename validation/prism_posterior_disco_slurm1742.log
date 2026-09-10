@@ -1,0 +1,41 @@
+##### SNR 50
+fit 5s
+laplace 4s; median σ_θ main fibre = 3.88°, 90th pct = 17.80°
+tracking 21 connectomes: 20s
+
+r(MAP) = 0.8465   r(posterior mean) = 0.8511   r over samples = 0.8467 ± 0.0071 [0.8324, 0.8592]
+per-edge 90% CI relative width: median 0.26 on GT-positive edges, 1.49 on GT-zero edges
+GT-zero edges (n=95): 27% have CI lower bound 0; mean posterior-mean count 73.2 vs 1556.5 on GT-positive
+  MAP              r=0.8465  Dice=0.376  precision=0.231  recall=1.000  FP=83
+  posterior mean   r=0.8511  Dice=0.347  precision=0.210  recall=1.000  FP=94
+  CV<0.3           r=0.8580  Dice=0.800  precision=0.686  recall=0.960  FP=11
+  CI lo>0.5·mean   r=0.8546  Dice=0.676  precision=0.522  recall=0.960  FP=22
+coefficient of variation: median 0.58 (GT-zero) vs 0.09 (GT-positive); Mann-Whitney p=1.89e-13 that FP edges are more uncertain
+##### SNR 30
+fit 5s
+laplace 4s; median σ_θ main fibre = 4.64°, 90th pct = 16.89°
+tracking 21 connectomes: 21s
+
+r(MAP) = 0.8465   r(posterior mean) = 0.8531   r over samples = 0.8460 ± 0.0054 [0.8375, 0.8581]
+per-edge 90% CI relative width: median 0.37 on GT-positive edges, 1.57 on GT-zero edges
+GT-zero edges (n=95): 20% have CI lower bound 0; mean posterior-mean count 83.0 vs 1445.2 on GT-positive
+  MAP              r=0.8465  Dice=0.365  precision=0.223  recall=1.000  FP=87
+  posterior mean   r=0.8531  Dice=0.347  precision=0.210  recall=1.000  FP=94
+  CV<0.3           r=0.8585  Dice=0.793  precision=0.697  recall=0.920  FP=10
+  CI lo>0.5·mean   r=0.8564  Dice=0.649  precision=0.481  recall=1.000  FP=27
+coefficient of variation: median 0.59 (GT-zero) vs 0.13 (GT-positive); Mann-Whitney p=2.29e-13 that FP edges are more uncertain
+##### SNR 10
+fit 5s
+  fi_logit0 = jnp.log(fit.fintra / (1 - fit.fintra)).astype(jnp.float32)
+laplace 4s; median σ_θ main fibre = 5.56°, 90th pct = 11.36°
+tracking 21 connectomes: 23s
+
+r(MAP) = 0.8291   r(posterior mean) = 0.8504   r over samples = 0.8217 ± 0.0164 [0.7843, 0.8471]
+per-edge 90% CI relative width: median 0.60 on GT-positive edges, 1.33 on GT-zero edges
+GT-zero edges (n=95): 0% have CI lower bound 0; mean posterior-mean count 119.1 vs 711.1 on GT-positive
+  MAP              r=0.8291  Dice=0.345  precision=0.208  recall=1.000  FP=95
+  posterior mean   r=0.8504  Dice=0.345  precision=0.208  recall=1.000  FP=95
+  CV<0.3           r=0.8713  Dice=0.708  precision=0.575  recall=0.920  FP=17
+  CI lo>0.5·mean   r=0.8520  Dice=0.527  precision=0.364  recall=0.960  FP=42
+coefficient of variation: median 0.47 (GT-zero) vs 0.21 (GT-positive); Mann-Whitney p=7.58e-12 that FP edges are more uncertain
+exit 0
