@@ -315,7 +315,8 @@ from the same forward model every PRISM variant fits.
 | MSMT-CSD (first pass, FA-percentile response) | 10.45° | 85.3% | 7.6° | 10.2° | 12.7° | 15.1° / 50% | 62 s |
 | PRISM-JAX MSE (re-impl.) | 1.82° | 100% | 5.9° | 4.1° | 3.1° | 2.4° | 5 s |
 | PRISM-JAX NLL (re-impl.) | 1.68° | 100% | 4.4° | 3.4° | 2.9° | 2.2° | 4 s |
-| **PRISM-plus warm start** (GT ⊕ 15° noise) | **1.52°** | 100% | **2.6°** | 2.9° | 2.8° | 2.3° | 1 s |
+| **PRISM-plus warm start** (DictionaryMatcher, 300K PRISM-model library; run 2026-09-09) | **1.59°** | 100% | **3.2°** | 3.1° | 2.8° | 2.3° | 3 s |
+| *(earlier stand-in: GT ⊕ 15° noise)* | *1.52°* | *100%* | *2.6°* | *2.9°* | *2.8°* | *2.3°* | *1 s* |
 | *PRISM paper, MSE* | *3.5°* | *95%* | | | | | |
 | *PRISM paper, NLL* | *2.3°* | *99%* | *3.1–5.8° at ≤30°* | | | | |
 | *PRISM paper, MSMT-CSD* | *6.8°* | *83%* | | | | | |
@@ -327,8 +328,11 @@ Reading:
   numbers for the same method, the paper's benchmark is almost
   certainly harder than ours (varying fractions / f_i / iso signal not
   described in the extract we have). Do **not** claim "1.5° vs 2.3°";
-  claim the *within-protocol* ordering: warm start halves the 15° error
-  (5.9° → 2.6°) and is the only variant that keeps ≤ 3° at every angle.
+  claim the *within-protocol* ordering: a real dictionary warm start
+  (the same mechanism as on DiSCo) cuts the 15° error from 4.4° to 3.2°
+  (NLL) and is the only variant ≤ 3.2° at every crossing angle. The
+  GT-perturbed stand-in used on the first day is kept for the record
+  and is no longer cited.
 - Recall is 100% everywhere for PRISM-JAX, including 15°. The paper's
   95%/99% suggests their harder setting or their orphan/ordering priors
   interacting with detection; ours has no such loss.
@@ -580,6 +584,39 @@ we show it otherwise absorbs into f_i. None of these is a new
 estimator; all are things the JAX forward-model stack made a one-day
 job each. The uncertainty axis (§3.4) is where the claim would become
 qualitative.
+
+### 6.11 Restricted-compartment ablation — DiSCo SNR=50, K=5, pf=0.10, 45° (2026-09-09)
+
+`validation/prism_disco_connectivity_results_ablation_snr50.npz`. PRISM
+reports **−9.4 pp** when its restricted isotropic pool (D=0.2) is removed.
+
+| method | with restricted | without | Δ | D∥ learned |
+|---|---:|---:|---:|---|
+| PRISM-JAX NLL, tuned D (oracle 0.6/0.35) | 0.847 | 0.829 | **−1.9 pp** | fixed |
+| PRISM-plus (learned D, tortuosity, warm) | 0.837 | **0.851** | **+1.4 pp** | 0.636 → 0.584 |
+
+- With diffusivities *learned*, the restricted pool is not just
+  unnecessary — removing it helps (+1.4 pp) and D∥ moves further into
+  the phantom's band (0.58). With diffusivities *fixed*, removing it
+  costs 1.9 pp. Both directions support §3.1's reading: on a phantom
+  whose diffusivity the model does not know, the slow isotropic pool
+  is a diffusivity fudge. Our −1.9 pp (fixed-but-correct D) vs PRISM's
+  −9.4 pp is consistent with PRISM having run DiSCo with diffusivities
+  further from the truth than our tuned 0.6/0.35.
+- **Cross-process variance caveat.** `plus-tort-warm` scored 0.8437 in
+  §6.5 (three seeds, one process) and 0.8367 here (new process, same
+  flags). The pipeline is deterministic *within* a process but the
+  500K library generation / XLA autotuning is not bit-reproducible
+  across processes: ±0.7 pp is the run-to-run floor. Every DiSCo Δ
+  under ~1 pp in this document is inside that floor, including this
+  ablation's +1.4 pp being "only" marginally outside it. The
+  fixed-D −1.9 pp and the SNR-10/30 margins over §24 (+4.6 / +7.8 pp)
+  are not.
+
+**PRISM-plus without the restricted pool, learned D, tortuosity, warm
+start: r = 0.851 at SNR 50 — level with the §24 dictionary (0.851)
+without dispersion, at 20 s per fit.** New default for the `plus-*`
+rows going forward.
 
 ---
 
