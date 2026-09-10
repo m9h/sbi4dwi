@@ -381,3 +381,11 @@ class TestDispersion:
         err, rec = pj.angular_error_best_match(fit.dirs, fit.wm_fracs, gt)
         assert rec == 1.0 and err < 5.0, (err, rec)
         assert np.abs(fit.odi[:, :2].mean() - 0.25) < 0.08, fit.odi.mean(0)
+
+
+def test_restricted_ablation_zeroes_fraction():
+    cfg = pj.PrismConfig(n_fibres=2, use_restricted=False)
+    p = pj.init_params(3, cfg, jax.random.PRNGKey(0))
+    phys = pj.unpack(p, cfg)
+    assert np.allclose(np.asarray(phys["fracs"][:, -1]), 0.0)
+    np.testing.assert_allclose(np.asarray(phys["fracs"]).sum(-1), 1.0, atol=1e-6)

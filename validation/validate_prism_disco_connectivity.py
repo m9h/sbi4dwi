@@ -62,6 +62,12 @@ def _cfg_for(method: str, n_fibres: int, n_iter: int, seed: int = 0) -> PrismCon
         # + Watson dispersion per fibre (learned ODI), tortuosity, warm start
         "plus-disp-warm": replace(base, loss="nll", learn_diffusivities=True,
                                   d_par=0.6e-9, tortuosity=True, disperse=True),
+        # ablations: no restricted pool (PRISM: −9.4 pp on DiSCo)
+        "prism-tuned-nll-nores": replace(base, loss="nll", d_par=0.6e-9, d_perp=0.35e-9,
+                                         use_restricted=False),
+        "prism-nll-nores": replace(base, loss="nll", use_restricted=False),
+        "plus-tort-warm-nores": replace(base, loss="nll", learn_diffusivities=True,
+                                        d_par=0.6e-9, tortuosity=True, use_restricted=False),
         # + weak prior on D∥ (λ=1, sd=0.3 log units) against low-SNR drift
         "plus-dprior-warm": replace(base, loss="nll", learn_diffusivities=True,
                                     d_par=0.6e-9, tortuosity=True,
@@ -122,7 +128,8 @@ def run_method(method, out, affine, n_fibres, n_iter, library_size,
         bvecs = np.asarray(gtab.bvecs)
         cfg = _cfg_for(method, n_fibres, n_iter, seed)
         init_dirs = init_fracs = None
-        if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm", "plus-disp-warm"):
+        if method in ("plus-warm", "plus-tort-warm", "plus-dprior-warm", "plus-disp-warm",
+                      "plus-tort-warm-nores"):
             init_dirs, init_fracs = _warm_start(out, bvals, bvecs, n_fibres, library_size)
         fit = fit_prism(data, mask, bvals, bvecs, cfg, init_dirs, init_fracs)
         pam = prism_fit_to_pam(fit, default_sphere, peak_frac_min=peak_frac_min,

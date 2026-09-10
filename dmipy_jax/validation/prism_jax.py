@@ -75,6 +75,8 @@ class PrismConfig:
     # convolution of the Watson FOD with the stick / zeppelin kernels, so
     # cost is O(n_legendre) forward evaluations instead of a sphere grid.
     disperse: bool = False
+    # Ablation (doc 007 §3.1): drop PRISM's restricted isotropic pool.
+    use_restricted: bool = True
     odi_init: float = 0.1
     odi_range: tuple[float, float] = (0.01, 0.5)
     n_legendre: int = 13                   # even orders 0..24
@@ -178,9 +180,12 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
     """Raw → physical. Fractions layout: [csf, gm, wm_1..wm_K, res]."""
     dirs = params["dirs_raw"]
     dirs = dirs / jnp.maximum(jnp.linalg.norm(dirs, axis=-1, keepdims=True), 1e-8)
+    logits = params["frac_logits"]
+    if not cfg.use_restricted:
+        logits = logits.at[:, -1].set(-1e9)
     out = {
         "s0": jax.nn.softplus(params["s0_raw"]),
-        "fracs": jax.nn.softmax(params["frac_logits"], axis=-1),
+        "fracs": jax.nn.softmax(logits, axis=-1),
         "dirs": dirs,
         "fintra": jax.nn.sigmoid(params["fintra_logit"]),
     }
@@ -354,8 +359,9 @@ def forward(phys: dict, bvals, bvecs, cfg: PrismConfig):
     e_gm = jnp.exp(-bvals * cfg.d_gm)[None, :]
     e_res = jnp.exp(-bvals * cfg.d_res)[None, :]
     s = (f[:, 0:1] * e_csf + f[:, 1:2] * e_gm
-         + jnp.einsum("nk,nkm->nm", f[:, 2:2 + K], e_wm)
-         + f[:, -1:] * e_res)
+         + jnp.einsum("nk,nkm->nm", f[:, 2:2 + K], e_wm))
+    if cfg.use_restricted:
+        s = s + f[:, -1:] * e_res
     return phys["s0"][:, None] * s
 
 
