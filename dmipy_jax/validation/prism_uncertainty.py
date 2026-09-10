@@ -65,11 +65,19 @@ class FixelPosterior:
 
 
 def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
-                            jitter: float = 1e-6) -> FixelPosterior:
+                            jitter: float = 1e-6, dir_prior_sd_rad: float = 1.0) -> FixelPosterior:
     """Laplace approximation around the MAP, per voxel, over
     [tangent coords (K×2), f_i logit, fraction logits (K+3)]. Only the
     direction block is returned as a covariance; the rest is marginalised
-    by inverting the full per-voxel Hessian."""
+    by inverting the full per-voxel Hessian.
+
+    ``dir_prior_sd_rad``: a weak Gaussian prior (default 1 rad ≈ 57°) on
+    every tangent coordinate. A fibre with ~zero fraction has no curvature
+    in the data term; without the prior its clipped-eigenvalue inverse
+    leaks through the (small) cross-fibre coupling into the *main*
+    fibre's covariance. The prior bounds any fixel's σ_θ at ~57° and
+    leaves well-determined fixels untouched (their precision is 10³–10⁵×
+    larger)."""
     cfg = fit.cfg
     K = cfg.n_fibres
     mask = fit.mask
@@ -125,7 +133,9 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
     def voxel_cov(yv, n, e1n, e2n, s0n, fil, frl, odin):
         th0 = jnp.concatenate([jnp.zeros(n_t), fil[None], frl])
         H = jax.hessian(nll_voxel)(th0, yv, n, e1n, e2n, s0n, fil, frl, odin)
-        H = H + jitter * jnp.eye(H.shape[0])
+        prior_prec = jnp.concatenate([jnp.full((n_t,), 1.0 / dir_prior_sd_rad ** 2),
+                                      jnp.zeros((H.shape[0] - n_t,))])
+        H = H + jnp.diag(prior_prec) + jitter * jnp.eye(H.shape[0])
         # symmetrise + guard against indefinite blocks: clip eigenvalues
         H = 0.5 * (H + H.T)
         w, V = jnp.linalg.eigh(H)

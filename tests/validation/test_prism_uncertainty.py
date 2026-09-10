@@ -62,3 +62,10 @@ def test_single_fibre_second_slot_is_uncertain(fitted):
     minor = post.wm_fracs[single, 1] < 0.05
     if minor.sum() > 5:
         assert np.median(post.sigma_deg[single][minor, 1]) > 3 * np.median(post.sigma_deg[single][:, 0])
+
+
+def test_sigma_bounded_by_direction_prior(fitted):
+    """No fixel's σ_θ may exceed the weak direction prior (~57°), including
+    degenerate co-linear fibre pairs in single-fibre voxels."""
+    b, m, gt, ang, fit, post = fitted
+    assert np.all(post.sigma_deg <= 60.0), post.sigma_deg.max()
