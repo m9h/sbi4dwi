@@ -69,3 +69,14 @@ def test_sigma_bounded_by_direction_prior(fitted):
     degenerate co-linear fibre pairs in single-fibre voxels."""
     b, m, gt, ang, fit, post = fitted
     assert np.all(post.sigma_deg <= 65.0), post.sigma_deg.max()
+
+
+def test_threshold_connectome_rules():
+    mean = np.array([[0, 10, 4], [10, 0, 1], [4, 1, 0]], float)
+    sd = np.array([[0, 1, 3], [1, 0, 2], [3, 2, 0]], float)
+    lo = np.array([[0, 8, 0], [8, 0, 0], [0, 0, 0]], float)
+    res = {"mean": mean, "sd": sd, "lo": lo}
+    cv = pu.threshold_connectome(res, "cv", cv_max=0.3)
+    assert cv[0, 1] == 10 and cv[0, 2] == 0 and cv[1, 2] == 0
+    ci = pu.threshold_connectome(res, "ci", lo_frac=0.5)
+    assert ci[0, 1] == 10 and ci[0, 2] == 0

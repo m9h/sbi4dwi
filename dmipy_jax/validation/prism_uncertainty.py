@@ -206,3 +206,25 @@ def posterior_connectivity(post: FixelPosterior, mask, rois, affine, sphere, key
             "sd": C[1:].std(0) if include_map else C.std(0),
             "lo": np.percentile(C[1:] if include_map else C, 5, axis=0),
             "hi": np.percentile(C[1:] if include_map else C, 95, axis=0)}
+
+
+def threshold_connectome(res: dict, rule: str = "cv", cv_max: float = 0.3,
+                         lo_frac: float = 0.5) -> np.ndarray:
+    """Uncertainty-thresholded connectome from ``posterior_connectivity``
+    output. Keeps the posterior-mean count of an edge only if it is
+    *reliably* non-zero across direction samples:
+
+      rule="cv":  sd / mean < cv_max          (default 0.3)
+      rule="ci":  5th percentile > lo_frac × mean   (default 0.5)
+
+    Everything else is set to 0. The thresholds are fixed a priori here
+    (chosen on DiSCo SNR 50, doc 007 §6.17) and must be validated, not
+    re-tuned, on other data."""
+    mean = res["mean"]
+    if rule == "cv":
+        keep = res["sd"] / np.maximum(mean, 1e-9) < cv_max
+    elif rule == "ci":
+        keep = res["lo"] > lo_frac * mean
+    else:
+        raise ValueError(rule)
+    return np.where(keep, mean, 0.0)

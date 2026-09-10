@@ -58,6 +58,14 @@ def main():
           f"{np.median(rel_w[gt_zero]):.2f} on GT-zero edges")
     print(f"GT-zero edges (n={gt_zero.sum()}): {np.mean(lo[gt_zero] == 0)*100:.0f}% have CI lower bound 0; "
           f"mean posterior-mean count {mean[gt_zero].mean():.1f} vs {mean[gt_pos].mean():.1f} on GT-positive")
+    # uncertainty-thresholded connectomes (fixed rules, doc 007 §6.17)
+    from dmipy_jax.validation.connectivity_metrics import connectivity_dice_f1
+    for label, c in (("MAP", res["map"]), ("posterior mean", res["mean"]),
+                     ("CV<0.3", pu.threshold_connectome(res, "cv", cv_max=0.3)),
+                     ("CI lo>0.5·mean", pu.threshold_connectome(res, "ci", lo_frac=0.5))):
+        dsc = connectivity_dice_f1(c, gt)
+        print(f"  {label:16s} r={connectivity_pearson(c, gt):.4f}  Dice={dsc['dice']:.3f}  "
+              f"precision={dsc['precision']:.3f}  recall={dsc['recall']:.3f}  FP={dsc['fp']}")
     # edge-wise: does uncertainty separate FP from TP? rank GT-zero vs positive by CV
     cv = res["sd"][iu] / np.maximum(mean, 1e-6)
     from scipy.stats import mannwhitneyu
