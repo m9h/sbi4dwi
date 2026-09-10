@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""
+Misspecification benchmark (doc 007 §3.5): PRISM-JAX vs PRISM-plus vs
+MSMT-CSD on Monte Carlo signals from CATERPillar axon substrates.
+
+Substrates: crossing angles × {straight, tortuous+beaded}. Scheme: PRISM's
+3 shells × 64 dirs with DiSCo timing (δ=17.74 ms, Δ=35.78 ms). SNR 30,
+8×8 voxels per condition with independent noise. Reports angular error,
+recall, and f_i vs the measured intra-cellular fraction.
+"""
+import argparse, time
+from dataclasses import replace
+import numpy as np, jax
+from dmipy_jax.validation import substrate_benchmark as sb
+from dmipy_jax.validation import prism_jax as pj
+from dmipy_jax.validation.prism_synthetic import prism_scheme
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--angles", type=float, nargs="+", default=[0, 30, 45, 60, 90])
+    ap.add_argument("--geoms", nargs="+", default=["straight", "tortuous"])
+    ap.add_argument("--snr", type=float, default=30)
+    ap.add_argument("--icvf", type=float, default=0.5)
+    ap.add_argument("--box-um", type=float, default=10.0)
+    ap.add_argument("--n-particles", type=int, default=4000)
+    ap.add_argument("--n-iter", type=int, default=300)
+    ap.add_argument("--methods", nargs="+", default=["prism-nll", "plus", "plus-disp", "msmt"])
+    args = ap.parse_args()
+
+    bvals, bvecs = prism_scheme()
+    results = {}
+    for geom in args.geoms:
+        df = sb.caterpillar_bundle(icvf=args.icvf, box_um=args.box_um,
+                                   tortuous=int(geom == "tortuous"),
+                                   beading=0.3 if geom == "tortuous" else 0.0)
+        print(f"\n### {geom}: {len(df)} spheres, {df['id'].nunique()} axons, "
+              f"axis {np.round(sb.bundle_axis(df), 3)}", flush=True)
+        for ang in args.angles:
+            sub = sb.make_crossing_substrate(df, ang, args.box_um)
+            t0 = time.time()
+            S, S_in, S_ex = sb.simulate_substrate_signal(sub, bvals, bvecs, n_particles=args.n_particles)
+            print(f"  angle {ang:>4.0f}: f_intra={sub.f_intra:.3f}  MC {time.time()-t0:.0f}s  "
+                  f"S(b3000) mean intra={S_in[-64:].mean():.3f} extra={S_ex[-64:].mean():.3f}", flush=True)
+            data, mask = sb.build_volume(S, (8, 8, 1), args.snr)
+            N = 64
+            gt = np.zeros((N, 2, 3)); gt[:, 0] = sub.axes[0]
+            if ang > 0:
+                gt[:, 1] = sub.axes[1]
+            for meth in args.methods:
+                t0 = time.time()
+                if meth == "msmt":
+                    from dipy.core.gradients import gradient_table
+                    from dipy.data import default_sphere
+                    from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
+                    gtab = gradient_table(bvals / 1e6, bvecs=bvecs)
+                    # oracle-ish response: this voxel set is homogeneous, so use all
+                    pam, _ = msmt_csd_pam(data, gtab, mask, default_sphere, wm_mask=mask)
+                    dirs = pam.peak_dirs[mask]; v = pam.peak_values[mask]
+                    fr = v / np.maximum(v.sum(1, keepdims=True), 1e-12); fi = np.full(N, np.nan)
+                else:
+                    cfg = pj.PrismConfig(n_fibres=2, n_iter=args.n_iter, loss="nll")
+                    if meth.startswith("plus"):
+                        cfg = replace(cfg, learn_diffusivities=True, tortuosity=True,
+                                      use_restricted=False, d_par=1.7e-9,
+                                      disperse=meth == "plus-disp")
+                    fit = pj.fit_prism(data, mask, bvals, bvecs, cfg)
+                    dirs, fr, fi = fit.dirs, fit.wm_fracs, fit.fintra
+                err, rec = pj.angular_error_best_match(dirs, fr, gt)
+                extra = "" if np.isnan(fi).all() else f"  f_i={np.nanmean(fi):.3f} (geom {sub.f_intra:.3f})"
+                if meth != "msmt" and cfg.learn_diffusivities:
+                    extra += f"  D∥={fit.d_par*1e9:.2f}"
+                print(f"    {meth:10s} err={err:6.2f}°  recall={100*rec:5.1f}%{extra}  ({time.time()-t0:.0f}s)", flush=True)
+                results[(geom, ang, meth)] = (err, rec, float(np.nanmean(fi)) if not np.isnan(fi).all() else np.nan, sub.f_intra)
+    np.savez("validation/prism_substrate_results.npz",
+             keys=np.array([f"{g}|{a}|{m}" for (g, a, m) in results]),
+             vals=np.array(list(results.values())))
+
+
+if __name__ == "__main__":
+    main()
