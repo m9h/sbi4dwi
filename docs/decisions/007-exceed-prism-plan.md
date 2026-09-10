@@ -786,10 +786,12 @@ Reading, in order of what it changes:
    the extra-cellular space so hindered (S_extra at b = 3000 ≈ 0.03–0.05
    vs 0.0025 free) that it reads as intra-cellular. Fixed-D PRISM is the
    worst offender in the tortuous geometry (f_i 0.85 / 0.80 at 30° / 60°
-   vs 0.53) — the same absorb-into-f_i behaviour as §6.8. The learned-D
-   variants are least biased (+0.05–0.10) because D∥ absorbs it instead.
-   Either way the microstructure is wrong; the question is which
-   parameter takes the hit.
+   vs 0.53) — the same absorb-into-f_i behaviour as §6.8. Mean bias
+   over all conditions: learned-D +0.09, learned-D + prior +0.10,
+   fixed-D +0.15, **dispersion +0.19** — the dispersed model is the
+   *worst* on f_i because ODI and f_i trade off against each other
+   (§6.8) and hindrance pushes both up. Either way the microstructure
+   is wrong; the question is which parameter takes the hit.
 3. **MSMT-CSD with an honest oracle response fails at 30–45°** (recall
    40–45 % at 45°, error 15–22°) and is competitive only at ≥ 60°.
    Consistent with §6.2's in-model finding; not a fluke of the response.
@@ -801,8 +803,11 @@ Reading, in order of what it changes:
    therefore: learned D fixes the DiSCo-type failure (wrong regime,
    §6.1) but is not free under misspecification; a tortuosity-consistent
    extra-cellular model or a physically-anchored D prior at 2.0 is the
-   next lever, and dispersion is the one lever that helped everywhere it
-   was identifiable.
+   next lever. Dispersion is the best variant on average (5.2° vs
+   5.5–5.6°) and by far on single bundles, but it is the worst on f_i
+   and it *hurts* at tortuous 45–60° crossings (8.1° / 7.2° vs 5.4° /
+   4.2° fixed-D) — a dispersed model has more ways to explain beaded,
+   hindered signal wrongly.
 
 Cost: 4–7 s of Monte Carlo per substrate on the GB10 (4,000 walkers ×
 1,800 steps × 5–8k spheres); the whole 10-condition, 5-method benchmark
