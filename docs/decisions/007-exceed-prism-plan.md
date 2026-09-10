@@ -621,11 +621,14 @@ rows going forward.
 ### 6.12 Fixel uncertainty — Laplace posterior, calibration on the synthetic benchmark (2026-09-09)
 
 `dmipy_jax/validation/prism_uncertainty.py`; `validation/prism_uncertainty_calibration.npz`.
-PRISM is a point estimate. We take the per-voxel Hessian of the Rician
-NLL at the PRISM-plus MAP over [tangent coords of each fibre, f_i logit,
-fraction logits] (globals σ, D fixed; spatial coupling ignored → block
-diagonal; weak 57° Gaussian prior on directions so degenerate co-linear
-fibre pairs cannot leak infinite variance into the main fibre). Output:
+PRISM is a point estimate. We take the per-voxel **Gauss–Newton
+(Fisher) curvature** JᵀJ/σ² of the Rician NLL at the PRISM-plus MAP over
+[tangent coords of each fibre, f_i logit, fraction logits] (globals σ, D
+fixed; spatial coupling ignored → block diagonal; weak priors — 57° on
+directions, 3 logit-units on fractions — so degenerate co-linear fibre
+pairs and unidentified minor fibres cannot leak unbounded variance into
+the main fibre). The exact Hessian was tried first and is indefinite at
+a 300-iteration MAP: its clipped inverse gave σ_θ of 10³–10⁴°. Output:
 a 2×2 tangent covariance per fixel → angular σ_θ, direction samples.
 
 **Calibration**: fraction of (voxel, true fibre) pairs whose truth lies
@@ -634,9 +637,9 @@ in the tangent plane vs χ²₂). 6,600 fixels per SNR.
 
 | SNR | overall coverage (target 90 %) | 15° | 25° | 30° | 45° | 60° | 90° | single |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 10 | 81.8 % | 52 % | 69 % | 75 % | 89 % | 88 % | 89 % | 97 % |
-| 30 | **87.7 %** | 73 % | 89 % | 86 % | 92 % | 91 % | 90 % | 97 % |
-| 50 | **88.3 %** | 80 % | 88 % | 88 % | 91 % | 90 % | 90 % | 99 % |
+| 10 | 80.5 % | 55 % | 68 % | 75 % | 84 % | 86 % | 86 % | 97 % |
+| 30 | **87.3 %** | 71 % | 88 % | 86 % | 92 % | 90 % | 90 % | 98 % |
+| 50 | **88.0 %** | 80 % | 89 % | 88 % | 92 % | 90 % | 90 % | 100 % |
 
 Median σ_θ vs actual mean error, SNR 30: 25° → 2.71° vs 2.93°; 45° →
 1.30° vs 1.24°; 90° → 0.92° vs 0.93°. **At every crossing ≥ 25° and
@@ -647,9 +650,10 @@ Where it fails, honestly: **narrow crossings (≤ 20°) under-cover** —
 52–84 % — because two nearly-merged fibres give a bimodal, non-Gaussian
 posterior that a quadratic expansion at the MAP cannot represent; SNR 10
 compounds this. Single-fibre voxels *over*-cover (97–99 %) because the
-fit sometimes splits the fibre into two co-linear copies whose
-individual directions are degenerate (σ capped by the prior) while the
-voxel's mean direction is fine. Both are diagnosable from σ_θ itself.
+fit sometimes splits the fibre into two co-linear copies; their
+individual σ_θ (median 5.6° at SNR 50 vs 1.0° actual error) is honest
+about that degeneracy even though the voxel's mean direction is fine.
+Both are diagnosable from σ_θ itself.
 
 This is the first of the §3.4 deliverables: a per-fixel angular
 uncertainty that is calibrated where PRISM's point estimate is most

@@ -116,31 +116,29 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
             phys["kappa"] = 1.0 / jnp.tan(jnp.pi * phys["odi"] / 2.0)
         return phys
 
-    def nll_voxel(th, yv, n, e1n, e2n, s0n, fil, frl, odin):
+    def pred_voxel(th, n, e1n, e2n, s0n, odin):
         phys = unpack_local(th, n, e1n, e2n, s0n, odin)
-        pred = pj.forward(phys, bvals, bv, cfg)[0]
-        if cfg.loss == "nll":
-            s2 = sigma ** 2
-            z = yv * pred / s2
-            log_i0 = jnp.log(jnp.maximum(jax.scipy.special.i0e(z), 1e-30)) + jnp.abs(z)
-            return jnp.sum(jnp.log(s2) + (yv ** 2 + pred ** 2) / (2 * s2) - log_i0)
-        # MSE mode: Gaussian with σ estimated from residuals is not available;
-        # use the residual variance at the MAP as the noise level.
-        r = yv - pred
-        s2 = jnp.mean(r ** 2)
-        return jnp.sum(r ** 2) / (2 * s2)
+        return pj.forward(phys, bvals, bv, cfg)[0]
 
     def voxel_cov(yv, n, e1n, e2n, s0n, fil, frl, odin):
         th0 = jnp.concatenate([jnp.zeros(n_t), fil[None], frl])
-        H = jax.hessian(nll_voxel)(th0, yv, n, e1n, e2n, s0n, fil, frl, odin)
+        # Gauss–Newton / Fisher form: H ≈ Jᵀ J / σ², positive semi-definite by
+        # construction. The exact Hessian is indefinite at a not-fully-
+        # converged MAP and its clipped inverse produces σ_θ of 10³–10⁴°.
+        J = jax.jacfwd(pred_voxel)(th0, n, e1n, e2n, s0n, odin)     # (M,P)
+        if sigma is not None:
+            s2 = sigma ** 2
+        else:
+            r = yv - pred_voxel(th0, n, e1n, e2n, s0n, odin)
+            s2 = jnp.mean(r ** 2)
+        H = J.T @ J / s2
+        # weak priors: 1 rad on directions, 3 logit-units on f_i / fractions —
+        # keeps the marginal direction variance from leaking through
+        # coupling to unconstrained fraction logits
         prior_prec = jnp.concatenate([jnp.full((n_t,), 1.0 / dir_prior_sd_rad ** 2),
-                                      jnp.zeros((H.shape[0] - n_t,))])
+                                      jnp.full((H.shape[0] - n_t,), 1.0 / 9.0)])
         H = H + jnp.diag(prior_prec) + jitter * jnp.eye(H.shape[0])
-        # symmetrise + guard against indefinite blocks: clip eigenvalues
-        H = 0.5 * (H + H.T)
-        w, V = jnp.linalg.eigh(H)
-        w = jnp.maximum(w, jitter)
-        cov_full = (V * (1.0 / w)) @ V.T
+        cov_full = jnp.linalg.inv(0.5 * (H + H.T))
         return cov_full[:n_t, :n_t].reshape(K, 2, K, 2)
 
     odi_arg = odi0 if odi0 is not None else jnp.zeros((dirs0.shape[0], K), jnp.float32)
