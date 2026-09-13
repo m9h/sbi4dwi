@@ -1080,3 +1080,33 @@ Two consequences: (i) the authors' own misspecification test (disimpy
 cylinders) is the same design as our §6.14 CATERPillar benchmark, so a
 head-to-head there is natural; (ii) several experiments need DIPY ≥ 1.13
 (`two_fiber_min_angle`, `seed`) — build dipy master before re-running FORCE.
+
+### 8.2 DiSCo under the FORCE authors' published protocol — first numbers (2026-09-13)
+
+`validation/validate_disco_force_protocol.py`, Slurm 1750. Exactly their
+`experiments/force_disco.py`: 3 shells (b < 3100, 274 volumes), 1M-entry
+library with ex-vivo D ranges, ODI 0.01–0.15, `wm_threshold=0`; seeds =
+ROI mask ∩ brain mask eroded ×1 (11,528 seeds), stopping = brain mask,
+eudx step 0.5 / max_angle 60 / seed 42; lower-triangle Pearson vs CSA GT.
+dipy 1.12.1 (no `seed`; library draw not reproducible).
+
+| SNR 50 | r | Dice | FP edges | streamlines | time |
+|---|---:|---:|---:|---:|---:|
+| FORCE, ex-vivo D *ranges* (their default) | 0.850 | 0.362 | 88 | 20,952 | 266 s |
+| FORCE, fixed D 0.6/0.3 | 0.856 | 0.355 | 91 | 20,136 | 265 s |
+| MSMT-CSD (oracle responses) | 0.779 | 0.453 | 57 | 13,057 | 198 s |
+| *paper §3.2, FORCE* | *0.894* | | | | |
+| *paper §3.2, CSD* | *0.847* | | | | |
+
+**This closes doc 004 §17–§19.** Under the published protocol FORCE reaches
+r = 0.85–0.86 on dipy 1.12.1 — within 0.04 of the paper's 0.894 and far
+from the r ≤ 0.32 that §17–§19 reported as "unreachable". The whole gap was
+protocol: three shells instead of one, eroded ROI seeds, mask-only
+stopping and eudx's default 60° angle. §18.4 and §19.4 are withdrawn as
+conclusions (kept as history); doc 005 must be rewritten around this.
+The residual 0.04 is consistent with the unseeded library (their PR #4130)
+and dipy 1.12.1 lacking `two_fiber_min_angle`.
+
+Our PRISM-plus row OOM'd in the Laplace step next to the 1M library in
+unified memory (fixed by chunking, `_chunked_vmap`); SNR 50 PRISM-plus and
+the full SNR 10 set are re-running (Slurm 1751/1752).
