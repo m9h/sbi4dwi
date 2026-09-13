@@ -66,6 +66,7 @@ dependencies = [
   "annotated-types>=0.7.0",
   "gpjax>=0.13.4",
   "simpleitk>=2.5.3",
+  "chex>=0.1.92",
 ]
 
 [project.urls]
@@ -105,9 +106,14 @@ filterwarnings = [
 
 [tool.uv.sources]
 uguide = { git = "https://github.com/mjallais/uGUIDE" }
+# scico's last PyPI release (0.0.7, 2025-12) pins jax<=0.8.1; main lifted the
+# cap to 0.11.1 in lanl/scico#677 (2026-08-20). Track that commit until they
+# release; drop this line once a scico > 0.0.7 lands on PyPI.
+scico = { git = "https://github.com/lanl/scico", rev = "b5ddfb34e9774344ece5a76bf1b11574d5d69593" }
 
 [dependency-groups]
 dev = [
     "mdt>=1.2.7",
     "pytest>=9.0.2",
 ]
+

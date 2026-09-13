@@ -1159,3 +1159,26 @@ authors' protocol the point estimates are level; the calibrated
 uncertainty gives a strictly better connectome at low SNR and a far more
 specific one at high SNR. That is the claim to make, and it is a
 different claim from the one doc 007 §4 started with.
+
+### 8.4 Dependency upgrade: jax 0.8.1 → 0.11.1 (2026-09-13)
+
+Done in a scratch worktree + venv, gated on the full suite before touching
+the main tree.
+
+| | before | after |
+|---|---|---|
+| jax / jaxlib / cuda13 plugin | 0.8.1 | **0.11.1** |
+| optax / equinox / diffrax / optimistix | 0.2.6 / 0.13.3 / 0.7.0 / 0.0.11 | 0.2.8 / 0.13.8 / 0.7.2 / 0.1.0 |
+| blackjax / flowjax | 1.3 / 17.2.1 | 1.6.2 / 19.1.1 |
+| numpyro / dm-haiku | 0.19.0 / 0.0.16 (break on jax 0.11: `xla_pmap_p`, `jax.core.DropVar`) | 0.21.0 / 0.0.17 |
+| chex | transitive only (dropped by the resolver; `tractography/tracking.py` imports it) | explicit dep |
+| scico | PyPI 0.0.7 pins `jax<=0.8.1` — the sole blocker | git `lanl/scico@b5ddfb3` (main lifted the cap in #677, 2026-08-20; no release yet) |
+| full suite `dmipy_jax/tests` | 29 failed / 178 passed / 3 collection errors, 313 s | **28 / 179 / 3, 249 s** (same set; one flaky CRB test now passes) |
+| validation suite (44) | 65 s | 62 s warm (479 s on first run = cold compile cache) |
+| dispersed-grad compile, L=13 | 1.45 s | 0.16 s warm |
+
+Notes: the 28 pre-existing failures and 3 collection errors (openlifu
+bridge, jinns_mesh, qmt) are unrelated to this work and predate it.
+`~/.cache/jax` is now the persistent compile cache — first runs after
+an upgrade are slow, not broken. Drop the scico git source once a scico
+> 0.0.7 reaches PyPI.
