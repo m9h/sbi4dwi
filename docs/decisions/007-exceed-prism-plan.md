@@ -1032,3 +1032,30 @@ correct in-model) but is not a default.
 1. Abouagour M, Shah A, Garyfallidis E. PRISM. arXiv:2604.00250, 2026.
 2. Doc 004 §13, §16, §18–§19, §21–§24. Doc 006 §4, §9.
 3. Manzano-Patron JP et al. SBI probabilistic tractography. MedIA 2025.
+
+---
+
+## 8. Upstream check (2026-09-12)
+
+| source | status | impact here |
+|---|---|---|
+| **OCTOPUS / OCTOpool** (CHUV) | no code; bioRxiv v1 only (2026-09-07), not yet published | doc 006 Phase 3 still blocked |
+| CHUV GitHub | lab code lives under `github.com/Mic-map` (CATERPillar mirror, `graymatter_swissknife`, `nexi`) — watch there | — |
+| **CATERPillar** `jazz031195/CATERPillar` `main` | 10+ commits since our Jan-2026 checkout: **"Fix severed axons, livelock and unoptimised build; adaptive glial/axon packing" (2026-09-10)**; rewritten build (CMake, headless `CATERPillar-cli --config x.json`, PascalCase JSON config, new CSV with `parent_id`), adaptive packing, CMake/CLI for HPC | The axon stubs seen in §6.14 (`zmax` 0.2 µm) are the fixed "severed axons" bug. `validation/caterpillar.py` writes the old `.conf` format → must move to JSON/CLI before re-running §6.14–6.19 |
+| `jazz031195/Permeable_MCDS` `whitematter` | the lab's MC for overlapping spheres, updated 2026-07 | candidate third MC engine for the §3.5 cross-check (doc 006 Phase 3) |
+| **FORCE** `Atharva-Shah-2298/FORCE` | **`experiments/force_disco.py` added 2026-08-18** — the authors' DiSCo protocol | **Answers doc 004 §18–§19 / doc 005.** Protocol: shells b < 3100 (b=13190 dropped), *ex-vivo ranges* D∥ 0.4–0.9, D⊥ 0.1–0.4 (not the paper's 0.54–0.66), ODI 0.01–0.15, `wm_threshold=0`, 1M sims; seeds = ROI mask ∩ tracking mask, **eroded ×1**, density 2; `eudx_tracking` step 0.5 with **default max_angle 60** (§21 used 45), stopping = tracking mask only (§21 used mask ∪ ROIs); Pearson on the **lower triangle vs Cross-Sectional-Area GT** with raw counts. Same metric family as ours; the differences are shells, seeding erosion and stopping mask. |
+| **DIPY** master | PR #4130 merged 2026-09-10: FORCE library generation was **not reproducible** (documented `base_seed` never wired); now `seed=2298`. Unreleased (1.12.1 is still current). | Explains the seed-to-seed scatter and non-monotone SNR behaviour in doc 004 §11 / §17.5. Pin or build master before any FORCE re-run. |
+| ReMiDi, MCDC_Simulator_public | no changes (2025-04 / 2024-12) | — |
+| PRISM, Spinverse | single arXiv versions, no code | PRISM rows remain re-implementation |
+| Python deps | jax 0.8.1 → **0.11.1**, optax 0.2.6 → 0.2.8, equinox 0.13.3 → 0.13.8, diffrax 0.7.0 → 0.7.2, optimistix 0.0.11 → 0.1.0, blackjax 1.3 → 1.6.2, flowjax 17.2 → 19.1; dipy current | Not upgraded. jax 0.11 may change the GB10 compile behaviour (§6.9 pathology) either way — upgrade in a scratch env and rerun the 43 validation tests first. |
+
+### Actions this implies (in order)
+
+1. **Re-run the DiSCo comparison under the FORCE authors' published
+   protocol** (3 shells ≤ 3100, eroded ROI seeds, mask-only stopping,
+   max_angle 60, lower-triangle Pearson) for FORCE (dipy master, seeded),
+   MSMT-CSD and PRISM-plus. This is the like-for-like the whole of doc 004
+   §17–§19 lacked; doc 005 should be rewritten around it before sending.
+2. **Port `caterpillar.py` to the CMake/JSON CLI**, rebuild, rerun
+   §6.14–§6.19 on un-severed substrates.
+3. Dependency upgrade trial in a scratch env.
