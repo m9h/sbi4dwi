@@ -1059,3 +1059,24 @@ correct in-model) but is not a default.
 2. **Port `caterpillar.py` to the CMake/JSON CLI**, rebuild, rerun
    §6.14–§6.19 on un-severed substrates.
 3. Dependency upgrade trial in a scratch env.
+
+### 8.1 FORCE experiment code, read in full (2026-09-13)
+
+The repo now carries the paper's experiment suite, which is more than the
+preprint described. Datasets and generators the authors use:
+
+| experiment | data | GT / reference | baselines |
+|---|---|---|---|
+| stability (exp1–8) | HCP-YA **165840**, 288 vols, b=0/1000/2000/3000 | none (self-consistency: library resampling, K/β sweeps, split-half, held-out adequacy) | DTI |
+| recovery | N=5000 synthetic voxels on the 165840 protocol, **Watson** per-fibre dispersion, truncated-Gaussian D, logit-normal fractions (deliberately ≠ dictionary) | known latents | AMICO-NODDI, DTI, DKI |
+| synthetic angle / fibre count | stick+zeppelin+Bingham+PV, SNR 10/20/50, 10–90° bins | known peaks; matched within 20° | CSA, CSD, GQI, ODF-FP |
+| **out-of-sample angle** | **disimpy** Monte Carlo in packed cylinders (GPU) | known axes | CSA, CSD, GQI, ODF-FP |
+| **MC phantom** | N=400 single-fibre voxels, disimpy cylinder kernel ⊛ Watson + free water, SNR clean/50/20/10, 165840 protocol | known ICVF/ODI/FW | DTI, DKI, AMICO-NODDI |
+| harmonisation | multi-scanner travelling-subject cohort (Tong et al.) | ICC(3,1), cross-scanner CoV | DTI, DKI, AMICO-NODDI |
+| PVE reference | MRtrix3 Dhollander → MSMT-CSD fractions | — | — |
+| DiSCo | protocol in §8 | connectivity r | CSD |
+
+Two consequences: (i) the authors' own misspecification test (disimpy
+cylinders) is the same design as our §6.14 CATERPillar benchmark, so a
+head-to-head there is natural; (ii) several experiments need DIPY ≥ 1.13
+(`two_fiber_min_angle`, `seed`) — build dipy master before re-running FORCE.

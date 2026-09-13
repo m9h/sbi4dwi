@@ -953,6 +953,21 @@ limits the authors already know about. §11 (anti-monotone in SNR at the
 failure points) is *not* what the paper says — but is plausibly an
 out-of-regime artifact, which §13 will determine.
 
+### 12.6 Correction (2026-09-13): the 10–30° failure was a library construction limit
+
+The FORCE authors' experiment code (`Atharva-Shah-2298/FORCE`,
+`experiments/synthetic_angle_accuracy/README.md`) states that DIPY's FORCE
+simulator **resamples any two-fibre configuration closer than 30°** (and any
+three-fibre configuration with a pair closer than 60°). A default library
+therefore contains no shallow crossing and FORCE cannot report one — the
+10–30° bins are unreachable by construction. Their paper runs pass
+`two_fiber_min_angle=0`, which requires `FORCEModel.generate` arguments that
+exist only on DIPY ≥ 1.13 (unreleased as of 2026-09-13; 1.12.1 has no such
+argument). §12.4's "dispersion mismatch" diagnosis of the 0 % detection at
+10–25° in §9/§11 was therefore wrong in the specific: the dominant cause is
+that dipy 1.12.1's library has no crossings below 30°. The dispersion
+observations stand but are secondary.
+
 ---
 
 ## 13. Re-run on FORCE-paper-matched conditions (2026-05-09, **partial**)
