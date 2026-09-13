@@ -43,6 +43,18 @@ def _tangent_basis(n):
     return e1, e2
 
 
+
+def _chunked_vmap(fn, args, chunk: int = 2048):
+    """vmap ``fn`` over the leading axis of ``args`` in chunks. A single vmap
+    of a per-voxel Jacobian over 15k voxels × K=5 × M=364 materialises
+    ~20 GB of tangents on the GPU (OOM alongside a FORCE library in
+    unified memory); chunks keep it under ~3 GB."""
+    n = args[0].shape[0]
+    f = jax.jit(jax.vmap(fn))
+    outs = [f(*[a[i:i + chunk] for a in args]) for i in range(0, n, chunk)]
+    return jnp.concatenate(outs, axis=0)
+
+
 @dataclass
 class FixelPosterior:
     dirs: np.ndarray          # (N,K,3) MAP directions
@@ -144,8 +156,7 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
         return cov_full[:n_t, :n_t].reshape(K, 2, K, 2)
 
     odi_arg = odi0 if odi0 is not None else jnp.zeros((dirs0.shape[0], K), jnp.float32)
-    cov = jax.vmap(voxel_cov)(y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg)
-    cov = np.asarray(cov)
+    cov = np.asarray(_chunked_vmap(voxel_cov, (y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg)))
     cov_kk = np.stack([cov[:, k, :, k, :] for k in range(K)], axis=1)   # (N,K,2,2)
     w = np.linalg.eigvalsh(cov_kk)
     sigma_deg = np.degrees(np.sqrt(np.maximum(w[..., -1], 0.0)))
@@ -308,7 +319,7 @@ def voxel_log_evidence(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
         sign, logdet = jnp.linalg.slogdet(H)
         return -nll(yv, p) + logp + 0.5 * (th0.shape[0] * jnp.log(2 * jnp.pi) - logdet)
 
-    return np.asarray(jax.vmap(voxel)(y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_logit0))
+    return np.asarray(_chunked_vmap(voxel, (y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_logit0)))
 
 
 def select_per_voxel(fits: list, data, bvals_si, bvecs, margin_nats: float = 3.0) -> dict:
