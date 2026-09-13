@@ -1,0 +1,14 @@
+
+##### SNR 10: 274 volumes, 11528 seeds
+[2026-09-13 09:48:22][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+  force        r=0.8001  Dice=0.345  FP=95  streamlines=28,272  (26s)
+[2026-09-13 09:48:47][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+  force-fixed  r=0.8113  Dice=0.350  FP=93  streamlines=25,811  (26s)
+  msmt         r=0.7517  Dice=0.374  FP=75  streamlines=14,640  (232s)
+  prism-plus   r=0.7967  Dice=0.345  FP=95  streamlines=41,900  (36s)
+    + posterior mean r=0.8251  Dice=0.345  FP=95
+    + CV<0.3 pruned  r=0.8107  Dice=0.667  FP=13
+    D∥=0.98 D∥ex=0.77 f_i=0.404
+
+Paper §3.2 reports: FORCE r = 0.868 (SNR 10), 0.894 (SNR 50); CSD 0.847.
+exit 0

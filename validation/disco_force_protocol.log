@@ -1,0 +1,55 @@
+
+##### SNR 50: 274 volumes, 11528 seeds
+[2026-09-13 09:33:05][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+  self.pid = os.fork()
+  force        r=0.8495  Dice=0.362  FP=88  streamlines=20,952  (266s)
+[2026-09-13 09:37:31][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+  force-fixed  r=0.8560  Dice=0.355  FP=91  streamlines=20,136  (265s)
+  msmt         r=0.7786  Dice=0.453  FP=57  streamlines=13,057  (198s)
+W0913 09:45:45.023941 1679135 bfc_allocator.cc:310] Allocator (GPU_0_bfc) ran out of memory trying to allocate 21.36GiB with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+Traceback (most recent call last):
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 182, in <module>
+    main()
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 164, in main
+    pam, post, fit = run_prism_plus(d, args.n_fibres, args.n_iter, args.library_size, args.n_samples)
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 119, in run_prism_plus
+    post = pu.laplace_fixel_posterior(fit, d["data"], bvals_si, bvecs)
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_uncertainty.py", line 147, in laplace_fixel_posterior
+    cov = jax.vmap(voxel_cov)(y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg)
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_uncertainty.py", line 130, in voxel_cov
+    J = jax.jacrev(pred_voxel)(th0, n, e1n, e2n, s0n, odin)     # (M,P)
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_uncertainty.py", line 123, in pred_voxel
+    return pj.forward(phys, bvals, bv, cfg)[0]
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_jax.py", line 377, in forward
+    + jnp.einsum("nk,nkm->nm", f[:, 2:2 + K], e_wm))
+  File "/home/mhough/dev/sbi4dwi/.venv/lib/python3.12/site-packages/jax/_src/numpy/einsum.py", line 337, in einsum
+    return jit_einsum(operand_arrays, contractions, precision,
+  File "/home/mhough/miniforge3/lib/python3.12/contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+jax._src.source_info_util.JaxStackTraceBeforeTransformation: jax.errors.JaxRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 21.36GiB.
+
+The preceding stack trace is the source of the JAX operation that, once transformed by JAX, triggered the following exception.
+
+--------------------
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 182, in <module>
+    main()
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 164, in main
+    pam, post, fit = run_prism_plus(d, args.n_fibres, args.n_iter, args.library_size, args.n_samples)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mhough/dev/sbi4dwi/validation/validate_disco_force_protocol.py", line 119, in run_prism_plus
+    post = pu.laplace_fixel_posterior(fit, d["data"], bvals_si, bvecs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_uncertainty.py", line 147, in laplace_fixel_posterior
+    cov = jax.vmap(voxel_cov)(y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mhough/dev/sbi4dwi/dmipy_jax/validation/prism_uncertainty.py", line 130, in voxel_cov
+    J = jax.jacrev(pred_voxel)(th0, n, e1n, e2n, s0n, odin)     # (M,P)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+jax.errors.JaxRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 21.36GiB.
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+exit 1

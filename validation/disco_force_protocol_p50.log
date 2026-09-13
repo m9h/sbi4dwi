@@ -1,0 +1,9 @@
+
+##### SNR 50: 274 volumes, 11528 seeds
+  prism-plus   r=0.8627  Dice=0.347  FP=94  streamlines=35,930  (33s)
+    + posterior mean r=0.8779  Dice=0.345  FP=95
+    + CV<0.3 pruned  r=0.8865  Dice=0.730  FP=15
+    D∥=0.74 D∥ex=0.61 f_i=0.266
+
+Paper §3.2 reports: FORCE r = 0.868 (SNR 10), 0.894 (SNR 50); CSD 0.847.
+exit 0

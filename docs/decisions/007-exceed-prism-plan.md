@@ -1110,3 +1110,52 @@ and dipy 1.12.1 lacking `two_fiber_min_angle`.
 Our PRISM-plus row OOM'd in the Laplace step next to the 1M library in
 unified memory (fixed by chunking, `_chunked_vmap`); SNR 50 PRISM-plus and
 the full SNR 10 set are re-running (Slurm 1751/1752).
+
+### 8.3 Full comparison under the published FORCE protocol (2026-09-13)
+
+Slurm 1750–1752. Same protocol as §8.2 for every row (3 shells b < 3100,
+eroded ROI seeds, mask-only stopping, eudx 60°/0.5/seed 42, lower-triangle
+Pearson vs CSA GT). PRISM-plus = learned D + decoupled D∥,ex + tortuosity,
+no restricted pool, warm start from the 500K library, K = 5, pf 0.10; its
+posterior rows use 20 Laplace direction samples through the same tracker.
+
+| method | SNR 50 r | Dice | SNR 10 r | Dice |
+|---|---:|---:|---:|---:|
+| FORCE, ex-vivo D ranges (authors' default) | 0.850 | 0.36 | 0.800 | 0.35 |
+| FORCE, fixed D 0.6/0.3 | 0.856 | 0.36 | 0.811 | 0.35 |
+| MSMT-CSD (oracle responses) | 0.779 | 0.45 | 0.752 | 0.37 |
+| PRISM-plus, MAP | **0.863** | 0.35 | 0.797 | 0.35 |
+| PRISM-plus, posterior mean | 0.825 | 0.35 | 0.878 | 0.35 |
+| **PRISM-plus, posterior mean, CV < 0.3 pruned** | 0.811 | **0.667** | **0.887** | **0.730** |
+| *paper §3.2, FORCE* | *0.894* | | *0.868* | |
+
+Reading:
+
+- **Like-for-like at last.** On the authors' own protocol, PRISM-plus MAP
+  edges FORCE at SNR 50 (0.863 vs 0.856, inside the ±0.7 pp floor) and
+  trails it at SNR 10 (0.797 vs 0.811). The dictionary method is *not*
+  beaten outright on connectivity under this protocol; the earlier
+  +6–13 pp margins (§6.6) were against MSMT on our tracker, and FORCE
+  under its own protocol is a much stronger baseline than MSMT.
+- **The posterior is where the difference lives.** At SNR 10 the
+  CV-pruned posterior connectome reaches r = 0.887, Dice 0.73 — above
+  FORCE (0.811 / 0.35) and above the paper's own SNR-10 number (0.868).
+  At SNR 50 the pruning trades r (0.811) for Dice (0.667 vs 0.36): a
+  specificity that no other row approaches. The uncertainty machinery,
+  not the point estimate, is the advantage.
+- **Dropping b = 13190 costs identifiability.** With three shells the
+  learned D∥ drifts to 0.98 / 0.74 (vs 0.64 with all four, §6.5) and f_i
+  to 0.40 / 0.27; this is §24.3 in reverse. The authors drop that shell
+  "by design"; our best numbers (§6.18: r 0.871, Dice 0.80) used it.
+  Which acquisition is "fair" is a real question — the phantom provides
+  it, in-vivo protocols mostly do not.
+- The SNR-50 posterior mean (0.825) *below* the MAP (0.863) is new; on
+  the all-shell protocol the posterior mean was always ≥ MAP. Likely the
+  same identifiability loss widening the direction posterior. One run,
+  one seed — needs the ±0.7 pp caveat.
+
+Where this leaves the "exceed PRISM/FORCE" claim, honestly: on the
+authors' protocol the point estimates are level; the calibrated
+uncertainty gives a strictly better connectome at low SNR and a far more
+specific one at high SNR. That is the claim to make, and it is a
+different claim from the one doc 007 §4 started with.
