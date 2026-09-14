@@ -403,6 +403,94 @@ same exported benchmarks. Drivers: `validation/diagnose_force_limits.py`
 `validation/diagnose_flow_variants.py`, `validation/diagnose_posterior_width.py`,
 plus `docker/sbi_dmri_run.py --hidden/--transforms/--batch`.
 
+### 7.2 Our f_i bias on substrates: compartment attribution, not the compartment model
+
+`diagnose_substrate_compartments.py` regenerates the CATERPillar
+substrates (straight / tortuous × 0, 45, 90°), keeps the intra- and
+extra-cellular MC signals separate, and fits them with the directions
+fixed at truth so orientation estimation is out of the picture
+(`validation/substrate_compartment_diagnostic{,_noiso}.{json,log}`).
+
+**MC estimator check.** The benchmark's signal is |mean e^{iφ}|, which
+has a positive floor ≈ √(π/4N) where the true signal is ≈ 0. Swapping to
+Re mean e^{iφ} and raising N from 4,000 to 32,000 changes S_ex(b = 3000)
+by 0.006 and every fitted fraction by ≤ 0.002. The benchmark signals are
+not the problem.
+
+**Compartment-resolved fits, directions fixed, clean signals** (Δf = fit − geometry):
+
+| substrate | sz-free (f, D∥, D⊥) | sz-tort (D⊥ = (1−f)D∥) | sz-tort-x (decoupled D∥,ex) | sz-fixed (PRISM 1.7/0.4) | ball+stick (SBI_dMRI) | in-oracle (true S_in + zeppelin) | ex-oracle (stick + true S_ex) |
+|---|---|---|---|---|---|---|---|
+| straight 0° | −0.01 | −0.09 | −0.05 | −0.26 | +0.00 | +0.03 | −0.04 |
+| straight 45° | +0.05 | −0.12 | −0.03 | −0.05 | −0.01 | +0.02 | −0.05 |
+| straight 90° | +0.01 | −0.06 | −0.02 | −0.20 | +0.01 | +0.01 | −0.04 |
+| tortuous 0° | +0.02 | −0.03 | −0.01 | −0.22 | +0.06 | +0.04 | −0.03 |
+| tortuous 45° | +0.05 | −0.12 | −0.03 | −0.01 | −0.00 | +0.04 | −0.06 |
+| tortuous 90° | +0.05 | −0.01 | +0.02 | −0.15 | +0.05 | +0.03 | −0.01 |
+
+- With directions known, **stick + zeppelin with a free D⊥ recovers f_i
+  within ±0.05 everywhere**, and so does ball + stick. The Gaussian
+  compartment model is not what biases f_i.
+- The extra-cellular space is *less* tortuous than Szafer–Stanisz
+  predicts: fitted D⊥,ex ≈ 0.8–1.1 µm²/ms against (1 − f)·D∥ ≈ 0.75, and
+  it is mildly non-Gaussian (apparent radial D falls 1.15 → 1.04 from
+  b = 1000 to 3000). Tortuosity coupling therefore biases f_i *low* by
+  0.01–0.12; PRISM's fixed D⊥ = 0.4 biases it low by 0.15–0.26. The
+  half-oracles agree: replacing the extra model by the true S_ex costs
+  −0.04, replacing the intra model by the true S_in costs +0.03 — both
+  small, opposite in sign.
+- Intra-axonal signals fit a stick with an *apparent* D∥ of 1.3–1.5
+  (single bundles, ⟨cos²⟩ = 0.93 about the axis) and 0.8–0.9 at the
+  sheet crossings: dispersion and finite-length effects show up as
+  reduced D∥, not as a non-stick shape. Convolving the stick with the
+  true segment fODF does not fit better than the single stick (the
+  diffusion-scale fODF is narrower than the segment-scale one).
+
+**So why does the full pipeline report +0.09 – +0.19?** Same signals,
+64 Rician SNR-30 voxels, the actual PRISM-JAX plus-x fit with one knob
+turned at a time. WM-internal f_i / isotropic (CSF + GM) fraction /
+voxel-level intra fraction f_i·f_wm + f_res, geometry in brackets:
+
+| substrate | plus-x | no tortuosity | no spatial / sparsity / D prior | fixed-D PRISM | **no CSF/GM** (`use_isotropic=False`) | no CSF/GM, no tortuosity |
+|---|---|---|---|---|---|---|
+| straight 0° [0.47] | 0.61 / 0.19 / 0.49 | 0.54 / 0.27 / 0.39 | = plus-x | 0.50 / 0.22 / 0.39 | **0.52** / 0 / 0.52 | 0.53 |
+| straight 45° [0.46] | 0.62 / 0.47 / 0.33 | 0.52 / 0.45 / 0.28 | = plus-x | 0.69 / 0.34 / 0.51 | **0.43** / 0 / 0.43 | 0.45 |
+| straight 90° [0.47] | 0.86 / 0.56 / 0.38 | 0.86 / 0.52 / 0.42 | = plus-x | 0.96 / 0.52 / 0.46 | **0.46** / 0 / 0.46 | 0.51 |
+| tortuous 0° [0.52] | 0.57 / 0.21 / 0.45 | 0.55 / 0.22 / 0.42 | = plus-x | 0.63 / 0.19 / 0.55 | **0.51** / 0 / 0.51 | 0.53 |
+| tortuous 45° [0.53] | 0.55 / 0.38 / 0.34 | 0.17 / 0.37 / 0.10 | = plus-x | 0.94 / 0.30 / 0.67 | **0.40** / 0 / 0.40 | 0.17 |
+| tortuous 90° [0.52] | 0.62 / 0.41 / 0.36 | 0.60 / 0.42 / 0.35 | = plus-x | 0.61 / 0.27 / 0.50 | **0.47** / 0 / 0.47 | 0.52 |
+
+(the earlier GPU run of the same ablation on a different CATERPillar
+realisation gives the same picture: plus-x 0.63–0.73 / 0.25–0.41 /
+0.40–0.51 against 0.53–0.54.)
+
+1. **The bias is compartment attribution.** The near-isotropic
+   extra-cellular space (D⊥ ≈ 1.0, D∥ ≈ 1.7) is absorbed by the CSF and
+   GM balls — 19–56 % of the voxel — so the WM-internal f_i is inflated
+   while the voxel-level intra fraction is *under*-estimated by 0.1–0.2.
+   The "+0.09 – +0.19" of §6.4 and doc 007 §6.14 is this ratio effect;
+   the same fit read as f_i·f_wm is biased the other way.
+2. **No prior knob touches it**: spatial, sparsity, repulsion, D-prior
+   and loss variants reproduce plus-x to two decimals. It is the model's
+   partial-volume freedom, not the regularisation.
+3. **Disabling the isotropic compartments fixes it** in five of six
+   substrates (within 0.05); the tortuous 45° sheet crossing remains
+   −0.13 with D∥ pulled to 1.46 — a genuine crossing/dispersion
+   confound, the one row where tortuosity coupling is what keeps the
+   fit identifiable (without it f_i collapses to 0.17).
+4. **Why the others looked better.** SBI_dMRI's ball + stick has no
+   separate isotropic *and* extra-cellular compartment, so nothing can
+   leak; FORCE's ND on single bundles is the matched entry's, and it
+   drifts at crossings for the same partial-volume reason. The
+   "nobody recovers f_i" line of §6 becomes: *any model with both an
+   anisotropic extra-cellular and free isotropic compartments will
+   mis-attribute a hindered extra-cellular space, unless the isotropic
+   compartments are constrained (WM-only voxels) or reported jointly.*
+
+Consequence for the substrate benchmark and for DiSCo: report f_i·f_wm
+alongside f_i, and add a `use_isotropic=False` row (now a `PrismConfig`
+flag, 31 tests green) wherever the voxel is known to be WM-only.
+
 ### 7.3 FORCE: matching-limited, not library-limited
 
 FORCE's peaks are the sphere vertices labelled in the *single* best

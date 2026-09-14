@@ -154,6 +154,9 @@ def full_fit_ablation(data, b, g, n_iter):
     variants = {
         "plus-x":          base,
         "no-tortuosity":   replace(base, tortuosity=False),
+        "no-iso":          replace(base, use_isotropic=False),
+        "no-iso-no-tort":  replace(base, use_isotropic=False, tortuosity=False),
+        "no-iso-fixed-D":  replace(pj.PrismConfig(n_fibres=2, n_iter=n_iter, loss="nll"), use_isotropic=False),
         "no-D-prior":      replace(base, lam_diffusivity_prior=0.0),
         "no-spatial":      replace(base, lam_spatial=0.0, lam_continuity=0.0),
         "no-sparsity":     replace(base, lam_sparse=0.0, lam_repulsion=0.0),
