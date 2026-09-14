@@ -198,7 +198,11 @@ Key features:
 > design. None of `simulation/oracle.py`, `simulation/oracles/`,
 > `pipeline/oracle_adapter.py`, `pipeline/multi_fidelity.py` exist yet.
 > The only substrate-oracle code in the tree is
-> `dmipy_jax/validation/caterpillar.py` (`CATERPillarOracle`). See
+> `dmipy_jax/validation/caterpillar.py` (`CATERPillarOracle`) and, since
+> 2026-09-14, a Julia 1.13 environment `julia/mcmr/` running MCMRSimulator.jl
+> v1.1.0 (`julia +1.13 -t 16 --project=julia/mcmr julia/mcmr/substrate_pgse.jl <tag>`;
+> doc 007 §8.5–8.6: extra-cellular parity with our walker, sphere-chain
+> axons over-restricted upstream). See
 > `docs/decisions/006-octopus-differentiable-substrate-landscape.md` §7.
 
 The oracle protocol separates **simulation fidelity** from **JAX requirements**:
