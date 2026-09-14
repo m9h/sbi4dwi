@@ -202,3 +202,90 @@ For context, when discussing with the FORCE authors: the sbi4dwi project has bui
 - **End-to-end differentiability** — gradient-based acquisition optimisation via Fisher information / EIG.
 
 The natural collaboration story is: dmipy-JAX adds gradient-based extensions and differentiable physics to the FORCE paradigm; FORCE provides the canonical biophysics + reference implementation. There is no competition story — these are complementary in a way the paper's §6 "future work" section gestures at.
+
+## 7. Update 2026-09-14: what limits FORCE's orientation accuracy (dipy master 1.13.0.dev, seeded)
+
+All of the below is on dipy master after PR #4130 (`seed=2298` wired,
+`two_fiber_min_angle=0` allowed), with the default in-vivo priors, on
+three shells ≤ 3000 with 64 directions each. Scripts:
+`validation/diagnose_force_limits.py` (numpy + dipy only), full log
+`validation/external/force_diag.log`; the method is in doc 008 §7.3.
+
+### 7.1 The measurement
+
+Because `force_peaks` reads the vertex labels of the *single* best
+cosine match, the angular error of a FORCE peak decomposes exactly into
+
+- **sphere quantisation** — nearest `default_sphere` vertex to the truth,
+- **library coverage** — the best entry in the library, judged in
+  parameter space (min over entries of the best-match angular error), and
+- **matching** — the entry the signal search actually returns.
+
+| dataset | quantisation | coverage floor | FORCE, SNR 30 | FORCE, noise-free |
+|---|---|---|---|---|
+| two-fibre crossings 15–90°, stick + zeppelin generator, 500K library | 2.76° | **2.79°** | 7.54° / 98.7 % | 7.96° / 97.0 % |
+| same, 2M library | 2.76° | 2.79° | 7.37° / 98.7 % | 6.60° / 100 % |
+| **FORCE's own generator**, held-out clean two-fibre WM voxels (WM ≥ 0.6, each fibre ≥ 0.15, ODI ≤ 0.2, n = 526), 500K | — | — | 10.44° / 89 % | **10.11° / 90 %** |
+| same, 2M | — | — | 8.32° / 94 % | 8.19° / 94 % |
+| Monte Carlo axon substrates (CATERPillar), crossings 30–90°, 500K | 3.05° | 2.94° | 9.7–16.6° | — |
+
+### 7.2 What it says
+
+1. **The library is not the bottleneck.** For every configuration tested
+   there is an entry within ~2.8° of the truth; the search returns one
+   5–14° away. Quadrupling the library moves the benchmark by 0.2° and
+   the in-model number by 2°, and is non-monotone on the substrates
+   (straight 60°: 13.1 → 6.4°; straight 90°: 9.7 → 11.4° with recall
+   100 → 80 %). Nearest-neighbour matching has no smoothness to exploit,
+   so a denser library mostly changes *which* wrong entry wins.
+2. **Noise is not the bottleneck** — noise-free and SNR 30 differ by
+   < 0.6° everywhere.
+3. **Model mismatch is not the main cause either** — on FORCE's own
+   forward model, clean signals, the error is 8–10°. The cosine
+   similarity over 193 measurements is dominated by the partial-volume
+   and microstructure directions of the library (WM/GM/CSF fractions,
+   D∥, D⊥, ODI): the nearest *signal* is not the nearest *orientation*.
+4. **`use_posterior=True` does not touch orientations.** It averages the
+   scalar parameters over the `n_neighbors` softmax weights but the
+   `labels` (hence peaks and the ODF) still come from the single argmax
+   entry. Every direction in every run above was identical with the flag
+   on and off. Users reading "posterior" will assume the peaks are
+   posterior-weighted too.
+5. **Prior composition.** Dirichlet(2,1,1) with three fibre populations
+   gives 70 % three-fibre entries, median WM fraction 0.50, and only
+   **0.5 %** of the library is a clean two-fibre WM crossing (≥ 0.6 WM,
+   each fibre ≥ 0.15, ODI ≤ 0.2). That is the right prior for mixed
+   in-vivo voxels and a poor one for any orientation benchmark; it also
+   means an "in-model held-out" test that filters to clean crossings has
+   only ~0.5 % of the simulations to draw from.
+
+### 7.3 Suggestions (all small)
+
+- **A continuous refinement step after the match.** The matched entry
+  is an excellent initialisation (it is within 3° in parameter space
+  ~always); a few Gauss–Newton or Rprop steps on the same forward model
+  from that start would remove most of the 5–10° matching loss without
+  changing the library, the prior or the runtime much. This is exactly
+  the gap our differentiable fit closes (2–5° on the same substrates)
+  and it is not specific to our model.
+- **Posterior-weighted peaks when `use_posterior=True`**, or a doc note
+  that peaks/ODF are argmax-only. A weighted ODF over the k neighbours
+  (which the ODF machinery can already represent) would be the natural
+  thing.
+- **Expose the fibre-count / WM-fraction composition** of a generated
+  library (a one-line histogram in `verbose=True`) and a
+  `diffusivity_config`-style knob for the Dirichlet / `wm_threshold`
+  prior, so users can build orientation-oriented libraries deliberately.
+- **`fraction_array` is (N, 3) with zeros for absent fibres** — fine,
+  but worth documenting, since per-fibre fractions are what a fairness
+  filter needs.
+
+### 7.4 What is *not* a problem
+
+- Reproducibility is fixed (same seed → same library, same labels).
+- The seed-to-seed scatter of doc 004 §11 is gone.
+- Recall at shallow crossings (15–25°) is 100 % with `two_fiber_min_angle=0`.
+- ND on single bundles is the least-biased intra-axonal fraction of any
+  method we ran (0.49 vs geometry 0.50) — dictionary matching does not
+  suffer the partial-volume attribution that free-compartment
+  optimisers do (doc 008 §7.2).
