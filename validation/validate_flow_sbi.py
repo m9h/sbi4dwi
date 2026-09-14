@@ -50,18 +50,40 @@ def sph(t, p):
     return np.stack([np.sin(t) * np.cos(p), np.sin(t) * np.sin(p), np.cos(t)], -1)
 
 
-def summarise(samples):
-    """samples (S,7) → dirs (2,3), fracs (2,), sigma_deg (2,), tangent cov (2,2,2)."""
+def summarise(samples, n_iter=10):
+    """samples (S,7) → dirs (2,3), fracs (2,), sigma_deg (2,), tangent cov (2,2,2).
+
+    The amortised posterior is invariant to swapping the two fibres when
+    their fractions are similar (label switching), so the two direction
+    samples of one draw cannot be read as "fibre 1" and "fibre 2". Pool
+    both fibres' direction samples (2S unit vectors, with their fraction
+    samples), cluster them into two antipodally-symmetric modes (2-means
+    on the sphere, initialised from the pooled dyadic's top eigenvectors),
+    and read each mode as one fixel: direction = principal eigenvector of
+    the member dyadic, fraction = mean member fraction, σ_θ = RMS angle of
+    members about the direction."""
+    v1 = sph(samples[:, 0], samples[:, 1]); v2 = sph(samples[:, 2], samples[:, 3])
+    V = np.concatenate([v1, v2]); F = np.concatenate([samples[:, 4], samples[:, 5]])
+    D = (V[:, :, None] * V[:, None, :]).mean(0); w, E = np.linalg.eigh(D)
+    c = np.stack([E[:, -1], E[:, -2]])                      # (2,3) initial modes
+    for _ in range(n_iter):
+        lab = np.argmax(np.abs(V @ c.T), axis=1)              # antipodal assignment
+        for k in range(2):
+            m = V[lab == k]
+            if len(m) < 3: continue
+            Dk = (m[:, :, None] * m[:, None, :]).mean(0); _, Ek = np.linalg.eigh(Dk); c[k] = Ek[:, -1]
     dirs, fr, sig, covs = [], [], [], []
-    for k, (it, ip, ifr) in enumerate(((0, 1, 4), (2, 3, 5))):
-        v = sph(samples[:, it], samples[:, ip])
-        D = (v[:, :, None] * v[:, None, :]).mean(0); w, V = np.linalg.eigh(D); mu = V[:, -1]
-        v = np.where((v @ mu)[:, None] < 0, -v, v)                      # fold antipodes
-        e1, e2 = V[:, 0], V[:, 1]
-        t = np.stack([v @ e1, v @ e2], 1)                               # tangent offsets
-        dirs.append(mu); fr.append(samples[:, ifr].mean()); covs.append(np.cov(t.T) + 1e-12 * np.eye(2))
-        sig.append(np.degrees(np.sqrt(np.mean(np.arccos(np.clip(v @ mu, -1, 1)) ** 2))))
-    return np.array(dirs), np.array(fr), np.array(sig), np.array(covs), (V[:, 0], V[:, 1])
+    for k in range(2):
+        m = V[lab == k]; f = F[lab == k]
+        if len(m) < 3:
+            dirs.append(c[k]); fr.append(0.0); sig.append(90.0); covs.append(np.eye(2)); continue
+        mu = c[k]; m = np.where((m @ mu)[:, None] < 0, -m, m)
+        e1 = np.cross(mu, [1, 0, 0] if abs(mu[0]) < 0.9 else [0, 1, 0]); e1 /= np.linalg.norm(e1); e2 = np.cross(mu, e1)
+        t = np.stack([m @ e1, m @ e2], 1)
+        dirs.append(mu); fr.append(float(f.mean()) * len(m) / len(V) * 2)   # fraction × share of draws
+        covs.append(np.cov(t.T) + 1e-12 * np.eye(2))
+        sig.append(np.degrees(np.sqrt(np.mean(np.arccos(np.clip(m @ mu, -1, 1)) ** 2))))
+    return np.array(dirs), np.array(fr), np.array(sig), np.array(covs), None
 
 
 def main():
@@ -78,8 +100,18 @@ def main():
                             inference_mode="flow", flow_type=a.flow, knots=8, hidden_dim=a.hidden, depth=a.depth,
                             noise_type="rician", snr_range=(8.0, 60.0), learning_rate=5e-4,
                             batch_size=a.batch, n_steps=a.n_steps, lr_schedule="warmup_cosine", warmup_steps=1000)
+    from pathlib import Path
+    import equinox as eqx
+    ck = Path(f"validation/flow_prism_k2_{a.flow}_{a.hidden}x{a.depth}.eqx")
     t0 = time.time()
-    flow, losses = train_sbi(cfg, sim, key=jax.random.PRNGKey(0), print_every=2000)
+    if ck.exists():
+        # rebuild the architecture with a 1-step train, then load weights
+        flow, _ = train_sbi(SBIPipelineConfig(**{**cfg.__dict__, "n_steps": 1, "lr_schedule": "constant", "warmup_steps": 0}), sim, key=jax.random.key(0), print_every=10**9)
+        flow = eqx.tree_deserialise_leaves(ck, flow); losses = [0.0, 0.0]
+        print(f"loaded flow from {ck}", flush=True)
+    else:
+        flow, losses = train_sbi(cfg, sim, key=jax.random.key(0), print_every=2000)
+        eqx.tree_serialise_leaves(ck, flow); print(f"saved flow to {ck}", flush=True)
     print(f"flow trained: {a.n_steps} steps × {a.batch} = {a.n_steps*a.batch/1e6:.1f}M sims, "
           f"loss {losses[0]:.2f} → {np.mean(losses[-200:]):.2f}, {time.time()-t0:.0f}s", flush=True)
 
@@ -87,7 +119,7 @@ def main():
     y = b["data"][b["mask"]]; b0 = b["bvals"] < 50e6; y = y / y[:, b0].mean(1, keepdims=True)
     N = y.shape[0]; K = 2
     dirs = np.zeros((N, K, 3)); fr = np.zeros((N, K)); sig = np.zeros((N, K)); covs = np.zeros((N, K, 2, 2))
-    key = jax.random.PRNGKey(1)
+    key = jax.random.key(1)          # flowjax ≥ 19 requires typed keys
     sample = jax.jit(lambda k, x: flow.sample(k, (a.n_samples,), condition=x))
     t0 = time.time()
     for i in range(N):
@@ -106,11 +138,9 @@ def main():
             if np.linalg.norm(g) == 0: continue
             k = int(np.argmax(np.abs(dirs[i] @ g))); mu = dirs[i, k]
             gs = g if g @ mu >= 0 else -g
-            # tangent basis consistent with summarise(): eigenvectors of the dyadic
+            # same tangent basis as summarise(); Mahalanobis in the sample covariance
             e1 = np.cross(mu, [1, 0, 0] if abs(mu[0]) < 0.9 else [0, 1, 0]); e1 /= np.linalg.norm(e1); e2 = np.cross(mu, e1)
-            # covariance in this basis from σ (isotropic approx) — use sample cov rotated: approximate with sigma
-            s2 = np.radians(sig[i, k]) ** 2 / 2
-            t = np.array([gs @ e1, gs @ e2]); m = (t @ t) / max(s2, 1e-10)
+            t = np.array([gs @ e1, gs @ e2]); m = t @ np.linalg.solve(covs[i, k], t)
             hit = m <= q; hits += hit; tot += 1
             per.setdefault(int(b["angle"][i]), []).append(hit)
     print(f"\nFLOW posterior @ SNR {a.snr_eval:.0f}: err={err:.2f}° recall={100*rec:.1f}%  "
@@ -122,7 +152,7 @@ def main():
         print(f"  {av:>3d}  {100*np.mean(per[av]):6.1f}%  {np.median(sig[m,0]):8.2f}°  {e:6.2f}°")
 
     # --- SBC on held-out simulations (rank of truth among posterior samples, per parameter)
-    kk = jax.random.PRNGKey(7); th, xs = sim.sample_and_simulate(kk, a.n_sbc)
+    kk = jax.random.key(7); th, xs = sim.sample_and_simulate(kk, a.n_sbc)
     ranks = np.zeros((a.n_sbc, len(NAMES)))
     for i in range(a.n_sbc):
         kk, sk = jax.random.split(kk); s = np.asarray(sample(sk, xs[i]))
