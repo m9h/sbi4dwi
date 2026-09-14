@@ -1182,3 +1182,12 @@ bridge, jinns_mesh, qmt) are unrelated to this work and predate it.
 `~/.cache/jax` is now the persistent compile cache — first runs after
 an upgrade are slow, not broken. Drop the scico git source once a scico
 > 0.0.7 reaches PyPI.
+
+### 8.5 Julia oracles: MCMRSimulator.jl (Oxford) and Microstructure.jl (Martinos) (2026-09-14)
+
+| package | latest | changes since May 2026 | impact here |
+|---|---|---|---|
+| **MCMRSimulator.jl** (Cottaar, FMRIB) — canonical repo `git.fmrib.ox.ac.uk/ndcn0236/mcmrsimulator.jl`, GitHub mirror `MichielCottaar/MCMRSimulator.jl`; **not** in the General registry (`open-dmri/…` does not exist) | **v1.1.0, 2026-08-11** (v1.0.0 was 2025-04-01); paper Imaging Neuroscience 10.1162/imag.a.1177 | requires **Julia ≥ 1.12**; `Spheres` gains `overlapping`; Pulseq parsing/validation expanded; core no longer depends on MRIBuilder. On `main` (through 2026-09-10): `target_snr` adaptive readout, `susceptibility` for spheres, **SWC loads as connected sphere+cylinder geometry by default**, `PlotPlane`, a run of FiniteCylinder collision/cap fixes (2026-09-09/10). Permeability and myelin off-resonance still supported; no GPU, no Python interop. | The planned `MCMROracle` (CLAUDE.md, tutorial §"docker/Dockerfile.mcmr" — neither exists yet) must target Julia 1.12 + `#v1.1.0`, drive `mcmr run <geometry.json|.ply|.swc> <seq.seq>` and read **CSV** output with **Pulseq** sequences, not the JSON interface the tutorial text assumes. The SWC-as-connected-geometry default makes it the natural third MC engine for the CATERPillar substrates (doc 006 Phase 3) — CATERPillar's new CSV with `parent_id` is close to SWC already. |
+| **Microstructure.jl** (Gong, Martinos) | **v0.1.8, 2025-05-10**; last commit 2025-08-29 (multi-threaded SH fitting; patent notice restricting some methods to non-commercial use); docs built 2025-08-13, Julia 1.10; paper Imaging Neuroscience 10.1162/IMAG.a.1102 | none. Models unchanged: SANDI, MTE-SANDI/MTE-SMT, SMT, ExCaliber (3-compartment); MCMC + MC-dropout NN estimators. New group preprint: Gong et al., *Multi-dimensional dMRI at ultra-high gradient strength … primate brain*, bioRxiv 2026.02.18.705310 — not a package change. | doc 004 §23 audit and `dmipy_jax/examples/microstructure_jl_tutorials/` remain current. `docs/openlifu/proposal.md` calls it "PINN solvers" — wrong (it is MCMC / dropout-NN); fix when that doc is next touched. Note the **non-commercial patent notice** before any redistribution of ported estimators. |
+
+No pinned versions of either exist in the repo; nothing to bump.
