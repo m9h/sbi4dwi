@@ -1,47 +1,13 @@
-# Dockerfile for SBI_dMRI Oracle Generation
-# Optimized for NVIDIA DGX / Spark clusters
-
-# Use NVIDIA PyTorch container as base for optimized CUDA/cuDNN
-FROM nvcr.io/nvidia/pytorch:24.01-py3
-
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Install system dependencies (e.g. for neuroimaging libs)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    wget \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Common Neuroimaging & SBI dependencies
-# SBI_dMRI requires: sbi, nilearn, dipy, torch (already in base)
-RUN pip install --no-cache-dir \
-    sbi \
-    nilearn \
-    dipy \
-    nibabel \
-    h5py \
-    joblib \
-    tqdm \
-    pandas \
-    seaborn
-
-# Create script directory
-WORKDIR /workspace
-RUN mkdir -p scripts
-
-# Copy local generation script (bypass git clone issues)
-COPY docker/generate_data.py /workspace/scripts/generate_data.py
-
-# Create output directory
-RUN mkdir -p /data/sbi_dmri_oracle
-
-# Default command
-CMD ["python", "scripts/generate_data.py", "--help"]
-
-# Usage:
-# docker build -t sbi_dmri_oracle -f docker/Dockerfile.sbi_dmri .
-# docker run --gpus all -v $(pwd)/data:/data/sbi_dmri_oracle sbi_dmri_oracle python scripts/generate_data.py ...
+# SBI_dMRI (Nottingham, Manzano-Patron et al. MedIA 2025) on the DGX Spark.
+# Base: most recent NGC PyTorch available locally (2026-09-14: 26.06).
+ARG BASE=nvcr.io/nvidia/pytorch:26.06-py3
+FROM ${BASE}
+ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN pip install --no-cache-dir "sbi>=0.23" nibabel h5py joblib tqdm pandas
+# their code (cloned at /home/mhough/dev/dmipy/sbi_dmri_temp; requirements pin sbi 0.22 / torch 2.2,
+# we run the modules directly with the container's torch and the current sbi API)
+COPY sbi_dmri_temp /workspace/sbi_dmri
+COPY docker/sbi_dmri_run.py /workspace/sbi_dmri_run.py
+WORKDIR /workspace/sbi_dmri
+ENV PYTHONPATH=/workspace/sbi_dmri
+ENTRYPOINT ["python", "/workspace/sbi_dmri_run.py"]

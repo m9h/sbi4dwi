@@ -27,10 +27,15 @@ def main():
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--methods", nargs="+",
                     default=["prism-nll", "plus-x", "plus-x-disp", "select", "msmt"])
+    ap.add_argument("--save-signals", default=None,
+                    help="write every condition's clean MC signal, noisy volume, GT axes and "
+                         "f_intra to this .npz (for external methods: FORCE, SBI_dMRI)")
+    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
     bvals, bvecs = prism_scheme()
     results = {}
+    saved = {"bvals": bvals, "bvecs": bvecs, "snr": args.snr}
     for geom in args.geoms:
         df = sb.caterpillar_bundle(icvf=args.icvf, box_um=args.box_um,
                                    tortuous=int(geom == "tortuous"),
@@ -44,10 +49,16 @@ def main():
             S, S_in, S_ex = sb.simulate_substrate_signal(sub, bvals, bvecs, n_particles=args.n_particles)
             print(f"  angle {ang:>4.0f}: f_intra={sub.f_intra:.3f}  MC {time.time()-t0:.0f}s  "
                   f"S(b3000) mean intra={S_in[-64:].mean():.3f} extra={S_ex[-64:].mean():.3f}", flush=True)
-            data, mask = sb.build_volume(S, (8, 8, 1), args.snr)
+            data, mask = sb.build_volume(S, (8, 8, 1), args.snr, seed=args.seed)
             N = 64
             if ang == 0:
                 sf_data = data
+            saved[f"{geom}_{int(ang)}_signal"] = S
+            saved[f"{geom}_{int(ang)}_data"] = data
+            saved[f"{geom}_{int(ang)}_axes"] = sub.axes
+            saved[f"{geom}_{int(ang)}_f_intra"] = sub.f_intra
+            if args.save_signals:
+                np.savez(args.save_signals, **saved)
             gt = np.zeros((N, 2, 3)); gt[:, 0] = sub.axes[0]
             if ang > 0:
                 gt[:, 1] = sub.axes[1]
