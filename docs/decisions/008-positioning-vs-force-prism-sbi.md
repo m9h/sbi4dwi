@@ -347,7 +347,7 @@ simulations (19 min), raw 193-d signal as condition, SNR 8–60.
 | 90 % cone coverage (clustered) | 99.9 %, σ_θ 17–25° everywhere |
 | Laplace posterior on the same data (doc 007 §6.12) | 1.6–1.7° / 100 %, coverage 87–88 % |
 
-**Negative result, stated plainly.** The flow is calibrated in
+**Negative result, stated plainly** (superseded by §7.1: most of this number is the benchmark sitting on the parameterisation seams; tilted, the same flow gives 9.1° / 94.5 %)**.** The flow is calibrated in
 parameter space — SBC passes — but its direction posterior is one
 broad, honest cloud rather than two resolved modes, so it is far less
 precise than both our own Laplace posterior and Nottingham's NSF on the
@@ -402,6 +402,56 @@ same exported benchmarks. Drivers: `validation/diagnose_force_limits.py`
 (dipy-master venv), `validation/diagnose_substrate_compartments.py`,
 `validation/diagnose_flow_variants.py`, `validation/diagnose_posterior_width.py`,
 plus `docker/sbi_dmri_run.py --hidden/--transforms/--batch`.
+
+### 7.1 Our amortised flow: the benchmark sat on the parameterisation seams
+
+`diagnose_flow_variants.py` retrains the §6.3 flow six ways — same
+architecture (spline MAF 256 × 6), budget (20k × 512 streamed unless
+stated) and evaluation (mode-clustered posterior, best-match error) — and
+`diagnose_flow_rotated.py` re-evaluates every checkpoint on the same
+benchmark rotated 45° about y then x. `validation/flow_variants_slurm1768.log`,
+`validation/flow_variants_results.npz`, checkpoints `validation/flow_variant_*.eqx`.
+
+| variant | equatorial benchmark (§6.3 geometry) err / recall | antipodal split | **tilted 45°** err / recall | 45° crossing, tilted | 90°, tilted | SBC 90 % cov (7 params) |
+|---|---|---|---|---|---|---|
+| base (θ ∈ (0,π), φ ∈ (0,2π)) | 23.9° / 41 % | 0.43 | **9.1° / 94.5 %** | 16.4° / 90 % | 7.0° | 87–94 % |
+| hemi (θ ≤ π/2) | 23.1° / 39 % | 0.28 | 10.0° / 88 % | 22.2° / 48 % | 4.5° | 90–93 % |
+| disk ((x,y) → upper hemisphere) | 23.8° / 39 % | 0.42 | 8.6° / 93 % | 19.4° / 54 % | 3.0° | 88–96 % |
+| hemi + embedding MLP 193→64 | 20.9° / 47 % | 0.34 | 10.1° / 93 % | 22.0° / 50 % | 11.4° | 90–94 % |
+| hemi, 2× budget (40k steps) | 21.6° / 48 % | 0.35 | **7.8° / 95 %** | **11.6° / 96 %** | 3.9° | 90–96 % |
+| hemi, fixed 1M set × 60 epochs, batch 4096 (SBI_dMRI regime) | 19.2° / 56 % | 0.36 | 10.9° / 87 % | 22.5° / 28 % | 5.7° | 89–94 % |
+
+1. **The §6.3 number was an evaluation artefact first.** The synthetic
+   benchmark puts fibre 1 at (1, 0, 0) — φ = 0, the wrap seam of the
+   θ/φ parameterisation — and both fibres at z = 0, the boundary of every
+   hemisphere prior. A posterior mode on a seam is split in two by the
+   flow, and `summarise()` then reads one fibre as two. Tilting the same
+   configurations off the seams takes the *unchanged* base flow from
+   23.9° / 41 % to 9.1° / 94.5 %. The hemisphere variants show the same
+   thing through the antipodal-split column (0.28–0.43 on the seam,
+   0.00–0.10 tilted). The same seam hurts SBI_dMRI (§7.5).
+2. **What remains is a mid-angle resolution limit, shared with the other
+   amortised flow.** Tilted, every variant is 1–1.5° on single fibres and
+   3–7° at 90°, but 12–22° with 28–54 % recall at 45°: the posterior
+   merges two fibres 45° apart into one broad mode (σ_θ 17–19°,
+   label-switch fraction ≈ 0). SBI_dMRI's published reading has the same
+   hole (45°: 19.7° / 48 %, 60°: 26.8° / 2 %).
+3. **Budget helps where parameterisation does not.** Doubling the
+   streamed budget is the only change that moves the 45° row
+   (22.5° → 11.6°, recall 48 → 96 %); hemisphere, disk, embedding and the
+   fixed-set regime are within noise of each other. The amortised
+   posterior is capacity/budget-limited at mid angles, not
+   parameterisation-limited.
+4. Calibration is unaffected throughout (SBC coverage 87–96 % for every
+   variant) — the flows are honest about their breadth, which is why
+   err ≈ σ_θ in §7.4.
+
+Corrected reading of §6.3: on a seam-free benchmark our streamed flow is
+**8–9° / 94 %** (7.8° with 2× budget) against SBI_dMRI clustered 4.8°
+on the identical tilted set and the Laplace posterior's 1.6°. The
+amortised flow is still the least precise of the three, but by 2×, not
+by 10×, and the gap is one more training doubling wide, not a design
+flaw.
 
 ### 7.2 Our f_i bias on substrates: compartment attribution, not the compartment model
 
@@ -579,3 +629,67 @@ err ≫ σ_θ is confidently wrong.
   SBC said) and the posterior is simply not resolved — no bias, no
   label-switching signature, just a flow that never learned the sharp
   conditional. That is what §7.1 tests knob by knob.
+
+### 7.5 SBI_dMRI: training budget vs noise prior vs label switching
+
+`docker/sbi_dmri_run.py` with `--hidden/--transforms/--batch`, Slurm 1769
+(`validation/external/sbi_dmri_diag_slurm1769.log`). Three estimators on
+the identical exported sets: *published* = 1M sims, 60 epochs, NSF 64 × 8,
+SNR 5–80 (§6.2); *big* = 3M sims, 100 epochs, 128 × 10 (84 min on the
+GB10); *snr30* = 1M, SNR 25–35. Published-style sort-by-fraction reading
+and the clustered reading of each.
+
+| dataset 2, synthetic SNR 30 | published | big | snr30 |
+|---|---|---|---|
+| sort-by-fraction: overall (15 / 30 / 45 / 60 / 90°) | 10.3° / 93 % (6.9 / 13.1 / 18.3 / 11.1 / 5.9) | 11.1° / 90 % (4.8 / 11.9 / 12.3 / 6.3 / 14.1) | 14.7° / 79 % (6.7 / 12.8 / 16.2 / 20.2 / 11.3) |
+| clustered | **5.1° / 98.5 %** (7.6 / 8.0 / 5.3 / 3.0 / 2.4) | 4.6° / 93.5 % (7.3 / 4.8 / 6.5 / 5.3 / 1.3), σ_θ 7.6° | 5.7° / 99 % (8.4 / 7.4 / 3.8 / 5.0 / 3.3) |
+| **tilted 45°**, sort-by-fraction | 19.1° / 52 % (45°: 19.7 / 48 %; 60°: 26.8 / 2 %) | 19.1° / 51 % | — |
+| tilted 45°, clustered | **4.8° / 97 %** (45°: 2.8 / 99 %; 60°: 7.3 / 82 %) | 20.4° / 48 % (45°: 22.5 / 0 %; 60°: 30.0 / 0 %) | — |
+
+| dataset 3 substrates, crossings 30–90° (err / recall) | published | big | snr30 |
+|---|---|---|---|
+| sort-by-fraction, straight | 13.7/95 · 20.1/50 · 26.0/29 · 30.5/23 | 11.1/100 · 15.2/81 · 16.5/70 · 19.6/57 | 12.4/100 · 20.3/49 · 24.4/32 · 25.7/36 |
+| clustered, straight | 8.6 · 9.4 · 7.1 · 4.6 | **7.7 · 6.3 · 5.2 · 2.8** | 10.6 · 10.9 · 8.8 · 6.3 |
+| clustered, tortuous | 11.7 · 13.1 · 10.9 · 6.5 | **7.7 · 9.4 · 5.7 · 3.6** | 12.2 · 13.9 · 11.8 · 8.8 |
+| Σ stick fractions vs geometry | within 0.02–0.10 | within 0.03–0.06 | within 0.02–0.07 |
+
+1. **Label switching is the published method's dominant crossing
+   failure, at every budget and noise prior.** Sort-by-fraction recall
+   collapses to 2–57 % at 45–90° for all three estimators; the
+   clustering post-process recovers it every time. This is a reporting
+   choice in their pipeline, not a property of the posterior.
+2. **Budget buys precision on the substrates, not on the synthetic
+   set.** 3× sims + a wider net takes the clustered substrate crossings
+   from 5–13° to 3–9° (now within 1–2× of our differentiable fit's
+   2–5°) but leaves the synthetic set at 4.6° vs 5.1° — and it
+   *fails* on the tilted set even clustered (45–60°: 0 % recall). A
+   flow that is sharper (σ_θ 7.6° vs 15°) where it is right and
+   confidently wrong elsewhere is the classic over-trained NPE
+   signature; their 1M/60-epoch default is the better-calibrated choice.
+3. **A narrow noise prior does not help** (snr30 is the worst of the
+   three): the amortised posterior's breadth is not coming from noise
+   marginalisation.
+4. Their microstructure number is robust to all of this (Σf within
+   0.1 of geometry in every run) — consistent with §7.2: a model with no
+   free isotropic + anisotropic extra-cellular pair cannot mis-attribute.
+
+### 7.6 What the limits are, in one table
+
+| limitation (from §6.4) | mechanism, now measured | fixable by | evidence |
+|---|---|---|---|
+| FORCE 7–17° at crossings | nearest-neighbour matching in signal space picks entries 5–14° from the truth although the library holds one within 2.8°; unchanged noise-free, 0.2° better with 4× library, 8–10° in-model | not by library size or noise; only by a continuous refinement step after the match (which is what the differentiable fit is) | §7.3 |
+| FORCE ND drifts at crossings | same partial-volume freedom as ours: matched entry's WM/GM/CSF split | — | §7.3, §7.2 |
+| our f_i +0.1–0.2 on substrates | CSF/GM balls absorb the hindered (D⊥ ≈ 1.0) extra-cellular space; WM-internal f_i inflates, voxel-level intra fraction deflates | `use_isotropic=False` in WM-only voxels (5/6 substrates within 0.05); report f_i·f_wm otherwise | §7.2 |
+| our tortuosity coupling | Szafer–Stanisz under-predicts D⊥,ex at Δ = 12 ms (real 0.8–1.1 vs 0.75) → f_i low by 0.01–0.12 with directions known; but it is what keeps the tortuous 45° crossing identifiable | keep, with a wider D⊥ prior | §7.2 |
+| our flow 18.5° / 58 % | benchmark on the φ = 0 and z = 0 seams (→ 9° / 94 % tilted); residual mid-angle merging is budget-limited (2× budget: 45° 22 → 12°) | tilt-free evaluation; ≥ 2× training; clustering | §7.1 |
+| SBI_dMRI crossings 16–50 % recall | sort-by-fraction under label switching; posterior itself resolves crossings (clustered 4.8–5.1°) | clustering (ours); their classifier variant untested | §7.5, §7.4 |
+| SBI_dMRI σ_θ 25–38° at 90° | same label switching pooled into per-fibre samples → 5–7× inflated uncertainty | clustering | §7.4 |
+| SBI_dMRI residual 5–9° at crossings | amortisation breadth (err ≈ σ_θ at 15–45°); more budget sharpens on substrates but over-trains on tilted synthetic | — (fundamental to a 1M–3M amortised NSF at this SNR) | §7.5 |
+| all amortised flows vs Laplace | Laplace 1.6° / 88 % coverage is per-voxel optimisation + local curvature: no amortisation gap, no seam, no label ambiguity | — | §7.1, doc 007 §6.12 |
+
+The positioning claim of §4 survives with sharper wording: the
+differentiable, spatially regularised MAP + Laplace posterior is the
+only method here whose orientation error is set by the noise (1–3°)
+rather than by a discrete library, an amortisation gap, or a
+parameterisation seam; its microstructure bias is a partial-volume
+attribution that a one-flag model change removes on WM-only tissue.

@@ -5,7 +5,7 @@ benchmark's fibres lie in the z = 0 plane, which is the *boundary* of a
 hemisphere prior (θ ≤ π/2, or the unit-disk map). A posterior mode on the
 boundary spills half its mass to the antipode, so hemisphere variants
 cannot look better than `base` there. Re-evaluate every trained variant
-checkpoint on the same benchmark rotated by `--tilt` degrees about x
+checkpoint on the same benchmark rotated by `--tilt` degrees about y then x
 (fibres well inside the hemisphere), same noise, same metrics.
 """
 import argparse, sys, time
@@ -18,7 +18,10 @@ from dmipy_jax.validation import prism_synthetic as ps
 
 def rotated_benchmark(tilt_deg, snr, seed=0):
     b = ps.make_benchmark(snr=None)
-    a = np.radians(tilt_deg); R = np.array([[1, 0, 0], [0, np.cos(a), -np.sin(a)], [0, np.sin(a), np.cos(a)]])
+    a = np.radians(tilt_deg)
+    Rx = np.array([[1, 0, 0], [0, np.cos(a), -np.sin(a)], [0, np.sin(a), np.cos(a)]])
+    Ry = np.array([[np.cos(a), 0, np.sin(a)], [0, 1, 0], [-np.sin(a), 0, np.cos(a)]])
+    R = Rx @ Ry                       # compound: no fibre stays on the z = 0 boundary
     gt = b["gt_dirs"] @ R.T
     b["gt_dirs"] = gt
     fwd = make_forward("base", b["bvals"], b["bvecs"])
