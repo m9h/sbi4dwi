@@ -1,0 +1,11 @@
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+MCMRSimulator = "eac06e4d-a854-4bf6-b44f-54c98b0401d1"
+MRIBuilder = "691e6122-0b62-4932-92e7-e4ff0ddaf3a0"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[sources]
+MCMRSimulator = {rev = "v1.1.0", url = "https://git.fmrib.ox.ac.uk/ndcn0236/mcmrsimulator.jl.git"}
+MRIBuilder = {rev = "main", url = "https://git.fmrib.ox.ac.uk/ndcn0236/mribuilder.jl.git"}
