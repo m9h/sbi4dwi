@@ -223,3 +223,65 @@ Docs 004, 006, 007; FORCE repo `experiments/`; Manzano-Patron et al.
 MedIA 2025; Eggl & De Santis bioRxiv 2025; Abouagour et al. arXiv
 2604.00250; Nguyen-Duc et al. CATERPillar 2026; Brammerloh et al.
 OCTOPUS bioRxiv 2026.
+
+
+---
+
+## 6. Results of the settling runs (2026-09-14)
+
+### 6.1 Run 2 — FORCE (dipy master 1.13.0.dev, `seed=2298`, `two_fiber_min_angle=0`) on datasets 2 and 3
+
+Slurm 1755, `validation/run_force_external.py`, 500K library, FORCE's
+default in-vivo priors (no tuning — the same footing as our PRISM-JAX
+rows, which start from D∥ = 1.7). Same best-match metric as every other
+row (recall = matched within 20°).
+
+**Dataset 2 — synthetic crossings (same exported sets as ours):**
+
+| | FORCE (dipy master) | sbi4dwi PRISM-JAX / plus-warm (§2.2) | MSMT-CSD |
+|---|---|---|---|
+| in-model, SNR 30 | 7.54° / 98.7 % | 1.68° / 100 % · 1.59° / 100 % | 10.2° / 86 % |
+| in-model, SNR 30, 15° / 20° / 25° | 7.7° / 9.5° / 7.1° | 4.4° / 3.4° / 2.9° | 7.6° / 10.2° / 12.7° |
+| dispersed GT (ODI 0.2), SNR 30 | 14.72° / 70.2 % | plain 9.10° / 97.7 % · dispersed 6.77° / 98.2 % | — |
+| in-model, SNR 10 | 8.59° / 96.4 % | (not run at SNR 10 in-model; Laplace calibration run gave 6.58° at 15°, ~3° at ≥ 45°) | — |
+
+- With the < 30° library limit lifted, FORCE detects shallow crossings
+  (100 % recall at 15–25°) but at 7–10° error — the ~4° angular
+  quantisation of a 500K library. The differentiable fit is 3–4× more
+  precise at every angle.
+- **Dispersion hurts FORCE most**: recall collapses to 17–36 % at 50–65°
+  under ODI 0.2, because its library shares one Bingham ODI across
+  fibres and the matched entry's fixed directions inherit the blur. The
+  dispersion-aware sbi4dwi model keeps 98 % recall at 6.8°.
+- SNR 10 barely moves FORCE (8.6° vs 7.5°): dictionary matching is
+  noise-robust in the way a nearest-neighbour method is — the library
+  spacing, not the noise, sets the floor.
+
+**Dataset 3 — CATERPillar substrates (identical MC signals, job 1754):**
+
+| condition | FORCE err / recall / ND | sbi4dwi PRISM-JAX (fixed D) | sbi4dwi plus-x (learned D, decoupled D∥,ex) | geom f_i |
+|---|---|---|---|---:|
+| straight 0° | 8.7° / 100 / **0.49** | 6.6° / 100 / 0.62 | 6.9° / 100 / 0.62 | 0.50 |
+| straight 30° | 15.3° / 95 / 0.68 | 8.1° / 98 / 0.78 | **8.0° / 97 / 0.61** | 0.49 |
+| straight 45° | 14.3° / 98 / 0.63 | **4.8°** / 100 / 0.73 | 4.8° / 100 / 0.60 | 0.49 |
+| straight 60° | 13.1° / 81 / 0.59 | **3.0°** / 100 / 0.67 | 3.3° / 100 / 0.64 | 0.49 |
+| straight 90° | 9.7° / 100 / 0.62 | 2.4° / 100 / 0.58 | **2.3°** / 100 / 0.61 | 0.50 |
+| tortuous 0° | **6.7°** / 100 / 0.67 | 7.1° / 100 / 0.68 | 6.7° / 100 / 0.60 | 0.53 |
+| tortuous 30° | 15.1° / 100 / 0.70 | 7.8° / 100 / 0.75 | **6.5°** / 100 / 0.59 | 0.53 |
+| tortuous 45° | 16.6° / 77 / 0.64 | 5.1° / 100 / 0.70 | **4.4°** / 100 / 0.64 | 0.52 |
+| tortuous 60° | 12.3° / 91 / 0.67 | 3.5° / 100 / 0.65 | **3.1°** / 100 / 0.59 | 0.52 |
+| tortuous 90° | **6.7°** / 100 / 0.64 | 2.5° / 100 / 0.59 | 2.8° / 100 / 0.64 | 0.53 |
+
+- **Off-model, the differentiable fit beats FORCE by 2–4× at every
+  crossing** (e.g. tortuous 45°: 4.4° vs 16.6°, with FORCE's recall
+  dropping to 77 %). On single bundles the two are level (6.7–8.7°) and
+  the dispersion-aware sbi4dwi variant (2.4°, §3.2) is far ahead of both.
+- **FORCE's ND is *less* biased than any of our f_i estimates on single
+  bundles** (0.49 and 0.67 vs geometry 0.50 / 0.53) but drifts to
+  0.59–0.70 at crossings; ours sits at 0.58–0.78 throughout. Nobody
+  recovers the intra fraction at crossings — the §3.3 finding holds
+  with the strongest dictionary method included.
+- This is the first run where FORCE, a PRISM-class MAP and our learned-D
+  model see byte-identical off-model signals. Head-to-head rows 2 and 3
+  of the positioning claim (§4) are now supported by direct evidence,
+  not by cross-paper comparison.

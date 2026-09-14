@@ -1,0 +1,82 @@
+##### synthetic_snr30
+[2026-09-13 23:33:44][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE validation/external/synthetic_snr30.npz: overall err=7.54° recall=98.7%  (85s)
+    0    2.37° / 100.0%
+   15    7.71° / 100.0%
+   20    9.50° / 100.0%
+   25    7.07° / 100.0%
+   30    8.92° / 100.0%
+   35   11.58° / 100.0%
+   40   11.02° / 100.0%
+   45    6.51° / 100.0%
+   50    7.06° /  99.5%
+   55    9.54° /  78.5%
+   60    4.76° / 100.0%
+   65    5.34° / 100.0%
+   70    7.69° / 100.0%
+   75    6.04° / 100.0%
+   80    9.24° / 100.0%
+   85    5.82° / 100.0%
+   90    5.36° / 100.0%
+##### synthetic_snr30_odi0.2
+[2026-09-13 23:35:09][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE validation/external/synthetic_snr30_odi0.2.npz: overall err=14.72° recall=70.2%  (5s)
+    0    3.01° / 100.0%
+   15    8.14° / 100.0%
+   20   10.32° /  98.5%
+   25   12.65° /  87.8%
+   30   12.55° /  69.0%
+   35   12.38° /  78.5%
+   40   15.26° /  85.5%
+   45   15.59° /  88.8%
+   50   22.61° /  30.0%
+   55   23.37° /  16.8%
+   60   20.71° /  35.8%
+   65   18.51° /  48.5%
+   70   12.93° /  64.8%
+   75   17.55° /  55.2%
+   80   15.67° /  75.5%
+   85   11.00° /  88.0%
+   90   12.14° /  86.2%
+##### synthetic_snr10
+[2026-09-13 23:35:14][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE validation/external/synthetic_snr10.npz: overall err=8.59° recall=96.4%  (5s)
+    0    2.87° / 100.0%
+   15    7.87° / 100.0%
+   20    8.97° / 100.0%
+   25    8.21° / 100.0%
+   30   10.93° /  99.5%
+   35   11.13° /  98.5%
+   40    6.92° /  99.0%
+   45    6.86° /  98.8%
+   50   10.26° /  84.2%
+   55    9.57° /  86.8%
+   60    7.35° /  93.8%
+   65    8.21° /  93.2%
+   70    9.67° /  90.2%
+   75    8.54° /  99.5%
+   80    8.45° /  99.5%
+   85    8.36° /  97.8%
+   90    9.09° /  99.5%
+##### substrates
+[2026-09-13 23:35:19][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE straight_0     err=  8.71° recall=100.0%  ND=0.489 (geom f_i 0.499)  (3s)
+[2026-09-13 23:35:23][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE straight_30    err= 15.30° recall= 94.5%  ND=0.682 (geom f_i 0.488)  (3s)
+[2026-09-13 23:35:26][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE straight_45    err= 14.30° recall= 98.4%  ND=0.630 (geom f_i 0.491)  (3s)
+[2026-09-13 23:35:29][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE straight_60    err= 13.14° recall= 81.2%  ND=0.590 (geom f_i 0.489)  (3s)
+[2026-09-13 23:35:32][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE straight_90    err=  9.68° recall=100.0%  ND=0.622 (geom f_i 0.496)  (3s)
+[2026-09-13 23:35:35][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE tortuous_0     err=  6.69° recall=100.0%  ND=0.665 (geom f_i 0.531)  (3s)
+[2026-09-13 23:35:38][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE tortuous_30    err= 15.08° recall=100.0%  ND=0.703 (geom f_i 0.527)  (3s)
+[2026-09-13 23:35:41][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE tortuous_45    err= 16.59° recall= 77.3%  ND=0.641 (geom f_i 0.523)  (3s)
+[2026-09-13 23:35:44][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE tortuous_60    err= 12.33° recall= 91.4%  ND=0.672 (geom f_i 0.519)  (3s)
+[2026-09-13 23:35:47][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+FORCE tortuous_90    err=  6.65° recall=100.0%  ND=0.638 (geom f_i 0.531)  (3s)
+exit 0
