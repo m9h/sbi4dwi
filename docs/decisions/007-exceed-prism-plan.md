@@ -1213,6 +1213,11 @@ gradient direction or the sequence optimiser fails.
 | b = 2000 | 0.074 / 0.070 | 0.013 | 0.695 / 0.390 | 0.33 | 0.51 / 0.14 / 0.018 |
 | b = 3000 | 0.036 / 0.032 | 0.014 | 0.600 / 0.312 | 0.31 | 0.38 / 0.10 / 0.002 |
 
+**90° sheet crossing, same settings (40 min):** S_extra MCMR / JAX
+0.266 / 0.271, 0.090 / 0.093, 0.048 / 0.046 (RMS 0.010–0.015) on the
+three shells; S_intra 0.88 / 0.63, 0.79 / 0.50, 0.72 / 0.43 (RMS 0.27–0.31)
+— the same picture as the single bundle.
+
 - **Extra-cellular: parity.** Two independent engines (JAX union-SDF
   walker with elastic reflection; MCMRSimulator's obstruction-based
   stepper) agree to 0.01 RMS on every shell, including the b = 3000 tail
