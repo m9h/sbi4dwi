@@ -1,0 +1,49 @@
+[Flow] step 0/30000  loss=8.0319
+[Flow] step 2000/30000  loss=-5.7834
+[Flow] step 4000/30000  loss=-7.7538
+[Flow] step 6000/30000  loss=-8.8962
+[Flow] step 8000/30000  loss=-9.9569
+[Flow] step 10000/30000  loss=-10.1925
+[Flow] step 12000/30000  loss=-10.6611
+[Flow] step 14000/30000  loss=-11.2899
+[Flow] step 16000/30000  loss=-11.7482
+[Flow] step 18000/30000  loss=-12.1040
+[Flow] step 20000/30000  loss=-12.1174
+[Flow] step 22000/30000  loss=-12.0469
+[Flow] step 24000/30000  loss=-12.2535
+[Flow] step 26000/30000  loss=-12.3054
+[Flow] step 28000/30000  loss=-12.6303
+[Flow] Training done. 30000 steps in 1140.4s (26 steps/s)
+saved flow to validation/flow_prism_k2_spline_256x6.eqx
+flow trained: 30000 steps × 512 = 15.4M sims, loss 8.03 → -12.56, 1144s
+posterior sampling 3400 voxels × 400: 38s
+
+FLOW posterior @ SNR 30: err=18.46° recall=57.7%  90% cone coverage=85.4%  median σ_θ(main)=19.50°
+angle  coverage  median σ_θ  mean err
+   15   100.0%     11.20°    7.00°
+   20    99.5%     11.14°    8.85°
+   25    84.0%      9.76°   10.90°
+   30    61.0%      9.71°   12.84°
+   35    45.5%      9.39°   14.80°
+   40    47.5%      9.80°   15.41°
+   45    53.5%     11.72°   16.62°
+   50    74.0%     15.99°   18.35°
+   55    95.2%     22.10°   19.32°
+   60    99.2%     27.14°   21.90°
+   65   100.0%     32.29°   24.77°
+   70   100.0%     37.16°   26.38°
+   75   100.0%     43.63°   27.65°
+   80   100.0%     43.87°   26.76°
+   85   100.0%     43.53°   24.17°
+   90   100.0%     43.77°   27.30°
+    0   100.0%     20.42°    2.98°
+
+SBC on 300 held-out sims (400 samples): param  KS-p  90%-coverage
+  theta1    0.915   90.7%
+  phi1      0.427   87.7%
+  theta2    0.367   88.7%
+  phi2      0.021   90.7%
+  f_wm1     0.056   91.7%
+  f_wm2     0.493   91.0%
+  f_i       0.755   89.0%
+exit 0

@@ -285,3 +285,111 @@ row (recall = matched within 20°).
   model see byte-identical off-model signals. Head-to-head rows 2 and 3
   of the positioning claim (§4) are now supported by direct evidence,
   not by cross-paper comparison.
+
+### 6.2 Run 1 — SBI_dMRI (Nottingham NPE) on datasets 2 and 3
+
+Slurm 1761 / 1763, `docker/sbi_dmri_run.py` in `nvcr.io/nvidia/pytorch:26.06-py3`.
+Their Ball-and-Sticks forward model, priors (hemisphere, nfib = 2,
+modelnum = 2), noise policy (Rician, SNR 5–80) and layout, trained as a
+neural spline flow on **1M simulations, 60 epochs (14 min on the GB10)**,
+one posterior for the PRISM 3-shell scheme (cached and reused). Two
+things had to change to run it at all: their `DirectPosterior` rejection
+sampler looped for hours on observations where the flow leaks mass
+outside the box prior (sampled the density estimator directly and
+clipped instead), and their per-voxel sampling loop (~1 s/voxel) was
+batched. Two post-processings are reported: *published* (sort fibres by
+mean fraction) and *clustered* (pool both fibres' direction samples,
+2-means on the sphere — the same fix our flow needed).
+
+| dataset 2 | published | clustered | sbi4dwi PRISM-JAX / Laplace |
+|---|---|---|---|
+| in-model SNR 30 | 10.3° / 93 % | **5.1° / 98.5 %** | 1.6° / 100 % |
+| in-model SNR 30, 15° / 25° / 40° / 90° | 7.0 / 10.9 / 17.3 (77 %) / 5.9° | — | 4.4 / 2.9 / 1.6 / 0.9° |
+| dispersed GT (ODI 0.2) | **8.3° / 99 %** | 13.2° / 80 % | dispersed model 6.8° / 98 % |
+| in-model SNR 10 | 11.5° / 88 % | **8.9° / 94 %** | Laplace run: 6.6° at 15°, ~3° at ≥ 45° |
+
+| dataset 3 (same MC signals) | published | clustered | FORCE (§6.1) | sbi4dwi plus-x |
+|---|---|---|---|---|
+| straight 0° | **1.2° / 100** | 6.8° | 8.7° | 6.9° (disp. model 2.4°) |
+| straight 30 / 45 / 60 / 90° | 13.7 / 20.1 (50 %) / 26.0 (29 %) / 30.5° (23 %) | 8.6 / 9.4 / 7.2 / 4.6° | 15.3 / 14.3 / 13.1 / 9.7° | **8.0 / 4.8 / 3.3 / 2.3°** |
+| tortuous 0° | **2.8° / 100** | 5.6° | 6.7° | 6.7° (disp. 2.3°) |
+| tortuous 30 / 45 / 60 / 90° | 13.0 / 19.9 (50 %) / 27.1 (16 %) / 22.3° (51 %) | 11.7 / 13.1 / 10.9 / 6.5° | 15.1 / 16.6 / 12.3 / 6.7° | **6.5 / 4.4 / 3.1 / 2.8°** |
+| Σ stick fractions vs geometry f_i | **0.48–0.61 vs 0.49–0.53** | same | ND 0.49–0.70 | f_i 0.58–0.64 |
+
+- **Their single-fibre estimates are the best of any method** (1.2°,
+  2.8°), and their stick-fraction sum is the least biased microstructure
+  number in the whole comparison (within 0.02–0.1 of geometry) — the
+  Ball-and-Sticks model's lack of an extra-cellular compartment turns
+  out to be an advantage when the real extra-cellular space is this
+  hindered.
+- **Crossings are the weakness.** As published, recall collapses to
+  16–50 % at 45–90° off-model (fibre identities average); clustered, it
+  recovers recall but sits at 7–13° vs 2–5° for the differentiable
+  fit. The amortised posterior is 2–4× less precise than a
+  spatially-regularised MAP + Laplace on the same signals.
+- Fairness note: the clustering post-process is ours, not theirs; where
+  it hurts (single bundles, dispersed GT) the published reading is
+  reported. Their paper also reports a *classifier* model-selection
+  variant (SBI_ClassiFiber) we did not run.
+
+### 6.3 Run 3 — sbi4dwi amortised flow posterior + SBC
+
+Slurm 1758 / 1762, `validation/validate_flow_sbi.py`: spline NPE
+(256 × 6, 8 knots) on the PRISM K = 2 model, 30k × 512 = 15.4M
+simulations (19 min), raw 193-d signal as condition, SNR 8–60.
+
+| | value |
+|---|---|
+| SBC, 300 held-out sims, 90 % coverage per parameter | 87.7–91.7 % (KS p > 0.05 on 6/7) |
+| synthetic SNR 30, angular error / recall (published-style sort) | 18.5° / 58 % |
+| same, mode-clustered | 19.6° / 58 % — error grows with angle (7.6° at 15° → ~25° at 60–90°) |
+| single-fibre voxels | 2.5° |
+| 90 % cone coverage (clustered) | 99.9 %, σ_θ 17–25° everywhere |
+| Laplace posterior on the same data (doc 007 §6.12) | 1.6–1.7° / 100 %, coverage 87–88 % |
+
+**Negative result, stated plainly.** The flow is calibrated in
+parameter space — SBC passes — but its direction posterior is one
+broad, honest cloud rather than two resolved modes, so it is far less
+precise than both our own Laplace posterior and Nottingham's NSF on the
+same task. The difference to SBI_dMRI is implementation, not principle:
+they use a hemisphere prior, more epochs over a fixed 1M set, and
+report ~6–11° at shallow crossings; we trained on streamed simulations
+with φ ∈ (0, 2π) (antipodal ambiguity doubles every mode) and no
+embedding net. Fixes are known (unit-vector or dyadic parameterisation
+of directions, fraction ordering in the prior, an embedding net, longer
+training) and none was attempted tonight. Until they are, **the SBI
+claim for sbi4dwi rests on the Laplace posterior, which is the
+better-calibrated *and* more precise of the two by a wide margin.**
+
+### 6.4 Consolidated: datasets 2 and 3, every method, identical inputs
+
+| method | synthetic SNR 30 | dispersed GT | substrates, single | substrates, crossings 30–90° | f_i / ND / Σf bias |
+|---|---|---|---|---|---|
+| FORCE (dipy master, seeded, min-angle 0) | 7.5° / 99 % | 14.7° / 70 % | 6.7–8.7° | 9.7–16.6°, recall 77–100 % | ND: best on single, +0.1–0.2 at crossings |
+| SBI_dMRI (best of published / clustered) | 5.1° / 98.5 % | 8.3° / 99 % | **1.2–2.8°** | 4.6–13.1° | **Σf: within 0.02–0.1 everywhere** |
+| sbi4dwi flow NPE | 18.5° / 58 % (calibrated) | — | 2.5° | — | — |
+| sbi4dwi PRISM-JAX MAP, fixed D | 1.7° / 100 % | 9.1° / 98 % | 6.6–7.1° | 2.4–8.1° | +0.15 |
+| sbi4dwi plus-x (learned D, decoupled D∥,ex) | — | — | 6.7–6.9° | **2.3–8.0°** | +0.09 |
+| sbi4dwi + dispersion | 1.5° / 100 % | **6.8° / 98 %** | **2.3–2.4°** | 5–10° | +0.19 |
+| sbi4dwi Laplace posterior | 1.6° / 100 %, 88 % coverage | — | — | — | — |
+| MSMT-CSD | 10.2° / 86 % | — | 4.5–5.5° | 5–23°, recall 40–100 % | — |
+
+What the settling runs settle, relative to §4's claim:
+
+1. **Precision at crossings** — the differentiable, spatially regularised
+   fit is 2–4× more precise than FORCE and than the amortised NPE on
+   identical off-model signals. This is the strongest single row for
+   sbi4dwi and it is now direct evidence.
+2. **Microstructure off-model** — we do not win. SBI_dMRI's stick sum
+   and FORCE's single-bundle ND are closer to geometry than any of our
+   f_i. The §3.3 finding ("nobody recovers f_i") needs the qualifier
+   "…with an extra-cellular Gaussian compartment": the model *without*
+   one does better here. Worth a dedicated experiment.
+3. **Calibrated uncertainty** — ours (Laplace) is the only posterior with
+   both calibration and precision; the two amortised flows are
+   calibrated (ours) or precise-ish (theirs) but not both. This remains
+   the distinguishing capability, and on DiSCo it is what produces the
+   best connectome (doc 007 §8.3).
+4. **"SBI" as a name** — earned by the Laplace posterior's calibration
+   numbers and by the SBC harness now in the repo, *not* by the
+   amortised flow, which needs the fixes in §6.3 before it is competitive.

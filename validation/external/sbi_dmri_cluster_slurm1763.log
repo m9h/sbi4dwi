@@ -1,0 +1,111 @@
+##### synthetic_snr30 (cluster)
+device cuda NVIDIA GB10
+  de = inf.train(training_batch_size=4096, max_num_epochs=epochs, learning_rate=5e-4,
+trained NSF on 1,000,000 sims in 846s
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/native/BatchLinearAlgebra.cpp:2273.)
+  outputs, _ = torch.triangular_solve(
+  first chunk of 256 voxels sampled
+SBI_dMRI synthetic: overall err=5.08° recall=98.5%  median σ_θ=15.00°  (5s)
+    0    5.21° / 100.0%   σ_θ=15.03°
+   15    7.58° / 100.0%   σ_θ=15.60°
+   20    9.37° / 100.0%   σ_θ=15.48°
+   25    9.72° /  99.8%   σ_θ=15.58°
+   30    7.97° /  97.5%   σ_θ=15.26°
+   35    6.96° /  94.8%   σ_θ=15.66°
+   40    5.98° /  95.2%   σ_θ=15.08°
+   45    5.28° /  92.8%   σ_θ=15.08°
+   50    3.90° /  97.5%   σ_θ=14.32°
+   55    3.52° /  97.5%   σ_θ=14.32°
+   60    2.95° /  99.5%   σ_θ=14.13°
+   65    2.98° / 100.0%   σ_θ=14.12°
+   70    2.92° / 100.0%   σ_θ=14.07°
+   75    3.30° / 100.0%   σ_θ=14.42°
+   80    3.32° / 100.0%   σ_θ=15.39°
+   85    3.01° / 100.0%   σ_θ=15.79°
+   90    2.44° / 100.0%   σ_θ=15.66°
+##### synthetic_snr30_odi0.2 (cluster)
+device cuda NVIDIA GB10
+loaded density estimator from /data/sbi_dmri_de_prism_nfib2.pt
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/native/BatchLinearAlgebra.cpp:2273.)
+  outputs, _ = torch.triangular_solve(
+  first chunk of 256 voxels sampled
+SBI_dMRI synthetic: overall err=13.16° recall=80.3%  median σ_θ=21.10°  (5s)
+    0   11.90° / 100.0%   σ_θ=17.34°
+   15   10.08° / 100.0%   σ_θ=17.63°
+   20    9.81° /  98.8%   σ_θ=18.05°
+   25    9.96° /  94.5%   σ_θ=18.54°
+   30   10.64° /  88.5%   σ_θ=19.50°
+   35   10.66° /  87.5%   σ_θ=19.80°
+   40    9.98° /  89.8%   σ_θ=19.80°
+   45    9.64° /  90.8%   σ_θ=20.74°
+   50    9.34° /  91.8%   σ_θ=20.67°
+   55   10.85° /  87.5%   σ_θ=21.21°
+   60   12.85° /  81.0%   σ_θ=22.11°
+   65   13.02° /  78.0%   σ_θ=22.27°
+   70   15.60° /  68.5%   σ_θ=22.99°
+   75   17.39° /  62.7%   σ_θ=23.14°
+   80   19.03° /  56.0%   σ_θ=23.64°
+   85   20.55° /  53.0%   σ_θ=23.75°
+   90   21.73° /  47.2%   σ_θ=24.16°
+##### synthetic_snr10 (cluster)
+device cuda NVIDIA GB10
+loaded density estimator from /data/sbi_dmri_de_prism_nfib2.pt
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/native/BatchLinearAlgebra.cpp:2273.)
+  outputs, _ = torch.triangular_solve(
+  first chunk of 256 voxels sampled
+SBI_dMRI synthetic: overall err=8.91° recall=94.3%  median σ_θ=16.41°  (5s)
+    0    6.34° / 100.0%   σ_θ=16.74°
+   15    8.37° /  99.5%   σ_θ=16.54°
+   20   10.26° / 100.0%   σ_θ=16.79°
+   25   11.97° /  98.2%   σ_θ=16.51°
+   30   13.09° /  90.8%   σ_θ=16.54°
+   35   13.56° /  79.5%   σ_θ=17.19°
+   40   12.92° /  81.2%   σ_θ=16.33°
+   45   11.46° /  84.2%   σ_θ=16.69°
+   50   10.09° /  88.0%   σ_θ=15.75°
+   55    8.44° /  93.0%   σ_θ=15.98°
+   60    7.50° /  96.0%   σ_θ=15.78°
+   65    6.41° /  99.0%   σ_θ=15.82°
+   70    5.58° /  99.5%   σ_θ=15.86°
+   75    6.01° /  98.8%   σ_θ=16.10°
+   80    6.32° /  98.2%   σ_θ=16.98°
+   85    6.20° /  99.8%   σ_θ=16.84°
+   90    5.70° /  99.5%   σ_θ=16.51°
+##### substrates (cluster)
+device cuda NVIDIA GB10
+loaded density estimator from /data/sbi_dmri_de_prism_nfib2.pt
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/native/BatchLinearAlgebra.cpp:2273.)
+  outputs, _ = torch.triangular_solve(
+  first chunk of 64 voxels sampled
+SBI_dMRI straight_0     err=  6.80° recall=100.0%  f_sticks=0.592 (geom f_i 0.499)
+  first chunk of 64 voxels sampled
+SBI_dMRI straight_30    err=  8.61° recall= 96.9%  f_sticks=0.514 (geom f_i 0.488)
+  first chunk of 64 voxels sampled
+SBI_dMRI straight_45    err=  9.44° recall= 99.2%  f_sticks=0.488 (geom f_i 0.491)
+  first chunk of 64 voxels sampled
+SBI_dMRI straight_60    err=  7.15° recall=100.0%  f_sticks=0.481 (geom f_i 0.489)
+  first chunk of 64 voxels sampled
+SBI_dMRI straight_90    err=  4.60° recall=100.0%  f_sticks=0.481 (geom f_i 0.496)
+  first chunk of 64 voxels sampled
+SBI_dMRI tortuous_0     err=  5.64° recall=100.0%  f_sticks=0.607 (geom f_i 0.531)
+  first chunk of 64 voxels sampled
+SBI_dMRI tortuous_30    err= 11.70° recall= 95.3%  f_sticks=0.563 (geom f_i 0.527)
+  first chunk of 64 voxels sampled
+SBI_dMRI tortuous_45    err= 13.11° recall=100.0%  f_sticks=0.542 (geom f_i 0.523)
+  first chunk of 64 voxels sampled
+SBI_dMRI tortuous_60    err= 10.88° recall= 98.4%  f_sticks=0.518 (geom f_i 0.519)
+  first chunk of 64 voxels sampled
+SBI_dMRI tortuous_90    err=  6.54° recall=100.0%  f_sticks=0.509 (geom f_i 0.531)
+exit done
