@@ -393,3 +393,101 @@ What the settling runs settle, relative to §4's claim:
 4. **"SBI" as a name** — earned by the Laplace posterior's calibration
    numbers and by the SBC harness now in the repo, *not* by the
    amortised flow, which needs the fixes in §6.3 before it is competitive.
+
+## 7. Where the limits come from (2026-09-14)
+
+§6 settled *who* wins on which row. This section asks *why*, one
+diagnostic per limitation, each isolating one mechanism at a time on the
+same exported benchmarks. Drivers: `validation/diagnose_force_limits.py`
+(dipy-master venv), `validation/diagnose_substrate_compartments.py`,
+`validation/diagnose_flow_variants.py`, `validation/diagnose_posterior_width.py`,
+plus `docker/sbi_dmri_run.py --hidden/--transforms/--batch`.
+
+### 7.3 FORCE: matching-limited, not library-limited
+
+FORCE's peaks are the sphere vertices labelled in the *single* best
+cosine match (`FORCEModel.fit`: argmax over `n_neighbors`; the
+`use_posterior` flag averages scalar parameters but not the labels, and
+it changed no direction in any run). Its angular error therefore
+decomposes into sphere quantisation, library coverage (the entry nearest
+the truth in parameter space) and the matching loss (the entry the
+signal search actually returns). `validation/external/force_diag.log`.
+
+| dataset 2, synthetic SNR 30 | 500K library | 2M library |
+|---|---|---|
+| sphere quantisation floor (362 vertices) | 2.76° | 2.76° |
+| library coverage floor, 2-fibre GT | **2.79°** | 2.79° |
+| FORCE, noisy | 7.54° / 98.7 % | 7.37° / 98.7 % |
+| FORCE, **noise-free** | 7.96° / 97.0 % | 6.60° / 100 % |
+| in-model held-out (FORCE's own generator, clean 2-fibre WM voxels, n = 526), clean | 10.11° / 90 % | 8.19° / 94 % |
+| same, SNR 30 | 10.44° / 89 % | 8.32° / 94 % |
+| share of library that is a clean 2-fibre WM crossing (WM ≥ 0.6, each fibre ≥ 0.15, ODI ≤ 0.2) | 0.53 % (2,630) | 0.53 % (10,656) |
+
+| dataset 3, substrates (err / recall / ND) | 500K | 2M |
+|---|---|---|
+| coverage floor, 2-fibre | 2.94° | 2.94° |
+| straight 30 / 45 / 60 / 90° | 15.3 / 14.3 / 13.1 (81 %) / 9.7° | 12.5 / 12.5 / 6.4 / **11.4° (80 %)** |
+| tortuous 30 / 45 / 60 / 90° | 15.1 / 16.6 (77 %) / 12.3 / 6.7° | 15.1 / 14.2 / 8.2 / **9.9° (78 %)** |
+
+What this says:
+
+1. **The library already contains an entry within 2.8° of every
+   crossing tested.** FORCE returns entries 5–14° further away. The gap
+   is the matching loss; quantisation and coverage together account for
+   < 3°.
+2. **Noise is not the cause.** Noise-free signals give the same error
+   (8.0° at 500K); SNR 30 vs clean differ by 0.3–0.6° everywhere.
+3. **Model mismatch is not the main cause either.** On signals from
+   FORCE's *own* generator — clean two-fibre WM voxels, no noise — the
+   error is 10.1° (500K) / 8.2° (2M), *worse* than on our synthetic.
+   The cosine search over 193-d signals is dominated by the
+   partial-volume and microstructure degrees of freedom (WM/GM/CSF
+   fractions, D∥, D⊥, ODI): the nearest signal is not the nearest
+   orientation.
+4. **A 4× library buys 0.2° on the benchmark and 2° in-model**, and is
+   erratic off-model (straight 60° improves 13 → 6°, straight 90° worsens
+   9.7 → 11.4° with recall dropping to 80 %). Nearest-neighbour matching
+   has no smoothness to exploit: a denser library changes *which* wrong
+   entry wins.
+5. **Prior composition.** 70 % of the library is three-fibre and the
+   median WM fraction is 0.50; only 0.5 % of entries are clean two-fibre
+   WM crossings. FORCE is optimised for the in-vivo mixed-tissue voxel,
+   not the crossing benchmark — which is fair to say in its favour on
+   real data and against it on any orientation benchmark.
+
+The differentiable fit does not have this failure mode because it
+descends the same likelihood continuously: orientation error is set by
+the noise-limited curvature (Laplace σ ≈ 1–3° at SNR 30), not by which
+discrete neighbour wins a similarity vote. This is the mechanism behind
+the 2–4× precision margin in §6.4, and it cannot be closed by a bigger
+library.
+
+### 7.4 Amortised posteriors: breadth or bias?
+
+`diagnose_posterior_width.py` compares, per crossing angle, mean
+best-match error with the posterior's own σ_θ (RMS angle of direction
+samples about their mode) on the cached SNR-30 samples of §6.2–6.3.
+err ≈ σ_θ is an honest but broad posterior; err ≪ σ_θ is over-dispersed;
+err ≫ σ_θ is confidently wrong.
+
+| angle | SBI_dMRI published err / σ_θ | SBI_dMRI clustered err / σ_θ | sbi4dwi flow (clustered) err / σ_θ |
+|---|---|---|---|
+| 15° | 7.0 / 10.6° | 7.6 / 15.6° | 7.6 / 21.0° |
+| 30° | 13.1 / 13.0° | 8.0 / 15.3° | 15.0 / 17.6° |
+| 45° | 18.3 / 19.5° | 5.3 / 15.1° | 22.5 / 17.5° |
+| 60° | 11.1 / 24.9° | 3.0 / 14.1° | 24.6 / 19.6° |
+| 90° | 5.9 / 38.3° | 2.4 / 15.7° | 22.4 / 24.7° |
+| all | 10.0 / 21.7° (ratio 0.46) | 5.1 / 15.0° (0.34) | 19.1 / 19.9° (**0.96**) |
+
+- **SBI_dMRI as published**: at 15–45° the error tracks σ_θ (a broad,
+  honest posterior — the amortisation limit of a 1M-sim NSF); at 60–90°
+  σ_θ balloons to 25–38° while the error falls to 5° — the per-fibre
+  sample sets contain both fibres (label switching), so the reported
+  uncertainty is inflated 5–7× and the sort-by-fraction fixel is a
+  mode average. Clustering removes the switching (error 2–3° at ≥ 60°)
+  but leaves σ_θ at 15° because the pooled 2-means split still mixes
+  tails. Their remaining 7–10° at shallow angles is genuine breadth.
+- **Our flow**: err/σ_θ ≈ 1 at *every* angle. It is calibrated (as the
+  SBC said) and the posterior is simply not resolved — no bias, no
+  label-switching signature, just a flow that never learned the sharp
+  conditional. That is what §7.1 tests knob by knob.

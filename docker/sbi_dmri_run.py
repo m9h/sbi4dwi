@@ -39,7 +39,8 @@ def gtab_from_arrays(bvals_mm2, bvecs, device):
     return GradientTable.read_bvals_bvecs(os.path.join(d, "bvals"), os.path.join(d, "bvecs"), device=device), keep
 
 
-def train_posterior(gtab, nfib, modelnum, n_train, device, snr_min, snr_max, epochs, seed):
+def train_posterior(gtab, nfib, modelnum, n_train, device, snr_min, snr_max, epochs, seed,
+                    hidden=64, transforms=8, batch=4096):
     torch.manual_seed(seed)
     sim = BallAndSticksAttenuation(gtab=gtab, device=device)
     cfg = BallAndSticksPriorConfig(nfib=nfib, modelnum=modelnum, hemisphere=True, include_snr=False)
@@ -54,11 +55,11 @@ def train_posterior(gtab, nfib, modelnum, n_train, device, snr_min, snr_max, epo
     # the flow needs a box prior object for sbi; wrap their MultipleIndependent sample bounds
     lo = theta.min(0).values.cpu(); hi = theta.max(0).values.cpu()
     box = BoxUniform(low=lo - 1e-6, high=hi + 1e-6, device=device)
-    net = posterior_nn(model="nsf", num_transforms=8, hidden_features=64)
+    net = posterior_nn(model="nsf", num_transforms=transforms, hidden_features=hidden)
     inf = _NPE(prior=box, density_estimator=net, device=device)
     inf.append_simulations(theta.to(device), x_noisy.to(device))
     t0 = time.time()
-    de = inf.train(training_batch_size=4096, max_num_epochs=epochs, learning_rate=5e-4,
+    de = inf.train(training_batch_size=batch, max_num_epochs=epochs, learning_rate=5e-4,
                    show_train_summary=False)
     print(f"trained NSF on {n_train:,} sims in {time.time()-t0:.0f}s", flush=True)
     # Sample from the density estimator directly: the DirectPosterior wrapper
@@ -149,6 +150,8 @@ def main():
     ap.add_argument("--n-samples", type=int, default=500); ap.add_argument("--snr-min", type=float, default=5.0)
     ap.add_argument("--snr-max", type=float, default=80.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--hidden", type=int, default=64); ap.add_argument("--transforms", type=int, default=8)
+    ap.add_argument("--batch", type=int, default=4096)
     ap.add_argument("--cluster", action="store_true",
                     help="label-switching-robust fixel extraction (pool + 2-means on the sphere) "
                          "instead of the published sort-by-fraction")
@@ -165,7 +168,8 @@ def main():
         post, layout = (de.to(device), lo.to(device), hi.to(device)), BallAndSticksLayout(nfib=a.nfib, modelnum=a.modelnum)
         print("loaded density estimator from", a.de_cache, flush=True)
     else:
-        post, layout = train_posterior(gtab, a.nfib, a.modelnum, a.n_train, device, a.snr_min, a.snr_max, a.epochs, a.seed)
+        post, layout = train_posterior(gtab, a.nfib, a.modelnum, a.n_train, device, a.snr_min, a.snr_max, a.epochs, a.seed,
+                                       hidden=a.hidden, transforms=a.transforms, batch=a.batch)
         if a.de_cache:
             torch.save((post[0].cpu(), post[1].cpu(), post[2].cpu()), a.de_cache); post = (post[0].to(device), post[1], post[2])
     res = {}
