@@ -1191,3 +1191,54 @@ an upgrade are slow, not broken. Drop the scico git source once a scico
 | **Microstructure.jl** (Gong, Martinos) | **v0.1.8, 2025-05-10**; last commit 2025-08-29 (multi-threaded SH fitting; patent notice restricting some methods to non-commercial use); docs built 2025-08-13, Julia 1.10; paper Imaging Neuroscience 10.1162/IMAG.a.1102 | none. Models unchanged: SANDI, MTE-SANDI/MTE-SMT, SMT, ExCaliber (3-compartment); MCMC + MC-dropout NN estimators. New group preprint: Gong et al., *Multi-dimensional dMRI at ultra-high gradient strength … primate brain*, bioRxiv 2026.02.18.705310 — not a package change. | doc 004 §23 audit and `dmipy_jax/examples/microstructure_jl_tutorials/` remain current. `docs/openlifu/proposal.md` calls it "PINN solvers" — wrong (it is MCMC / dropout-NN); fix when that doc is next touched. Note the **non-commercial patent notice** before any redistribution of ported estimators. |
 
 No pinned versions of either exist in the repo; nothing to bump.
+
+### 8.6 MCMRSimulator.jl v1.1.0 on Julia 1.13 as a third MC engine — first parity run (2026-09-14)
+
+Environment `julia/mcmr` (Julia 1.13.0, MCMRSimulator v1.1.0 from the
+FMRIB repository, MRIBuilder 0.4.1 as the sequence builder — it is a weak
+dependency now and is *not* in the General registry). Script
+`julia/mcmr/substrate_pgse.jl`; substrate and JAX reference exported by
+`validation/export_substrate_for_mcmr.py` (CATERPillar straight bundle,
+10 µm box, 559 spheres, PRISM scheme, δ = 6 / Δ = 12 ms, D = 2 µm²/ms).
+Two practical notes: the PRISM timing needs ~340 mT/m at b = 3000, above
+the built-in Connectom scanner, so the sequences are built with a custom
+`Scanner(gradient=2000)`; the b = 0 row must be given a dummy unit
+gradient direction or the sequence optimiser fails.
+
+**Straight bundle, 193 measurements × 8000 spins, 16 threads, 39 min:**
+
+| shell | S_extra MCMR / JAX | RMS diff | S_intra MCMR / JAX | RMS diff | intra, along-axon dirs MCMR / JAX / free |
+|---|---|---|---|---|---|
+| b = 1000 | 0.232 / 0.238 | **0.011** | 0.824 / 0.550 | 0.31 | 0.71 / 0.30 / 0.135 |
+| b = 2000 | 0.074 / 0.070 | 0.013 | 0.695 / 0.390 | 0.33 | 0.51 / 0.14 / 0.018 |
+| b = 3000 | 0.036 / 0.032 | 0.014 | 0.600 / 0.312 | 0.31 | 0.38 / 0.10 / 0.002 |
+
+- **Extra-cellular: parity.** Two independent engines (JAX union-SDF
+  walker with elastic reflection; MCMRSimulator's obstruction-based
+  stepper) agree to 0.01 RMS on every shell, including the b = 3000 tail
+  that §7.2 of doc 008 worried about. This also retires the "MC floor"
+  concern for the extra-cellular compartment.
+- **Intra-axonal: MCMRSimulator restricts along the axon far more than
+  it should.** Perpendicular signals agree (0.96 vs 0.94 at b = 1000),
+  but along the axon MCMR gives 0.71 where a free stick gives 0.135 and
+  our walker 0.30 (the chain's tortuosity plus a 10 µm periodic box).
+  `julia/mcmr/chain_test.jl` / `chain_spacing.jl` isolate it: a straight
+  chain of r = 0.5 µm spheres along z with `overlapping=true` gives
+  S = 0.59–0.68 at b = 1000 along the chain for *every* spacing from 0.9
+  to 0.25 µm, against 0.11–0.16 for an equivalent `Cylinders` geometry;
+  `overlapping=false` gives 1.0 (fully trapped) and `permeability=Inf`
+  gives free diffusion in all directions. So v1.1.0's overlapping-sphere
+  passage works in the sense that spins are not trapped, but it does not
+  make a sphere chain behave as a tube — an upstream limitation worth
+  reporting to Cottaar with the two scripts (the CHANGELOG itself says
+  "cylindrical connections between the spheres will be added at a
+  later date"; `main` reads SWC as a graph of spheres and cylinders but
+  currently needs FillArrays ≥ 1.17, which the registry does not yet
+  have, so it could not be installed).
+
+Consequence: MCMRSimulator v1.1.0 is a valid **extra-cellular** oracle
+for the CATERPillar substrates today and a valid intra-axonal oracle
+for cylinder/mesh geometries, but not for sphere-chain axons until the
+sphere–cylinder graph lands. The intra-axonal parity check for our
+walker therefore still rests on the analytical stick limit (doc 008
+§7.2: apparent D∥ 1.3–1.5 for ⟨cos²⟩ = 0.93 bundles, as expected).
