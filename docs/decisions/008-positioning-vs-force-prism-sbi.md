@@ -791,3 +791,31 @@ libraries with its default in-vivo prior, the authors' DiSCo ranges from
    penalty; the 3-shell one (0.92 → 0.98) is the fair number.
 5. Tortuosity scale and free D⊥ do not help on DiSCo (bias grows); keep
    tortuosity as default, wider prior as an option.
+
+## 9. Hybrid posterior: amortised proposal → MAP → Laplace (2026-09-15)
+
+### 9.1 Synthetic, K = 2: initialisation does not matter in-model
+
+`validation/validate_hybrid_posterior.py` (Slurm 1773). Same MAP + Laplace
+(fixed-D PRISM K = 2, 300 Rprop iterations) from three starts, 3400
+voxels, SNR 30.
+
+| tilted 45° (seam-free) | err / recall | 90 % cone coverage | median σ_θ | time (3400 vox) |
+|---|---|---|---|---|
+| flow alone (hemi-2x checkpoint) | 7.85° / 94.8 % | — | 13.8° | 29 s |
+| dictionary alone (300K) | 16.81° / 66.1 % | — | — | 39 s |
+| flow → MAP → Laplace | **1.73° / 100 %** | 85.7 % | 0.89° | + 10 s + 21 s |
+| dict → MAP → Laplace | 1.77° / 100 % | 85.1 % | 0.88° | + 1 s + 1 s (warm JIT) |
+| no init → MAP → Laplace | 1.65° / 100 % | 86.9 % | 0.91° | + 1 s + 1 s |
+| original seam benchmark, the same three | 1.76 / 1.84 / 1.68° | 86.1 / 85.4 / 87.2 % | | |
+
+The flow is the better proposal (2× the dictionary's accuracy, 100 %
+recall after refinement either way), but the spatially regularised MAP
+reaches the same 1.7° from a random start: on in-model data the
+objective has no local minima the priors do not smooth away. The
+15° row is the only one where the start shows (4.4–6.3°). So the
+amortised stage buys nothing here; where it can matter is K = 3 on real
+protocol data, where doc 007 §8.3 needed the dictionary warm start —
+that is §9.2. Timing note: the whole 3400-voxel hybrid runs in about a
+minute on the GB10 including the 29 s of flow sampling; the sampling,
+not the refinement, is the cost.
