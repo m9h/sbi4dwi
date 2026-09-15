@@ -38,7 +38,7 @@ def main():
             t0 = time.time()
             model = FORCEModel(gtab, compute_odf=False)
             model.generate(num_simulations=a.num_sims, num_cpus=a.num_cpus, wm_threshold=0.0, odi_range=(0.01, 0.15),
-                           diffusivity_config=cfg, use_cache=True)
+                           diffusivity_config=cfg, use_cache=False)
             fit = model.fit(data, mask=mask)
             nd = np.asarray(fit.nd)[mask]; wm = np.asarray(fit.wm_fraction)[mask]
             r_nd = pearsonr(nd, gt)[0]; r_ndwm = pearsonr(nd * wm, gt)[0]

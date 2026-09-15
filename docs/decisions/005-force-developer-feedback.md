@@ -276,6 +276,13 @@ cosine match, the angular error of a FORCE peak decomposes exactly into
   library (a one-line histogram in `verbose=True`) and a
   `diffusivity_config`-style knob for the Dirichlet / `wm_threshold`
   prior, so users can build orientation-oriented libraries deliberately.
+- **Simulation cache lookup crashes on range-valued `diffusivity_config` (master, 2026-09-14).** With a
+  cached library generated from `wm_d_par_range=(0.4e-3, 0.9e-3)` and a
+  later `generate()` call, `_diffusivity_matches` does
+  `np.isclose(stored, current)` on the tuple and raises
+  `ValueError: The truth value of an array with more than one element is
+  ambiguous`. `use_cache=False` works around it; `np.allclose` (or an
+  explicit tuple compare) fixes it.
 - **`fraction_array` is (N, 3) with zeros for absent fibres** — fine,
   but worth documenting, since per-fibre fractions are what a fairness
   filter needs.
