@@ -1,0 +1,15 @@
+
+=== SNR 30: 15,267 voxels
+  flow proposal 65s: f_i r=0.912 mean 0.265; D∥ mean 0.59
+  dictionary warm start 11s
+  flow  init: intra-VF r=0.973  D∥=0.70  MAP connectome r=0.881 Dice=0.35  CV<0.3 posterior r=0.907 Dice=0.77  (MAP 3s, Laplace 2s)
+  dict  init: intra-VF r=0.985  D∥=0.70  MAP connectome r=0.904 Dice=0.35  CV<0.3 posterior r=0.907 Dice=0.72  (MAP 2s, Laplace 1s)
+  none  init: intra-VF r=0.968  D∥=0.64  MAP connectome r=0.877 Dice=0.35  CV<0.3 posterior r=0.905 Dice=0.80  (MAP 2s, Laplace 1s)
+
+=== SNR 10: 15,267 voxels
+  flow proposal 31s: f_i r=0.727 mean 0.341; D∥ mean 0.63
+  dictionary warm start 5s
+  flow  init: intra-VF r=0.814  D∥=0.87  MAP connectome r=0.814 Dice=0.34  CV<0.3 posterior r=0.806 Dice=0.64  (MAP 2s, Laplace 1s)
+  dict  init: intra-VF r=0.952  D∥=0.86  MAP connectome r=0.776 Dice=0.34  CV<0.3 posterior r=0.804 Dice=0.59  (MAP 2s, Laplace 1s)
+  none  init: intra-VF r=0.862  D∥=0.82  MAP connectome r=0.788 Dice=0.34  CV<0.3 posterior r=0.841 Dice=0.69  (MAP 2s, Laplace 1s)
+exit 0

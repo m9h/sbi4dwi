@@ -1,0 +1,32 @@
+
+=== SNR 30 (at TE=0; T2 = 70 ms penalises long Δ)
+  optimised: b = [1.4, 5.0, 5.0] ms/µm²,  Δ = [15.0, 15.0, 51.5] ms  (δ = 10 ms)
+  protocol       τ_ex        f_i    tau_ex     D_par    D_perp   (CRLB relative SD)
+  disco-single     10ms    5.141    16.012     0.439     6.418
+  disco-single     25ms    3.249    17.883     0.276     4.134
+  disco-single     50ms    2.681    26.108     0.227     3.453
+  disco-single    100ms    2.414    44.198     0.205     3.132
+  fixed-3Δ         10ms    5.364     5.541     0.549     7.424
+  fixed-3Δ         25ms    2.690     5.424     0.291     3.912
+  fixed-3Δ         50ms    1.648     5.925     0.186     2.476
+  fixed-3Δ        100ms    1.244     8.364     0.146     1.911
+  optimised        10ms    0.226     1.141     0.046     0.298
+  optimised        25ms    0.115     0.828     0.045     0.217
+  optimised        50ms    0.098     1.033     0.044     0.209
+  optimised       100ms    0.091     1.631     0.044     0.206
+
+=== SNR 50 (at TE=0; T2 = 70 ms penalises long Δ)
+  optimised: b = [1.4, 5.0, 5.0] ms/µm²,  Δ = [15.0, 15.0, 51.5] ms  (δ = 10 ms)
+  protocol       τ_ex        f_i    tau_ex     D_par    D_perp   (CRLB relative SD)
+  disco-single     10ms    3.085     9.607     0.264     3.851
+  disco-single     25ms    1.949    10.730     0.166     2.481
+  disco-single     50ms    1.609    15.665     0.136     2.072
+  disco-single    100ms    1.448    26.519     0.123     1.879
+  fixed-3Δ         10ms    3.218     3.325     0.329     4.454
+  fixed-3Δ         25ms    1.614     3.255     0.174     2.347
+  fixed-3Δ         50ms    0.989     3.555     0.112     1.485
+  fixed-3Δ        100ms    0.746     5.018     0.088     1.146
+  optimised        10ms    0.136     0.685     0.028     0.179
+  optimised        25ms    0.069     0.497     0.027     0.130
+  optimised        50ms    0.059     0.620     0.027     0.125
+  optimised       100ms    0.055     0.979     0.026     0.123

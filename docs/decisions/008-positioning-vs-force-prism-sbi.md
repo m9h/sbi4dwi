@@ -819,3 +819,75 @@ protocol data, where doc 007 §8.3 needed the dictionary warm start —
 that is §9.2. Timing note: the whole 3400-voxel hybrid runs in about a
 minute on the GB10 including the 29 s of flow sampling; the sampling,
 not the refinement, is the cost.
+
+### 9.2 DiSCo, K = 3, the FORCE authors' protocol: initialisation is a second-order effect there too
+
+`validation/validate_hybrid_disco.py` (Slurm 1775) with a flow trained
+on the DiSCo 3-shell scheme in 3.5 min (`train_flow_k.py`, K = 3, D∥ as
+a flow parameter, `validation/flow_disco_k3.eqx`). Same plus-x MAP (K = 3,
+learned D, 300 iterations) → Laplace → protocol tractography, 20
+posterior connectomes, CV < 0.3 pruning.
+
+| SNR 30 | intra-VF r | D∥ | MAP connectome r / Dice | CV-pruned posterior r / Dice | time |
+|---|---|---|---|---|---|
+| flow proposal alone (amortised) | 0.912 | 0.59 | — | — | 65 s |
+| flow → MAP → Laplace | 0.973 | 0.70 | 0.881 / 0.35 | **0.907 / 0.77** | + 3 s + 2 s |
+| dict → MAP → Laplace | 0.985 | 0.70 | **0.904** / 0.35 | 0.907 / 0.72 | + 11 s + 3 s |
+| none → MAP → Laplace | 0.968 | 0.64 | 0.877 / 0.35 | 0.905 / **0.80** | + 2 s + 1 s |
+| doc 007 §8.3 (same protocol, earlier settings) | | | 0.863 | 0.887 / 0.73 | |
+| FORCE, same protocol (§8.3) | | | 0.850–0.856 | — | |
+
+| SNR 10 | intra-VF r | MAP r | CV-pruned r / Dice |
+|---|---|---|---|
+| flow / dict / none → MAP → Laplace | 0.814 / 0.952 / 0.862 | 0.814 / 0.776 / 0.788 | 0.806 / 0.804 / **0.841** (0.64 / 0.59 / 0.69) |
+| doc 007 §8.3 | | 0.797 | 0.811 |
+
+1. **The CV-pruned posterior connectome is the robust number** —
+   0.905–0.907 at SNR 30 from all three starts, 0.80–0.84 at SNR 10 —
+   and it is now clearly above FORCE under FORCE's own protocol
+   (0.856). The MAP alone swings 0.78–0.90 with the start; the posterior
+   does not.
+2. **The amortised proposal is not what the MAP needs.** With spatial
+   regularisation the plus-x objective is benign enough that a random
+   start reaches the same posterior connectome; the dictionary gives the
+   best MAP at SNR 30, no init the best at SNR 10. Item 2 of §8 is
+   therefore closed as "hybrid wiring works, adds no accuracy" — the
+   flow's value is as a 65-second standalone posterior (intra-VF
+   r = 0.91, D∥ regime detected on its own) and as an initialiser where
+   there is no spatial prior (single voxels, streaming, ex-vivo slabs).
+3. These numbers supersede doc 007 §8.3 as the DiSCo-protocol
+   comparison row: PRISM-JAX posterior connectome **0.907 / 0.841**
+   (SNR 30 / 10) vs FORCE 0.856 / 0.800.
+
+### 9.3 Item 2 started: exchange-aware kernel and acquisition design
+
+`dmipy_jax/validation/prism_exchange.py` (6 tests): intra stick ⇄ extra
+zeppelin with Kärger exchange time τ_ex, (a) closed-form 2×2 matrix
+exponential per measurement and (b) a Diffrax ODE over the explicit
+trapezoid waveform with b matched to the integrated q(t); the two agree
+to 3·10⁻³ and the ODE is differentiable in δ, Δ and the waveform.
+`validation/design_exchange_protocol.py` puts Fisher information on top:
+θ = (f_i, τ_ex, D∥, D⊥) in log space, single fibre averaged over 5
+orientations, 3 shells × 32 directions, Gaussian noise with the T2 = 70 ms
+echo-time penalty so longer Δ costs SNR, D-optimal + τ-weighted gradient
+ascent over (b_k, Δ_k).
+
+| protocol (96 measurements) | CRLB relative SD of τ_ex, true τ = 10 / 25 / 50 / 100 ms, SNR 30 | same, SNR 50 | f_i rel SD (τ = 25) |
+|---|---|---|---|
+| DiSCo / PRISM timing (δ 17.7, Δ 35.8, b 1/2/3) | 16 / 18 / 26 / 44 | 9.6 / 11 / 16 / 27 | 3.2 / 1.9 |
+| fixed 3 Δ (20 / 45 / 80 ms, b 1/2/3) | 5.5 / 5.4 / 5.9 / 8.4 | 3.3 / 3.3 / 3.6 / 5.0 | 2.7 / 1.6 |
+| **optimised** (b 1.4 / 5 / 5, Δ 15 / 15 / 51.5 ms) | **1.1 / 0.83 / 1.0 / 1.6** | 0.69 / 0.50 / 0.62 / 0.98 | **0.12 / 0.07** |
+
+- The single-Δ protocols every method in this comparison uses cannot
+  see exchange at all (τ_ex relative SD 16–44). Three spread Δ's help by
+  3–5×; the optimised protocol — two short-Δ high-b shells that pin f_i
+  and D, one long-Δ shell that carries the exchange — by 15–30×.
+- Even then τ_ex is marginal: relative SD 0.5–1 at SNR 50 with 96
+  measurements. Exchange needs SNR ≥ 50, ≥ 200 measurements, or a fixed
+  D prior; that is a quantitative statement no Gaussian-compartment
+  method can make, and the design layer is what makes it.
+- Caveats: the optimiser ran to the b = 5 ms/µm² cap, where the stick +
+  zeppelin approximation is weakest; single fibre with known
+  orientation; Gaussian noise. Next: validate against MCMRSimulator
+  permeable cylinders (extra-cellular parity established in doc 007 §8.6)
+  — fitted τ_ex scatter vs CRLB for the DiSCo and optimised protocols.
