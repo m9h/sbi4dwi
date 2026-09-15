@@ -86,6 +86,7 @@ class PrismConfig:
     # Ablation (doc 007 §3.1): drop PRISM's restricted isotropic pool.
     use_restricted: bool = True
     use_isotropic: bool = True       # False → CSF and GM balls disabled (WM-only voxels, e.g. substrates)
+    tortuosity_scale: bool = False   # learn a global factor s ∈ (0.5, 2) in D⊥,ex = s·D∥,ex·(1 − f_i)
     odi_init: float = 0.1
     odi_range: tuple[float, float] = (0.01, 0.5)
     n_legendre: int = 13                   # even orders 0..24
@@ -184,6 +185,8 @@ def init_params(n_vox: int, cfg: PrismConfig, key,
         params["dperp_logit"] = jnp.asarray(_logit((cfg.d_perp - lo) / (hi - lo)))
     if cfg.separate_extra_dpar:
         params["dpar_extra_frac_logit"] = jnp.asarray(_logit(cfg.d_par_extra_init_ratio))
+    if cfg.tortuosity_scale:
+        params["tort_scale_logit"] = jnp.asarray(0.0)     # s = 0.5 + 1.5·sigmoid → 1.25 at init
     return params
 
 
@@ -215,7 +218,9 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
     if cfg.separate_extra_dpar:
         out["d_par_extra"] = out["d_par"] * jax.nn.sigmoid(params["dpar_extra_frac_logit"])
     if cfg.tortuosity:
-        out["d_perp"] = out["d_par_extra"] * (1.0 - out["fintra"])       # (N,)
+        scale = 0.5 + 1.5 * jax.nn.sigmoid(params["tort_scale_logit"]) if cfg.tortuosity_scale else 1.0
+        out["tort_scale"] = scale
+        out["d_perp"] = scale * out["d_par_extra"] * (1.0 - out["fintra"])       # (N,)
     if cfg.disperse:
         lo, hi = cfg.odi_range
         out["odi"] = lo + (hi - lo) * jax.nn.sigmoid(params["odi_logit"])   # (N,K)
