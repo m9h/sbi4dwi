@@ -1,0 +1,12 @@
+[2026-09-14 21:54:50][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 30 default        r(ND)=0.919 bias +0.393 | r(ND·f_wm)=0.929 bias +0.291 | f_wm 0.72  (249s)
+[2026-09-14 21:58:58][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 30 authors-disco  r(ND)=0.950 bias +0.153 | r(ND·f_wm)=0.917 bias +0.012 | f_wm 0.46  (246s)
+[2026-09-14 22:03:04][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 30 paper-narrow   r(ND)=0.979 bias +0.153 | r(ND·f_wm)=0.962 bias +0.012 | f_wm 0.47  (246s)
+[2026-09-14 22:07:11][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 10 default        r(ND)=0.883 bias +0.446 | r(ND·f_wm)=0.894 bias +0.349 | f_wm 0.79  (244s)
+[2026-09-14 22:11:15][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 10 authors-disco  r(ND)=0.923 bias +0.217 | r(ND·f_wm)=0.902 bias +0.071 | f_wm 0.54  (247s)
+[2026-09-14 22:15:21][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+SNR 10 paper-narrow   r(ND)=0.957 bias +0.203 | r(ND·f_wm)=0.941 bias +0.055 | f_wm 0.53  (247s)
