@@ -891,3 +891,47 @@ ascent over (b_k, Δ_k).
   orientation; Gaussian noise. Next: validate against MCMRSimulator
   permeable cylinders (extra-cellular parity established in doc 007 §8.6)
   — fitted τ_ex scatter vs CRLB for the DiSCo and optimised protocols.
+
+### 8.2 Substrates with the isotropic compartments off (2026-09-15)
+
+`validate_prism_substrate.py --methods plus-x plus-x-noiso plus-x-disp-noiso`
+(Slurm 1777; a new CATERPillar realisation, so compare within the table).
+err / recall / f_i, geometry f_i in brackets.
+
+| substrate | plus-x (§6.4 model) | plus-x, no CSF/GM | plus-x + dispersion, no CSF/GM |
+|---|---|---|---|
+| straight 0° [0.52] | 5.3° / 100 / 0.63 | 6.0° / 100 / **0.51** | **4.5°** / 100 / 0.53 |
+| straight 30° [0.51] | 12.0° / 79 / 0.66 | 14.9° / 56 / 0.54 | **6.4° / 97** / 0.66 |
+| straight 45° [0.51] | 8.4° / 100 / 0.67 | 11.0° / 95 / **0.51** | **4.5°** / 100 / 0.71 |
+| straight 60° [0.51] | 7.0° / 100 / 0.64 | 8.1° / 100 / **0.51** | **4.4°** / 100 / 0.72 |
+| straight 90° [0.52] | 4.4° / 100 / 0.66 | 4.4° / 100 / **0.51** | 4.4° / 100 / 0.53 |
+| tortuous 0° [0.54] | 4.1° / 100 / 0.66 | 4.1° / 100 / **0.57** | **1.7°** / 100 / 0.62 |
+| tortuous 30° [0.55] | 7.4° / 98 / 0.62 | 8.7° / 88 / **0.50** | **5.7°** / 97 / 0.76 |
+| tortuous 45° [0.53] | 8.0° / 100 / 0.62 | 8.7° / 99 / **0.49** | **4.8°** / 100 / 0.79 |
+| tortuous 60° [0.54] | 6.8° / 100 / 0.60 | 7.2° / 100 / **0.50** | **4.4°** / 100 / 0.82 |
+| tortuous 90° [0.55] | 2.9° / 100 / 0.65 | 2.9° / 100 / **0.54** | 2.8° / 100 / 0.62 |
+
+- **f_i is fixed by the flag**: within ±0.05 of geometry in 9/10
+  substrates (−0.01 to −0.05), against +0.08–0.16 for the §6.4 model.
+  This is the substrate half of §8 item 1; DiSCo was §8.1.
+- **The cost is orientation at shallow crossings** (30°: recall 79 → 56 %
+  straight): the isotropic compartments were absorbing the hindered
+  extra-cellular signal that otherwise pulls the second fibre.
+- **Dispersion + no-iso is the orientation winner everywhere**
+  (1.7–6.4°, recall ≥ 97 %) but inflates f_i to 0.6–0.8: the Watson
+  kernel absorbs the extra-cellular anisotropy into the intra
+  compartment. Orientation and microstructure are best served by
+  different compartment models on the same voxel — the practical recipe
+  is the dispersed no-iso fit for fixels and tractography and the
+  non-dispersed no-iso fit for f_i, or (better) a joint model with a
+  dispersion prior tied to the extra-cellular D⊥, which is now the open
+  modelling question rather than an attribution bug.
+
+### 7.1 addendum: 4× budget
+
+The hemi flow at 80k × 512 (Slurm 1776) on the tilted set: **6.59° /
+94.8 %**, σ_θ 11.2°, SBC 90–95 %; the seam benchmark stays at 20°. Per
+budget doubling: 9.1 → 7.8 → 6.6°. The ≤ 5° target (SBI_dMRI clustered
+4.8°) is one more doubling away by extrapolation but the returns are
+shrinking; an embedding that respects the antipodal symmetry (dyadic
+input features) is the cheaper route than more steps.

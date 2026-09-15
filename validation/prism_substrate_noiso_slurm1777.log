@@ -1,0 +1,45 @@
+
+### straight: 872 spheres, 16 axons, axis [ 0.066 -0.033  0.997]
+  angle    0: f_intra=0.516  MC 12s  S(b3000) mean intra=0.239 extra=0.024
+    plus-x     err=  5.32°  recall=100.0%  f_i=0.629 (geom 0.516)  D∥=1.93  D∥ex=1.66  (2s)
+    plus-x-noiso err=  5.99°  recall=100.0%  f_i=0.509 (geom 0.516)  D∥=1.84  D∥ex=1.84  (3s)
+    plus-x-disp-noiso err=  4.54°  recall=100.0%  f_i=0.527 (geom 0.516)  D∥=1.93  D∥ex=1.93  (9s)
+  angle   30: f_intra=0.512  MC 3s  S(b3000) mean intra=0.362 extra=0.026
+    plus-x     err= 12.04°  recall= 78.9%  f_i=0.655 (geom 0.512)  D∥=1.75  D∥ex=0.63  (1s)
+    plus-x-noiso err= 14.88°  recall= 55.5%  f_i=0.538 (geom 0.512)  D∥=1.57  D∥ex=0.98  (1s)
+    plus-x-disp-noiso err=  6.39°  recall= 96.9%  f_i=0.661 (geom 0.512)  D∥=1.84  D∥ex=1.84  (2s)
+  angle   45: f_intra=0.511  MC 3s  S(b3000) mean intra=0.407 extra=0.023
+    plus-x     err=  8.39°  recall=100.0%  f_i=0.674 (geom 0.511)  D∥=1.87  D∥ex=0.41  (1s)
+    plus-x-noiso err= 11.03°  recall= 94.5%  f_i=0.506 (geom 0.511)  D∥=1.68  D∥ex=0.77  (1s)
+    plus-x-disp-noiso err=  4.50°  recall=100.0%  f_i=0.710 (geom 0.511)  D∥=2.03  D∥ex=2.03  (2s)
+  angle   60: f_intra=0.507  MC 4s  S(b3000) mean intra=0.430 extra=0.031
+    plus-x     err=  7.02°  recall=100.0%  f_i=0.636 (geom 0.507)  D∥=1.76  D∥ex=0.47  (1s)
+    plus-x-noiso err=  8.12°  recall=100.0%  f_i=0.505 (geom 0.507)  D∥=1.59  D∥ex=0.81  (1s)
+    plus-x-disp-noiso err=  4.38°  recall=100.0%  f_i=0.719 (geom 0.507)  D∥=2.08  D∥ex=2.08  (2s)
+  angle   90: f_intra=0.516  MC 3s  S(b3000) mean intra=0.390 extra=0.028
+    plus-x     err=  4.37°  recall=100.0%  f_i=0.663 (geom 0.516)  D∥=1.94  D∥ex=1.26  (1s)
+    plus-x-noiso err=  4.44°  recall=100.0%  f_i=0.509 (geom 0.516)  D∥=1.78  D∥ex=1.78  (1s)
+    plus-x-disp-noiso err=  4.40°  recall=100.0%  f_i=0.528 (geom 0.516)  D∥=1.90  D∥ex=1.90  (3s)
+
+### tortuous: 550 spheres, 11 axons, axis [ 0.025 -0.013  1.   ]
+  angle    0: f_intra=0.538  MC 4s  S(b3000) mean intra=0.268 extra=0.060
+    plus-x     err=  4.09°  recall=100.0%  f_i=0.664 (geom 0.538)  D∥=2.01  D∥ex=1.12  (1s)
+    plus-x-noiso err=  4.08°  recall=100.0%  f_i=0.566 (geom 0.538)  D∥=1.93  D∥ex=1.23  (1s)
+    plus-x-disp-noiso err=  1.71°  recall=100.0%  f_i=0.617 (geom 0.538)  D∥=1.98  D∥ex=1.54  (2s)
+  angle   30: f_intra=0.545  MC 2s  S(b3000) mean intra=0.394 extra=0.049
+    plus-x     err=  7.35°  recall= 98.4%  f_i=0.624 (geom 0.545)  D∥=1.90  D∥ex=0.40  (1s)
+    plus-x-noiso err=  8.73°  recall= 88.3%  f_i=0.495 (geom 0.545)  D∥=1.88  D∥ex=0.57  (1s)
+    plus-x-disp-noiso err=  5.72°  recall= 96.9%  f_i=0.762 (geom 0.545)  D∥=2.01  D∥ex=1.48  (2s)
+  angle   45: f_intra=0.526  MC 2s  S(b3000) mean intra=0.436 extra=0.054
+    plus-x     err=  7.96°  recall=100.0%  f_i=0.617 (geom 0.526)  D∥=1.78  D∥ex=0.37  (1s)
+    plus-x-noiso err=  8.71°  recall= 99.2%  f_i=0.485 (geom 0.526)  D∥=1.87  D∥ex=0.53  (1s)
+    plus-x-disp-noiso err=  4.75°  recall=100.0%  f_i=0.788 (geom 0.526)  D∥=2.12  D∥ex=1.39  (2s)
+  angle   60: f_intra=0.541  MC 2s  S(b3000) mean intra=0.460 extra=0.066
+    plus-x     err=  6.80°  recall=100.0%  f_i=0.603 (geom 0.541)  D∥=1.77  D∥ex=0.38  (1s)
+    plus-x-noiso err=  7.20°  recall=100.0%  f_i=0.497 (geom 0.541)  D∥=1.83  D∥ex=0.53  (1s)
+    plus-x-disp-noiso err=  4.41°  recall=100.0%  f_i=0.824 (geom 0.541)  D∥=2.22  D∥ex=1.41  (3s)
+  angle   90: f_intra=0.545  MC 2s  S(b3000) mean intra=0.441 extra=0.060
+    plus-x     err=  2.85°  recall=100.0%  f_i=0.649 (geom 0.545)  D∥=1.83  D∥ex=0.72  (1s)
+    plus-x-noiso err=  2.87°  recall=100.0%  f_i=0.542 (geom 0.545)  D∥=1.74  D∥ex=0.96  (1s)
+    plus-x-disp-noiso err=  2.81°  recall=100.0%  f_i=0.622 (geom 0.545)  D∥=1.95  D∥ex=1.22  (3s)
+exit 0

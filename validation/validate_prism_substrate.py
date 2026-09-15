@@ -98,8 +98,10 @@ def main():
                     if meth.startswith("plus"):
                         cfg = replace(cfg, learn_diffusivities=True, tortuosity=True,
                                       use_restricted=False, d_par=1.7e-9,
-                                      disperse=meth.endswith("disp"),
+                                      disperse=meth.endswith("disp") or meth.endswith("disp-noiso"),
                                       lam_diffusivity_prior=1.0 if meth == "plus-dprior" else 0.0)
+                    if meth.endswith("-noiso"):
+                        cfg = replace(cfg, use_isotropic=False)
                     if meth.startswith("plus-x"):
                         # decoupled extra-cellular D∥ + intra D∥ anchored at the
                         # intrinsic 2.0 µm²/ms (a physical bound, not a data-set fact)
