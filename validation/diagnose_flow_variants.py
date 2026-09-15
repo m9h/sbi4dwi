@@ -31,12 +31,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 from validate_flow_sbi import summarise, sph                      # mode clustering of doc 008 §6.3
 
 TWO_PI = 2 * np.pi
-VARIANTS = ["base", "hemi", "disk", "hemi-emb", "hemi-2x", "hemi-fixed"]
+VARIANTS = ["base", "hemi", "disk", "hemi-emb", "hemi-2x", "hemi-fixed", "dyad", "dyad-2x"]
 
 
 def param_spec(variant):
     """names, lows, highs, and a function samples(S,7)->dirs(S,2,3)."""
-    if variant.startswith("disk"):
+    if variant.startswith("dyad"):
+        # per fibre: (xx, yy, xy, xz, yz) of a symmetric matrix, zz = 1 − xx − yy; direction = principal eigenvector.
+        # No seam anywhere on the sphere; the prior is uniform in the box, not on the sphere (a proposal, not a posterior).
+        names = [f"{c}{k}" for k in (1, 2) for c in ("xx", "yy", "xy", "xz", "yz")] + ["f_wm1", "f_wm2", "f_i"]
+        lo = np.array([0, 0, -0.5, -0.5, -0.5] * 2 + [0.3, 0.0, 0.2]); hi = np.array([1, 1, 0.5, 0.5, 0.5] * 2 + [1.0, 0.6, 0.8])
+    elif variant.startswith("disk"):
         names = ["x1", "y1", "x2", "y2", "f_wm1", "f_wm2", "f_i"]
         lo = np.array([-1, -1, -1, -1, 0.3, 0.0, 0.2]); hi = np.array([1, 1, 1, 1, 1.0, 0.6, 0.8])
     else:
@@ -46,7 +51,15 @@ def param_spec(variant):
     return names, lo, hi
 
 
+def _dyad_dirs_np(q):
+    xx, yy, xy, xz, yz = q.T; zz = 1 - xx - yy
+    M = np.stack([np.stack([xx, xy, xz], -1), np.stack([xy, yy, yz], -1), np.stack([xz, yz, zz], -1)], -2)
+    return np.linalg.eigh(M)[1][..., -1]
+
+
 def dirs_from_params_np(s, variant):
+    if variant.startswith("dyad"):
+        return np.stack([_dyad_dirs_np(s[:, 0:5]), _dyad_dirs_np(s[:, 5:10])], 1)
     if variant.startswith("disk"):
         def d(x, y):
             r2 = np.clip(x ** 2 + y ** 2, 0, 0.999); return np.stack([x, y, np.sqrt(1 - r2)], -1)
@@ -57,12 +70,18 @@ def dirs_from_params_np(s, variant):
 def make_forward(variant, bvals_si, bvecs):
     cfg = PrismConfig(n_fibres=2); bv = jnp.asarray(bvals_si); gv = jnp.asarray(bvecs)
 
+    def dyad_dir(q):
+        xx, yy, xy, xz, yz = q; M = jnp.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, 1 - xx - yy]])
+        return jnp.linalg.eigh(M)[1][:, -1]
+
     def one(p):
+        if variant.startswith("dyad"):
+            dd = jnp.stack([dyad_dir(p[0:5]), dyad_dir(p[5:10])]); p = jnp.concatenate([jnp.zeros(4), p[10:]])
         if variant.startswith("disk"):
             def d(x, y):
                 r2 = jnp.clip(x ** 2 + y ** 2, 0, 0.999); return jnp.array([x, y, jnp.sqrt(1 - r2)])
             dd = jnp.stack([d(p[0], p[1]), d(p[2], p[3])])
-        else:
+        elif not variant.startswith("dyad"):
             t1, p1, t2, p2 = p[0], p[1], p[2], p[3]
             dd = jnp.stack([jnp.array([jnp.sin(t1) * jnp.cos(p1), jnp.sin(t1) * jnp.sin(p1), jnp.cos(t1)]),
                             jnp.array([jnp.sin(t2) * jnp.cos(p2), jnp.sin(t2) * jnp.sin(p2), jnp.cos(t2)])])
@@ -165,7 +184,7 @@ def evaluate(flow, variant, lo, hi, b, n_samples, key):
         V = dirs_from_params_np(s, variant)                         # (S,2,3)
         # the clustering summariser expects θ,φ columns: convert back
         th = np.arccos(np.clip(V[..., 2], -1, 1)); ph = np.arctan2(V[..., 1], V[..., 0]) % TWO_PI
-        s2 = np.column_stack([th[:, 0], ph[:, 0], th[:, 1], ph[:, 1], s[:, 4], s[:, 5], s[:, 6]])
+        s2 = np.column_stack([th[:, 0], ph[:, 0], th[:, 1], ph[:, 1], s[:, -3], s[:, -2], s[:, -1]])
         d, f, sg, _, _ = summarise(s2); o = np.argsort(-f); dirs[i], fr[i], sig[i] = d[o], f[o], sg[o]
         # antipodal split and label switching, from the un-clustered fibre-1 samples
         v1 = V[:, 0]; D = (v1[:, :, None] * v1[:, None, :]).mean(0); mu = np.linalg.eigh(D)[1][:, -1]
@@ -210,7 +229,7 @@ def main():
     for variant in a.variants:
         names, lo, hi = param_spec(variant)
         fwd = make_forward(variant, b["bvals"], b["bvecs"])
-        flow = build_flow(jax.random.key(0), 7, len(b["bvals"]), a.hidden, a.depth, embed=variant.endswith("emb"))
+        flow = build_flow(jax.random.key(0), len(names), len(b["bvals"]), a.hidden, a.depth, embed=variant.endswith("emb"))
         n_steps = a.n_steps * (2 if variant.endswith("2x") else 1); batch = a.batch; fixed = None
         if variant.endswith("fixed"):
             batch = 4096; fixed = (a.fixed_n,); n_steps = 60 * (a.fixed_n // 4096)     # 60 epochs, as SBI_dMRI

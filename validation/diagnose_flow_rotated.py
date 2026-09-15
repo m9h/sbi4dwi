@@ -48,7 +48,7 @@ def main():
         if not ck.exists():
             print(f"{v}: no checkpoint"); continue
         names, lo, hi = param_spec(v)
-        flow = eqx.tree_deserialise_leaves(ck, build_flow(jax.random.key(0), 7, len(b["bvals"]), a.hidden, a.depth, embed=v.endswith("emb")))
+        flow = eqx.tree_deserialise_leaves(ck, build_flow(jax.random.key(0), len(names), len(b["bvals"]), a.hidden, a.depth, embed=v.endswith("emb")))
         t0 = time.time(); ev = evaluate(flow, v, lo, hi, b, a.n_samples, jax.random.key(2))
         print(f"{v:11s} tilt {a.tilt:.0f}°: err={ev['err']:.2f}°  recall={100*ev['recall']:.1f}%  σ_θ={ev['sigma']:.1f}°  "
               f"antipodal={ev['anti']:.2f}  switch={ev['switch']:.2f}  ({time.time()-t0:.0f}s)")
