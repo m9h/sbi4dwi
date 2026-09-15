@@ -693,3 +693,54 @@ only method here whose orientation error is set by the noise (1–3°)
 rather than by a discrete library, an amortisation gap, or a
 parameterisation seam; its microstructure bias is a partial-volume
 attribution that a one-flag model change removes on WM-only tissue.
+
+## 8. What is left to surpass the other tools (2026-09-14)
+
+Ordered by how much each closes a measured gap, with the number that
+would show it is done.
+
+1. **Make the microstructure win real.** §7.2 showed the f_i bias is
+   isotropic-compartment attribution. Productise it: a tissue prior on
+   the CSF/GM fractions (spatial, from a T1 or FA mask; hard zero in
+   WM-only phantoms), voxel-level intra fraction as the reported number,
+   a wider D⊥ prior instead of strict tortuosity. Target: DiSCo intra-VF
+   r ≥ 0.92 *without* per-dataset retuning (FORCE reaches 0.918 only
+   after retuning its library), and substrates within 0.05 in 6/6.
+2. **Bring the amortised flow to parity, then hybridise.** Evaluate on
+   the tilted benchmark only, 4× budget, keep SBC. Target: ≤ 5° / ≥ 95 %
+   clustered (SBI_dMRI's best reading is 4.8°). Then use the flow as the
+   initialiser for the Laplace refinement: amortised speed with the
+   1.6° / 88 %-coverage posterior nobody else has.
+3. **In-vivo evidence, with a metric the others do not report.** Every
+   comparison so far is phantom or synthetic. Run HCP-YA test–retest
+   (the retest subjects are the point) and Stanford HARDI: scan–rescan
+   reproducibility of fixel directions, f_i and the CV-pruned connectome
+   against FORCE and MSMT-CSD. Calibrated uncertainty predicts
+   reproducibility; that is the demonstration only we can make.
+4. **Time dependence in the forward model.** MC shows extra-cellular
+   D⊥ falling 1.15 → 1.04 across shells and a chain-tortuosity D∥ of
+   1.3–1.5. Add a first-order time-dependent extra-cellular term (or
+   kurtosis) and fit multi-Δ data; PRISM, FORCE and SBI_dMRI are all
+   Gaussian-compartment and cannot.
+5. **Substrate realism.** Port `caterpillar.py` to the CMake/JSON CLI
+   (un-severed axons), get MCMRSimulator `main` (sphere+cylinder SWC)
+   once FillArrays 1.17 lands, add permeability and OCTOPUS-style glia.
+   Two engines agreeing on intra *and* extra signals is the credibility
+   bar for the substrate rows.
+6. **Ship the benchmark.** Export the tilted synthetic set, the
+   DiSCo-protocol data and the substrate signals with the external
+   runners (FORCE, SBI_dMRI, MSMT) as a reproducible package; publish
+   the seam finding — it affects every hemisphere-prior NPE in the
+   literature. Push the repository to origin (it has never been pushed).
+7. **Runtime.** Whole-brain plus-x fit and Laplace posterior timed
+   against FORCE (seconds) and MSMT-CSD; batched voxel chunks on the
+   GB10, NIfTI CLI. Precision that takes an hour per brain will not be
+   adopted.
+8. **Upstream engagement.** Send the FORCE notes (doc 005 / the
+   published page), the MCMRSimulator chain limitation with the two
+   reproducers, and the CATERPillar severed-axon confirmation; ask the
+   SBI_dMRI group for their classifier variant.
+
+Not worth more time now: per-voxel Laplace-evidence model selection
+(negative, doc 007 §6.16), stacking dispersion with decoupled D∥,ex
+(negative), bigger FORCE libraries (§7.3).
