@@ -1,0 +1,33 @@
+##### train K=3 dyadic flow on the DiSCo scheme
+scheme disco: 274 measurements; K=3, 20 params: ['xx1', 'yy1', 'xy1', 'xz1', 'yz1', 'xx2', 'yy2', 'xy2', 'xz2', 'yz2', 'xx3', 'yy3', 'xy3', 'xz3', 'yz3', 'f_wm1', 'f_wm2', 'f_wm3', 'f_i', 'd_par']
+    step 0: loss 22.260  (24s)
+    step 2000: loss -4.978  (34s)
+    step 4000: loss -7.054  (44s)
+    step 6000: loss -8.119  (54s)
+    step 8000: loss -8.785  (64s)
+    step 10000: loss -9.426  (74s)
+    step 12000: loss -9.806  (84s)
+    step 14000: loss -10.213  (94s)
+    step 16000: loss -10.520  (104s)
+    step 18000: loss -10.818  (114s)
+    step 20000: loss -11.003  (124s)
+    step 22000: loss -11.220  (134s)
+    step 24000: loss -11.397  (144s)
+    step 26000: loss -11.561  (154s)
+    step 28000: loss -11.675  (164s)
+    step 30000: loss -11.811  (174s)
+    step 32000: loss -11.890  (184s)
+    step 34000: loss -11.971  (194s)
+    step 36000: loss -12.040  (204s)
+    step 38000: loss -12.047  (214s)
+trained 40000×512 in 224s, loss 11.419 → -12.076; saved validation/flow_disco_k3_dyad.eqx
+##### hybrid DiSCo with the dyadic proposal
+
+=== SNR 30: 15,267 voxels
+  flow proposal 101s: f_i r=0.917 mean 0.269; D∥ mean 0.60
+  flow  init: intra-VF r=0.972  D∥=0.69  MAP connectome r=0.892 Dice=0.36  CV<0.3 posterior r=0.901 Dice=0.77  (MAP 3s, Laplace 2s)
+
+=== SNR 10: 15,267 voxels
+  flow proposal 72s: f_i r=0.749 mean 0.343; D∥ mean 0.62
+  flow  init: intra-VF r=0.814  D∥=0.87  MAP connectome r=0.801 Dice=0.34  CV<0.3 posterior r=0.802 Dice=0.60  (MAP 2s, Laplace 1s)
+exit 0

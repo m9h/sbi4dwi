@@ -855,6 +855,11 @@ posterior connectomes, CV < 0.3 pruning.
    flow's value is as a 65-second standalone posterior (intra-VF
    r = 0.91, D∥ regime detected on its own) and as an initialiser where
    there is no spatial prior (single voxels, streaming, ex-vivo slabs).
+   Retrained with the dyadic parameterisation (Slurm 1780,
+   `flow_disco_k3_dyad.eqx`, 3.7 min): amortised intra-VF r 0.917 / 0.749
+   (SNR 30 / 10), refined 0.972 / 0.814, MAP connectome 0.892 / 0.801,
+   CV-pruned 0.901 / 0.802 — the same picture; the proposal's
+   parameterisation does not reach the refined result either.
 3. These numbers supersede doc 007 §8.3 as the DiSCo-protocol
    comparison row: PRISM-JAX posterior connectome **0.907 / 0.841**
    (SNR 30 / 10) vs FORCE 0.856 / 0.800.
