@@ -1,0 +1,31 @@
+##### permeability 0.003
+cylinders: 241 (mean r 1.06 µm), intra fraction 0.601, permeability 0.003
+disco: 96 sequences in 507.0 s
+  shell 1 (b=1.0, Δ=35.8): mean S 0.506
+  shell 2 (b=2.0, Δ=35.8): mean S 0.3357
+  shell 3 (b=3.0, Δ=35.8): mean S 0.2601
+optimised: 96 sequences in 487.0 s
+  shell 1 (b=1.4, Δ=15.0): mean S 0.4209
+  shell 2 (b=5.0, Δ=15.0): mean S 0.1957
+  shell 3 (b=5.0, Δ=51.5): mean S 0.1835
+##### permeability 0.01
+cylinders: 241 (mean r 1.06 µm), intra fraction 0.601, permeability 0.01
+disco: 96 sequences in 770.0 s
+  shell 1 (b=1.0, Δ=35.8): mean S 0.4951
+  shell 2 (b=2.0, Δ=35.8): mean S 0.3159
+  shell 3 (b=3.0, Δ=35.8): mean S 0.2351
+optimised: 96 sequences in 582.0 s
+  shell 1 (b=1.4, Δ=15.0): mean S 0.4122
+  shell 2 (b=5.0, Δ=15.0): mean S 0.1783
+  shell 3 (b=5.0, Δ=51.5): mean S 0.1522
+##### permeability 0.03
+cylinders: 241 (mean r 1.06 µm), intra fraction 0.601, permeability 0.03
+disco: 96 sequences in 556.0 s
+  shell 1 (b=1.0, Δ=35.8): mean S 0.4744
+  shell 2 (b=2.0, Δ=35.8): mean S 0.2818
+  shell 3 (b=3.0, Δ=35.8): mean S 0.1941
+optimised: 96 sequences in 463.0 s
+  shell 1 (b=1.4, Δ=15.0): mean S 0.3929
+  shell 2 (b=5.0, Δ=15.0): mean S 0.1456
+  shell 3 (b=5.0, Δ=51.5): mean S 0.1086
+exit 0

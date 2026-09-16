@@ -1015,3 +1015,55 @@ minute on one GB10, 3× faster than FORCE's matching on the same mask
 single-shell b = 2000 set: D∥ learned 1.33 (in-vivo, single shell —
 weakly identified), f_i 0.42 mean, refined main peaks within 6.2° (median)
 of CSD's, median σ_θ 5.0°. Runtime is no longer an adoption objection.
+
+### 9.3 addendum: the exchange model against MCMRSimulator ground truth (2026-09-15)
+
+`julia/mcmr/permeable_cylinders.jl` (241 randomly packed cylinders, r ≈ 1 µm,
+intra fraction 0.601, 40 µm periodic, D = 2, permeability p in MCMR units)
+simulates both protocols of the design table (96 measurements each);
+`julia/mcmr/exchange_time.jl` measures the residence time directly by
+tracking spin identity across readouts; `validation/validate_exchange_mcmr.py`
+fits the closed-form Kärger kernel (f_i, τ_ex, D∥, D⊥; fibre along z) to
+the clean signal and to 30 Rician repeats at SNR 30 / 50. Two things
+learned on the way: MCMR's `Subset(inside=…)` is evaluated at *readout*,
+not seeding, and its permeability unit is large — p = 0.3 already gives
+τ ≈ 1–2 ms (fast-exchange limit; those runs are archived under
+`validation/mcmr/fast_exchange/`).
+
+| p | residence time (measured) | protocol | clean fit f_i / τ_ex / D∥ | SNR 30, 30 repeats: f_i, τ_ex | SNR 50 |
+|---|---|---|---|---|---|
+| 0 | ∞ | DiSCo single-Δ | 0.74 / 25 ms / 2.09 | 0.78 ± 0.09, 20 ± 909 ms | 0.67 ± 0.09, 54 ± 950 |
+| 0 | ∞ | **optimised** | **0.62 / 1050 ms / 2.03** | 0.62 ± 0.01, 586 ± 773 (rel 1.3) | 0.62 ± 0.01, 833 ± 760 (0.9) |
+| 0.003 | ≈ 100 ms | DiSCo single-Δ | 0.84 / 7.5 / 2.01 | 0.83 ± 0.11, 9 ± 841 | 0.83 ± 0.08, 9 ± 356 |
+| 0.003 | ≈ 100 ms | **optimised** | **0.60 / 117 ms / 2.06** | 0.60 ± 0.02, 103 ± 341 (3.3) | 0.60 ± 0.01, 114 ± 173 (1.5) |
+| 0.01 | ≈ 32 ms | DiSCo single-Δ | 0.84 / 4.9 / 2.04 | 0.83 ± 0.14, 6 ± 843 | 0.83 ± 0.09, 6 ± 358 |
+| 0.01 | ≈ 32 ms | **optimised** | **0.57 / 37 ms / 2.06** | 0.57 ± 0.02, **35 ± 17** (0.49) | 0.57 ± 0.01, **37 ± 7** (0.20) |
+| 0.03 | ≈ 11 ms | DiSCo single-Δ | 0.82 / 2.4 / 2.07 | 0.81 ± 0.22, 3 ± 883 | 0.81 ± 0.20, 3 ± 742 |
+| 0.03 | ≈ 11 ms | **optimised** | 0.49 / 15 ms / 2.05 | 0.50 ± 0.03, **15 ± 6** (0.38) | 0.49 ± 0.02, **15 ± 3** (0.19) |
+
+1. **The single-Δ protocol every method in this comparison uses cannot
+   see exchange, and mis-reads f_i when exchange exists**: f_i 0.82–0.84
+   against 0.60 at every finite τ, τ_ex pinned at a few ms with ±900 ms
+   scatter. This is not a fitting failure; the CRLB said 16–44 and the
+   empirical relative scatter is 38–290.
+2. **The Fisher-designed protocol recovers f_i, D∥ and τ_ex from an
+   independent Monte Carlo engine**: f_i 0.60 / 0.57 / 0.49 vs 0.60 for
+   τ = 100 / 32 / 11 ms (the drift at fast exchange is the Kärger
+   approximation reaching its limit at Δ ≈ τ), τ_ex 117 / 37 / 15 ms vs
+   ≈ 100 / 32 / 11 measured, D∥ 2.03–2.06 vs 2.0. At SNR 30 the τ_ex
+   scatter is ±17 ms at τ = 32 and ±6 ms at τ = 11 (relative 0.4–0.5);
+   at τ = 100 ms it is heavy-tailed (0.6 of the repeats within ±50 ms,
+   the rest running to the bound) — exactly the regime the design table
+   flagged as marginal.
+3. **Design and validation agree** where both exist: relative SD of
+   τ_ex at SNR 30, CRLB 0.8–1.0 vs empirical 0.4–0.5 (τ = 11–32 ms;
+   the bound is conservative because the MC substrate has D⊥ ≈ 0.7,
+   further from D∥ than the design's 0.5 assumption) and 1.0–1.6 vs
+   1.3–3.3 at τ ≥ 100 ms.
+
+This is the first closed loop of the "Diffrax forward model +
+acquisition design" item: a differentiable exchange kernel, a protocol
+chosen by gradient ascent on its Fisher information, and a third-party
+Monte Carlo engine confirming that the chosen protocol identifies what
+the standard one cannot. Nothing in PRISM, FORCE, SBI_dMRI or MSMT-CSD
+can produce this row.
