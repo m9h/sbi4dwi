@@ -955,6 +955,6 @@ hemisphere boundary. Same spline MAF, same trainer (Slurm 1778,
 Seam and tilted numbers now agree, which is the point: the flow's error
 is finally a property of the flow, not of where the truth sits. At 40k
 steps the amortised posterior is within 0.8° of SBI_dMRI's best reading
-with calibration intact; the 80k run is queued (Slurm 1779). The K = 3
+with calibration intact. **The 80k run (Slurm 1779) does not help**: 5.6° / 95 % on the seam set but 8.3° / 84 % tilted — the over-training signature SBI_dMRI's 3M estimator showed (§7.5). 40k × 512 is the operating point for this architecture; the amortised floor is ≈ 5.5°. The K = 3
 DiSCo proposal of §9.2 should be retrained with this parameterisation
 before it is used anywhere without a spatial prior.
