@@ -44,18 +44,18 @@ def cluster_k(V, F, K, n_iter=10):
 
 
 def flow_proposal(flow, meta, y, n_samples, key, chunk=512):
-    K = int(meta["K"]); lo, hi = meta["lo"], meta["hi"]; N = y.shape[0]
+    K = int(meta["K"]); lo, hi = meta["lo"], meta["hi"]; N = y.shape[0]; param = str(meta["param"]) if "param" in meta.files else "hemi"; n = {"hemi": 2, "dyad": 5}[param]
     lo_j, span_j = jnp.asarray(lo), jnp.asarray(hi - lo)
     sample = jax.jit(lambda k, x: jax.vmap(lambda kk, xx: flow.sample(kk, (n_samples,), condition=xx))(jax.random.split(k, x.shape[0]), x) * span_j + lo_j)
     dirs = np.zeros((N, K, 3)); fr = np.zeros((N, K + 3)); fi = np.zeros(N); dpar = np.zeros(N)
     for i0 in range(0, N, chunk):
         key, sk = jax.random.split(key); S = np.asarray(sample(sk, jnp.asarray(y[i0:i0 + chunk])))       # (B,S,P)
         for j in range(S.shape[0]):
-            d, f = dirs_fracs_from_samples(S[j], K)
+            d, f = dirs_fracs_from_samples(S[j], K, param)
             c, w = cluster_k(d.reshape(-1, 3), f.T.reshape(-1), K)
             w = np.clip(w, 0.02, 1.0); dirs[i0 + j] = c
             fr[i0 + j] = np.concatenate([[0.02, max(1 - w.sum(), 0.02)], w, [0.02]]); fr[i0 + j] /= fr[i0 + j].sum()
-            fi[i0 + j] = S[j][:, 3 * K].mean(); dpar[i0 + j] = S[j][:, 3 * K + 1].mean()
+            fi[i0 + j] = S[j][:, n * K + K].mean(); dpar[i0 + j] = S[j][:, n * K + K + 1].mean()
     return dirs, fr, fi, dpar
 
 
