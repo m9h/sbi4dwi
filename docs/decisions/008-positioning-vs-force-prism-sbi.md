@@ -935,3 +935,26 @@ budget doubling: 9.1 → 7.8 → 6.6°. The ≤ 5° target (SBI_dMRI clustered
 4.8°) is one more doubling away by extrapolation but the returns are
 shrinking; an embedding that respects the antipodal symmetry (dyadic
 input features) is the cheaper route than more steps.
+
+### 7.1 addendum 2: the dyadic parameterisation closes most of the gap (2026-09-15)
+
+Each fibre as a symmetric 3×3 tensor (xx, yy, xy, xz, yz; zz = 1 − xx − yy),
+direction = principal eigenvector: no seam anywhere on the sphere and no
+hemisphere boundary. Same spline MAF, same trainer (Slurm 1778,
+`validation/flow_variants_dyad.npz`, `flow_variant_dyad*_256x6.eqx`).
+
+| flow (256 × 6 spline MAF) | budget | seam benchmark err / recall | tilted 45° err / recall | SBC 90 % cov |
+|---|---|---|---|---|
+| θ/φ base | 20k × 512 | 23.9° / 41 % | 9.1° / 94.5 % | 87–94 % |
+| θ/φ hemi | 40k | 21.6° / 48 % | 7.8° / 95 % | 90–96 % |
+| θ/φ hemi | 80k | 20.3° / 56 % | 6.6° / 95 % | 90–95 % |
+| **dyadic** | 20k | **7.7° / 94 %** | 6.7° / 97 % | 89–95 % |
+| **dyadic** | 40k | **5.8° / 98 %** | **5.6° / 95.5 %** | 86–94 % |
+| SBI_dMRI clustered (their NSF, 1M sims) | | 5.1° / 98.5 % | 4.8° / 97 % | — |
+
+Seam and tilted numbers now agree, which is the point: the flow's error
+is finally a property of the flow, not of where the truth sits. At 40k
+steps the amortised posterior is within 0.8° of SBI_dMRI's best reading
+with calibration intact; the 80k run is queued (Slurm 1779). The K = 3
+DiSCo proposal of §9.2 should be retrained with this parameterisation
+before it is used anywhere without a spatial prior.
