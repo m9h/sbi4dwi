@@ -61,12 +61,15 @@ def crlb_rel_sd(F):
     return jnp.sqrt(jnp.diag(jnp.linalg.inv(F + 1e-12 * jnp.eye(F.shape[0]))))
 
 
-def optimise(theta_grid, delta, dirs_meas, fibres, snr, n_shells=3, steps=400, lr=0.05, w_tau=3.0):
+def optimise(theta_grid, delta, dirs_meas, fibres, snr, n_shells=3, steps=400, lr=0.05, w_tau=3.0, gmax=None):
     """Maximise Σ_θgrid [log det F + w_tau · log F_tau,tau] over (log b_k, log Δ_k)."""
     lb = jnp.log(jnp.array([1.0, 2.0, 3.0][:n_shells])); lD = jnp.log(jnp.array([0.02, 0.045, 0.08][:n_shells]))
     params = {"lb": lb, "lD": lD}
     def obj(p):
-        lb_ = jnp.clip(p["lb"], jnp.log(0.3), jnp.log(5.0)); lD_ = jnp.clip(p["lD"], jnp.log(0.015), jnp.log(0.12))
+        lb_ = jnp.clip(p["lb"], jnp.log(0.3), jnp.log(5.0)); lD_ = jnp.clip(p["lD"], jnp.log(max(0.015, delta + 0.002)), jnp.log(0.12))
+        if gmax is not None:      # b ≤ γ² G² δ² (Δ − δ/3): cap b at what the gradient can deliver
+            b_cap = (px.GAMMA * gmax * delta) ** 2 * (jnp.exp(lD_) - delta / 3.0) * 1e-9
+            lb_ = jnp.minimum(lb_, jnp.log(b_cap))
         tot = 0.0
         for th in theta_grid:
             F = fisher(th, lb_, lD_, delta, dirs_meas, fibres, snr)
@@ -75,7 +78,10 @@ def optimise(theta_grid, delta, dirs_meas, fibres, snr, n_shells=3, steps=400, l
     opt = optax.adam(lr); st = opt.init(params); g = jax.jit(jax.value_and_grad(obj))
     for i in range(steps):
         v, gr = g(params); upd, st = opt.update(gr, st); params = optax.apply_updates(params, upd)
-        params = {"lb": jnp.clip(params["lb"], jnp.log(0.3), jnp.log(5.0)), "lD": jnp.clip(params["lD"], jnp.log(0.015), jnp.log(0.12))}
+        params = {"lb": jnp.clip(params["lb"], jnp.log(0.3), jnp.log(5.0)), "lD": jnp.clip(params["lD"], jnp.log(max(0.015, delta + 0.002)), jnp.log(0.12))}
+    if gmax is not None:
+        b_cap = (px.GAMMA * gmax * delta) ** 2 * (jnp.exp(params["lD"]) - delta / 3.0) * 1e-9
+        params["lb"] = jnp.minimum(params["lb"], jnp.log(b_cap))
     return params, float(v)
 
 
@@ -84,6 +90,8 @@ def main():
     ap.add_argument("--snrs", type=float, nargs="+", default=[30, 50]); ap.add_argument("--n-dirs", type=int, default=32)
     ap.add_argument("--taus-ms", type=float, nargs="+", default=[10, 25, 50, 100]); ap.add_argument("--steps", type=int, default=400)
     ap.add_argument("--out", default="validation/exchange_protocol_design.json")
+    ap.add_argument("--gmax", type=float, default=None, help="gradient limit in T/m (e.g. 0.08 clinical, 0.3 Connectom); caps b per shell")
+    ap.add_argument("--delta", type=float, default=10e-3, help="pulse duration for the fixed-3Δ and optimised protocols (s)")
     a = ap.parse_args()
     dirs_meas = jnp.asarray(directions(a.n_dirs)); fibres = jnp.asarray(fibre_dirs())
     base = {"f_i": 0.55, "dpar": 1.7e-9, "dperp": 0.5e-9}
@@ -96,9 +104,10 @@ def main():
     names = ["f_i", "tau_ex", "D_par", "D_perp"]
     for snr in a.snrs:
         print(f"\n=== SNR {snr:.0f} (at TE=0; T2 = {T2*1e3:.0f} ms penalises long Δ)", flush=True)
-        p_opt, v = optimise(grid, 10e-3, dirs_meas, fibres, snr, steps=a.steps)
-        protocols["optimised"] = (p_opt["lb"], p_opt["lD"], 10e-3)
-        print(f"  optimised: b = {np.round(np.exp(np.asarray(p_opt['lb'])), 2).tolist()} ms/µm²,  Δ = {np.round(np.exp(np.asarray(p_opt['lD']))*1e3, 1).tolist()} ms  (δ = 10 ms)")
+        p_opt, v = optimise(grid, a.delta, dirs_meas, fibres, snr, steps=a.steps, gmax=a.gmax)
+        protocols["optimised"] = (p_opt["lb"], p_opt["lD"], a.delta)
+        protocols["fixed-3Δ"] = (protocols["fixed-3Δ"][0], protocols["fixed-3Δ"][1], a.delta)
+        print(f"  optimised (Gmax {a.gmax}, δ = {a.delta*1e3:.0f} ms): b = {np.round(np.exp(np.asarray(p_opt['lb'])), 2).tolist()} ms/µm²,  Δ = {np.round(np.exp(np.asarray(p_opt['lD']))*1e3, 1).tolist()} ms")
         results[snr] = {}
         print("  protocol       τ_ex   " + "  ".join(f"{n:>8s}" for n in names) + "   (CRLB relative SD)")
         for pname, (lb, lD, delta) in protocols.items():

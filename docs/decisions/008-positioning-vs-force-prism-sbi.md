@@ -1061,6 +1061,13 @@ not seeding, and its permeability unit is large — p = 0.3 already gives
    further from D∥ than the design's 0.5 assumption) and 1.0–1.6 vs
    1.3–3.3 at τ ≥ 100 ms.
 
+**Under clinical gradients** (`--gmax 0.08 --delta 0.020`, Δ ≥ δ + 2 ms
+enforced): the optimiser picks b = 1.0 / 2.9 / 5.0 ms/µm² at Δ = 22 / 23 /
+64 ms; τ_ex CRLB relative SD 1.2 (τ = 25 ms) and 2.5 (τ = 100 ms) at
+SNR 30, i.e. ~1.5× the 340 mT/m design — exchange at τ ≤ 50 ms stays
+marginally identifiable on an 80 mT/m system with 96 measurements
+(`validation/exchange_protocol_design_g0.08.json`).
+
 This is the first closed loop of the "Diffrax forward model +
 acquisition design" item: a differentiable exchange kernel, a protocol
 chosen by gradient ascent on its Fisher information, and a third-party
@@ -1108,6 +1115,8 @@ external dependency × technical uncertainty × effort.
 - The [PLANNED] oracle plumbing in CLAUDE.md (`oracle.py` ABC, `oracles/`, `oracle_adapter.py`, `multi_fidelity.py`): write a minimal ABC only when a second oracle exists (MCMR wrapper); strike `multi_fidelity.py`.
 - SWC ingestion and sphere+cylinder SDF (006 Phase 2): only needed for C1/C2.
 - ReMiDi FEM benchmark (006 Phase 4), disimpy head-to-head, library-seed sweep, `n_legendre` halving, doc-drift residue: no competitive information in any of them now.
+
+**Status 2026-09-15:** A1 done (pushed; package at `/data/datasets/sbi4dwi_benchmark_v1`, seam note `docs/notes/seam-artefact-in-direction-npe.md`); A2 done in code (`dmipy_jax/io/fixel.py` validated with MRtrix `fixel2voxel`, `dmipy_jax/workflows/refine_peaks_flow.py` + `dipy_refine_peaks` entry point, BIDS-style outputs); A3 drafted, not sent (`docs/outreach/`); A4 done (80 mT/m design, §9.3).
 
 **Recommended order:** A1 → A2 and A3 in parallel → A4 → B1 (as soon
 as keys exist) and B4 (GPU idle) → B3 → B5 → B2. Prepare C1 with the

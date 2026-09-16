@@ -76,6 +76,7 @@ Homepage = "https://github.com/m9h/dmipy"
 packages = ["dmipy_jax"]
 
 [project.scripts]
+dipy_refine_peaks = "dmipy_jax.workflows.refine_peaks_flow:main"
 dmipy-report = "dmipy_jax.cli.bids_report:main"
 
 [project.optional-dependencies]
