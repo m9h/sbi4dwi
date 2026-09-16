@@ -1,0 +1,32 @@
+
+### permeability 0p0: f_intra 0.601, 241 cylinders
+  disco     clean fit: f_i=0.735 τ_ex=24.7 ms D∥=2.09 D⊥=1.19  rmse 0.0038
+    SNR 30 × 30: f_i 0.780 ± 0.091   τ_ex 20.4 ± 909.0 ms (rel 44.62)   D∥ 2.06 ± 0.05   D⊥ 1.59 ± 0.54
+    SNR 50 × 30: f_i 0.669 ± 0.091   τ_ex 54.4 ± 949.6 ms (rel 17.44)   D∥ 2.07 ± 0.03   D⊥ 0.96 ± 0.52
+  optimised clean fit: f_i=0.618 τ_ex=1050.4 ms D∥=2.03 D⊥=0.80  rmse 0.0073
+    SNR 30 × 30: f_i 0.622 ± 0.013   τ_ex 586.2 ± 772.9 ms (rel 1.32)   D∥ 1.99 ± 0.05   D⊥ 0.85 ± 0.09
+    SNR 50 × 30: f_i 0.619 ± 0.007   τ_ex 833.3 ± 760.4 ms (rel 0.91)   D∥ 2.01 ± 0.03   D⊥ 0.83 ± 0.05
+
+### permeability 0p3: f_intra 0.601, 241 cylinders
+  disco     clean fit: f_i=0.544 τ_ex=1.0 ms D∥=2.19 D⊥=1.43  rmse 0.0056
+    SNR 30 × 30: f_i 0.551 ± 0.236   τ_ex 1.1 ± 598.4 ms (rel 566.24)   D∥ 2.13 ± 0.11   D⊥ 1.49 ± 0.52
+    SNR 50 × 30: f_i 0.429 ± 0.223   τ_ex 1.1 ± 358.1 ms (rel 336.06)   D∥ 2.19 ± 0.09   D⊥ 1.11 ± 0.49
+  optimised clean fit: f_i=0.064 τ_ex=7.8 ms D∥=2.40 D⊥=0.69  rmse 0.0071
+    SNR 30 × 30: f_i 0.059 ± 0.098   τ_ex 44.6 ± 402.6 ms (rel 9.03)   D∥ 2.32 ± 0.10   D⊥ 0.70 ± 0.19
+    SNR 50 × 30: f_i 0.064 ± 0.169   τ_ex 16.0 ± 14.3 ms (rel 0.89)   D∥ 2.31 ± 0.08   D⊥ 0.71 ± 0.23
+
+### permeability 1p0: f_intra 0.601, 241 cylinders
+  disco     clean fit: f_i=0.050 τ_ex=7.3 ms D∥=2.36 D⊥=1.10  rmse 0.0083
+    SNR 30 × 30: f_i 0.425 ± 0.187   τ_ex 2.9 ± 357.6 ms (rel 123.24)   D∥ 2.15 ± 0.11   D⊥ 2.00 ± 0.42
+    SNR 50 × 30: f_i 0.289 ± 0.189   τ_ex 2.0 ± 7.9 ms (rel 4.03)   D∥ 2.21 ± 0.09   D⊥ 1.47 ± 0.42
+  optimised clean fit: f_i=0.050 τ_ex=3.9 ms D∥=2.46 D⊥=1.11  rmse 0.0076
+    SNR 30 × 30: f_i 0.059 ± 0.007   τ_ex 885.1 ± 870.0 ms (rel 0.98)   D∥ 2.28 ± 0.10   D⊥ 1.19 ± 0.04
+    SNR 50 × 30: f_i 0.050 ± 0.000   τ_ex 52.4 ± 30.5 ms (rel 0.58)   D∥ 2.37 ± 0.08   D⊥ 1.16 ± 0.03
+
+### permeability 3p0: f_intra 0.601, 241 cylinders
+  disco     clean fit: f_i=0.256 τ_ex=1.8 ms D∥=2.25 D⊥=2.00  rmse 0.0053
+    SNR 30 × 30: f_i 0.173 ± 0.075   τ_ex 10.8 ± 591.9 ms (rel 54.59)   D∥ 2.13 ± 0.10   D⊥ 2.00 ± 0.18
+    SNR 50 × 30: f_i 0.136 ± 0.088   τ_ex 9.2 ± 9.2 ms (rel 1.00)   D∥ 2.22 ± 0.06   D⊥ 1.79 ± 0.20
+  optimised clean fit: f_i=0.050 τ_ex=5.0 ms D∥=2.25 D⊥=1.65  rmse 0.0083
+    SNR 30 × 30: f_i 0.061 ± 0.007   τ_ex 2000.0 ± 878.6 ms (rel 0.44)   D∥ 1.99 ± 0.12   D⊥ 1.86 ± 0.09
+    SNR 50 × 30: f_i 0.050 ± 0.000   τ_ex 72.8 ± 36.8 ms (rel 0.51)   D∥ 2.13 ± 0.08   D⊥ 1.76 ± 0.06
