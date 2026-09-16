@@ -996,3 +996,22 @@ main venv, authors' DiSCo ranges, 500K) as the two sources:
 - What remains for a real plug-in: fixel-format output (MRtrix), a
   `dipy.workflows` command, and the BIDS-derivative naming; the
   numerical core is done.
+
+### 9.5 Item 7: whole-brain runtime (Stanford HARDI, 154,368 mask voxels, 160 measurements)
+
+`validation/benchmark_runtime_hardi.py` (Slurm 1782, one GB10, dipy 1.12.1
+for CSD and FORCE with 6 CPU workers).
+
+| stage | wall | per voxel |
+|---|---|---|
+| CSD peaks (dipy, 6 processes) | 16 s | 0.10 ms |
+| **refine_peaks**, K = 3 plus-x, 300 Rprop iterations, spatial priors | **31 s** | **0.20 ms** |
+| **Laplace fixel posterior** (Gauss–Newton, chunked) | **23 s** | 0.15 ms |
+| FORCE fit + peaks, 500K library (library generation 241 s once) | 172 s | 1.11 ms |
+
+The full refinement plus posterior for a whole in-vivo brain is under a
+minute on one GB10, 3× faster than FORCE's matching on the same mask
+(and FORCE's library adds 4 min the first time). Sanity on this
+single-shell b = 2000 set: D∥ learned 1.33 (in-vivo, single shell —
+weakly identified), f_i 0.42 mean, refined main peaks within 6.2° (median)
+of CSD's, median σ_θ 5.0°. Runtime is no longer an adoption objection.

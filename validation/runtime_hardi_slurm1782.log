@@ -1,0 +1,8 @@
+Stanford HARDI (81, 106, 76, 160), 154,368 mask voxels, 160 measurements
+CSD peaks: 16s
+refine (K=3, 300 it): 31s = 0.20 ms/voxel; D∥=1.33 D∥ex=1.05 f_i mean 0.420 [0.07, 0.84]
+Laplace posterior: 23s; median σ_θ (main fixel) 4.99°
+main-peak agreement CSD vs refined: median 6.2°, 90th pct 64.9°
+  self.pid = os.fork()
+FORCE: library 241s (cached after first), fit + peaks 172s = 1.11 ms/voxel
+exit 0
