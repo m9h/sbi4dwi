@@ -1,0 +1,14 @@
+
+=== SNR 30
+  MSMT-CSD peaks 218s
+  self.pid = os.fork()
+  FORCE peaks 418s
+  msmt : peaks r=0.786 Dice=0.43  →  refined MAP r=0.891 Dice=0.35  →  CV-pruned posterior r=0.908 Dice=0.77   intra-VF r=0.986  D∥=0.69  (refine 6s, 20 posterior connectomes 10s)
+  force: peaks r=0.790 Dice=0.35  →  refined MAP r=0.873 Dice=0.35  →  CV-pruned posterior r=0.908 Dice=0.77   intra-VF r=0.987  D∥=0.69  (refine 3s, 20 posterior connectomes 10s)
+
+=== SNR 10
+  MSMT-CSD peaks 248s
+  FORCE peaks 27s
+  msmt : peaks r=0.752 Dice=0.37  →  refined MAP r=0.807 Dice=0.34  →  CV-pruned posterior r=0.860 Dice=0.72   intra-VF r=0.950  D∥=0.87  (refine 3s, 20 posterior connectomes 10s)
+  force: peaks r=0.825 Dice=0.34  →  refined MAP r=0.797 Dice=0.34  →  CV-pruned posterior r=0.806 Dice=0.66   intra-VF r=0.951  D∥=0.86  (refine 3s, 20 posterior connectomes 10s)
+exit 0

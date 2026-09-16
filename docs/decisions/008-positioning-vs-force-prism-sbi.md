@@ -963,3 +963,36 @@ steps the amortised posterior is within 0.8° of SBI_dMRI's best reading
 with calibration intact. **The 80k run (Slurm 1779) does not help**: 5.6° / 95 % on the seam set but 8.3° / 84 % tilted — the over-training signature SBI_dMRI's 3M estimator showed (§7.5). 40k × 512 is the operating point for this architecture; the amortised floor is ≈ 5.5°. The K = 3
 DiSCo proposal of §9.2 should be retrained with this parameterisation
 before it is used anywhere without a spatial prior.
+
+### 9.4 Item 3 started: the DIPY refinement stage
+
+`dmipy_jax/validation/dipy_refine.py`: `refine_peaks(data, gtab, mask,
+pam)` takes any DIPY `PeaksAndMetrics`, initialises the plus-x MAP from its
+peaks and values, and returns a refined `PeaksAndMetrics` plus the Laplace
+fixel posterior; `posterior_pams()` yields one PAM per posterior sample for
+CV-pruned connectomes. `validation/validate_dipy_refine.py` (Slurm 1781) on
+DiSCo under the authors' protocol, MSMT-CSD and FORCE (dipy 1.12.1 in the
+main venv, authors' DiSCo ranges, 500K) as the two sources:
+
+| SNR | source | peaks as produced r / Dice | refined MAP | CV-pruned posterior | intra-VF r | refine + 20 posterior connectomes |
+|---|---|---|---|---|---|---|
+| 30 | MSMT-CSD | 0.786 / 0.43 | 0.891 / 0.35 | **0.908 / 0.77** | 0.986 | 6 s + 10 s |
+| 30 | FORCE | 0.790 / 0.35 | 0.873 / 0.35 | **0.908 / 0.77** | 0.987 | 3 s + 10 s |
+| 10 | MSMT-CSD | 0.752 / 0.37 | 0.807 / 0.34 | **0.860 / 0.72** | 0.950 | 3 s + 10 s |
+| 10 | FORCE | 0.825 / 0.34 | 0.797 / 0.34 | 0.806 / 0.66 | 0.951 | 3 s + 10 s |
+
+- **Any peaks in, the same posterior connectome out** at SNR 30
+  (0.908 from either source, matching §9.2's 0.905–0.907 from flow,
+  dictionary or no init). The stage costs 3–6 s of refinement and 10 s
+  of posterior tractography on top of a DIPY reconstruction, and it also
+  returns the intra-VF map (r = 0.99) the source reconstruction did not
+  have.
+- **At SNR 10 the source matters** (0.860 from MSMT, 0.806 from FORCE):
+  with weak data the MAP stays near its start, and FORCE's peaks at 1.12.1
+  with the tuned prior are a better start for the MAP r (0.825) than the
+  refinement's own optimum reaches (0.797); the posterior still lifts
+  Dice from 0.34 to 0.66. The honest reading: at low SNR the refinement
+  is an uncertainty layer more than an accuracy layer.
+- What remains for a real plug-in: fixel-format output (MRtrix), a
+  `dipy.workflows` command, and the BIDS-derivative naming; the
+  numerical core is done.
