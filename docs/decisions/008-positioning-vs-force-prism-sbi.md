@@ -1067,3 +1067,49 @@ chosen by gradient ascent on its Fisher information, and a third-party
 Monte Carlo engine confirming that the chosen protocol identifies what
 the standard one cannot. Nothing in PRISM, FORCE, SBI_dMRI or MSMT-CSD
 can produce this row.
+
+## 10. Remaining work, ranked by risk and reward (2026-09-15)
+
+Inventory from docs 006 §9, 007 §8 and this document's §8–§9 (60 items
+audited; §8.1–§9.5 closed items 1, 2, 4 and 7 of §8). Reward = how much
+the item separates sbi4dwi from FORCE / PRISM / SBI_dMRI / MSMT-CSD /
+Microstructure.jl / OCTOPUS on evidence rather than argument; risk =
+external dependency × technical uncertainty × effort.
+
+**Tier A — low risk, high reward: do these first**
+
+| # | task | why it ranks here |
+|---|---|---|
+| A1 | **Push the repository and ship the benchmark package** (tilted synthetic set, DiSCo-protocol data, substrate signals, MCMR exchange sets, the external runners). Write up the seam finding (§7.1) as a short note. | Zero external risk. Nothing in this document exists to anyone else until it is pushed; the seam artefact touches every hemisphere-prior NPE in the literature, which is a citation-generating result on its own. |
+| A2 | **Finish the DIPY plug-in packaging**: MRtrix fixel output, a `dipy.workflows` command around `refine_peaks`, BIDS-derivative names. | Core is done (§9.4, §9.5: any peaks → 0.908 posterior connectome in < 1 min per brain). Packaging is a week of low-uncertainty work and is the adoption path — users keep their pipeline and gain calibrated fixels and f_i. |
+| A3 | **Upstream notes**: rewrite doc 005 around §8.1 / §7.3 and send it (page is published); the MCMRSimulator sphere-chain reproducers to Cottaar; the CATERPillar severed-axon confirmation; ask the SBI_dMRI group for their classifier variant. | Cheap, builds the relationships the plug-in needs, and two of the three may return fixes we would otherwise write ourselves. |
+| A4 | **Re-run the protocol design under clinical gradient limits** (80 mT/m, δ free) and for the Dogpatch / NIC scanners' actual constraints. | Cheap (minutes on CPU). The §9.3 optimum used 340 mT/m; the question a scanner physicist will ask first is what the design gives at 80. Prerequisite for A6/B2. |
+
+**Tier B — medium risk, high reward**
+
+| # | task | risk | reward |
+|---|---|---|---|
+| B1 | **In-vivo test–retest** (HCP-YA retest subjects): scan–rescan reproducibility of fixels, f_i and the CV-pruned connectome vs FORCE and MSMT-CSD; check that Laplace σ predicts rescan disagreement. | Data access (ConnectomeDB AWS keys not configured); the metric itself is straightforward. | The only in-vivo claim no competitor reports, and the natural validation of calibration. |
+| B2 | **Acquire a multi-Δ dataset with the designed protocol** on the local scanner (one volunteer, A4 protocol) and fit the exchange model. | Scanner access, IRB/consent, and the Kärger approximation near Δ ≈ τ (§9.3 addendum). | Turns the closed simulation loop into a real-data capability nobody else has. |
+| B3 | **A joint model that serves orientation and f_i at once**: dispersion prior tied to the extra-cellular D⊥ (§8.2's open question). | Modelling risk; may need the time-dependent term to be identifiable. | Removes the "two fits per voxel" recipe; single-model best-in-class on both rows. |
+| B4 | **CATERPillar CMake/JSON port and un-severed re-run** of the substrate rows. | Low external risk (upstream released 2026-09-10); half a day of plumbing plus a GPU hour. | Moderate — validates the substrate tables against the fixed generator; also unblocks OCTOPUS-style glia later. |
+| B5 | **Empirical-Bayes hyperparameters** by implicit differentiation through the Optimistix argmin (λ_spatial, λ_sparse, D prior width, tortuosity factor). | Technical: implicit-function gradients through Rprop; moderate effort. | Answers "how were the weights chosen" with a number; PRISM's are hand-set. |
+
+**Tier C — high risk, high reward: prepare, do not start**
+
+| # | task | blocker | when it pays |
+|---|---|---|---|
+| C1 | OCTOPUS integration (doc 006 Phases 3–4): OCTOPUSOracle, morphology-parameter SBI, grow→simulate→recover. | No code released; email CHUV (A3-cost action now). | Large, once code exists — it is the substrate-realism ceiling. |
+| C2 | Intra-axonal MC parity: MCMRSimulator `main` sphere+cylinder SWC (needs FillArrays ≥ 1.17) or Permeable_MCDS as the third engine. | Upstream registry / effort. | Moderate — the extra-cellular half is already at 0.01 RMS; this closes the intra half. |
+| C3 | Emulator-in-the-loop inversion: an Equinox emulator of MC signals so voxels can be fitted (or an NPE trained) against Monte Carlo rather than Gaussian compartments. | Emulator accuracy at b ≥ 3000, training data volume. | High — the OCTOPUS direction without waiting for OCTOPUS, and the only route to microstructure beyond stick+zeppelin. |
+
+**Tier D — low reward: strike or defer**
+
+- The [PLANNED] oracle plumbing in CLAUDE.md (`oracle.py` ABC, `oracles/`, `oracle_adapter.py`, `multi_fidelity.py`): write a minimal ABC only when a second oracle exists (MCMR wrapper); strike `multi_fidelity.py`.
+- SWC ingestion and sphere+cylinder SDF (006 Phase 2): only needed for C1/C2.
+- ReMiDi FEM benchmark (006 Phase 4), disimpy head-to-head, library-seed sweep, `n_legendre` halving, doc-drift residue: no competitive information in any of them now.
+
+**Recommended order:** A1 → A2 and A3 in parallel → A4 → B1 (as soon
+as keys exist) and B4 (GPU idle) → B3 → B5 → B2. Prepare C1 with the
+CHUV email; revisit C2/C3 when B3 shows where the compartment model runs
+out.
