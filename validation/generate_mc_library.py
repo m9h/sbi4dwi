@@ -58,7 +58,7 @@ def main():
         except Exception as e:
             print(f"  [{i}] skipped: {e}", flush=True); continue
         c2m = segment_c2(sub); c2m = c2m + [np.nan] * (2 - len(c2m))
-        P.append([icvf, ang, tort, bead, c2]); D.append([sub.f_intra, c2m[0], c2m[1], df["id"].nunique(), 1e6 * df["radius"].mean(), len(sub.radii_m)])
+        P.append([icvf, ang, tort, bead, c2]); D.append([sub.f_intra, c2m[0], c2m[1], df["id"].nunique(), float(df["radius"].mean()), len(sub.radii_m)])
         S.append(Sig); S_in.append(Si); S_ex.append(Se)
         if i % 20 == 0:
             print(f"  [{i}/{a.n}] icvf req {icvf:.2f} → {sub.f_intra:.2f}, angle {ang:.0f}, tort {tort}, S(b3000) {Sig[-64:].mean():.3f}  ({time.time()-t_start:.0f}s)", flush=True)
