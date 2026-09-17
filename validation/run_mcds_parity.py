@@ -15,11 +15,26 @@ BIN = "/home/mhough/dev/_external/Permeable_MCDS/MC-DC_Simulator_built"
 GAMMA = 2.6751525e8
 
 
-def write_geometry(df, path):
-    rows = ["id_ax id_sph id_branch Type X Y Z Rin Rout P"]
-    for i, (aid, g) in enumerate(df.groupby("axon", sort=True)):
+def write_geometry(df, path, box_um=None, images=True):
+    """SWC-like MCDS geometry. With `images`, spheres that cross a periodic face are replicated
+    at ±L so walkers near the faces see the same obstacles as in the JAX/MCMR periodic setups
+    (MCDS wraps walkers, not obstacles)."""
+    import itertools
+    rows = ["id_ax id_sph id_branch Type X Y Z Rin Rout P"]; next_id = int(df["axon"].max()) + 1
+    for aid, g in df.groupby("axon", sort=True):
         for j, r in enumerate(g.itertuples()):
             rows.append(f"{aid} {j} 0 axon {r.x:.6f} {r.y:.6f} {r.z:.6f} {r.r:.6f} {r.r:.6f} 0")
+    if images and box_um is not None:
+        L = box_um
+        for shift in itertools.product((-L, 0.0, L), repeat=3):
+            if shift == (0.0, 0.0, 0.0): continue
+            for aid, g in df.groupby("axon", sort=True):
+                x = g["x"].values + shift[0]; y = g["y"].values + shift[1]; z = g["z"].values + shift[2]; r = g["r"].values
+                keep = (x > -r) & (x < L + r) & (y > -r) & (y < L + r) & (z > -r) & (z < L + r)
+                if keep.sum() == 0: continue
+                for j, k in enumerate(np.where(keep)[0]):
+                    rows.append(f"{next_id} {j} 0 axon {x[k]:.6f} {y[k]:.6f} {z[k]:.6f} {r[k]:.6f} {r[k]:.6f} 0")
+                next_id += 1
     Path(path).write_text("\n".join(rows) + "\n")
 
 
@@ -44,9 +59,9 @@ exp_prefix {out_prefix}
 scale_from_stu 1
 write_txt 1
 write_bin 0
+write_traj_file 0
 num_process {threads}
 ini_walkers_pos {init}
-seed {seed}
 <obstacle>
 <axons_list>
 {geom}
@@ -62,7 +77,10 @@ permeability global 0.0
     cpath = f"{out_prefix}_{init}.conf"; Path(cpath).write_text(conf)
     t0 = time.time(); r = subprocess.run([BIN, cpath], capture_output=True, text=True)
     if r.returncode != 0: raise RuntimeError(r.stdout[-1500:] + r.stderr[-500:])
-    re_ = np.loadtxt(f"{out_prefix}_DWI.txt"); im = np.loadtxt(f"{out_prefix}_DWI_img.txt")
+    import glob
+    reals = sorted(glob.glob(f"{out_prefix}*_DWI.txt")); imags = sorted(glob.glob(f"{out_prefix}*_DWI_img.txt"))
+    if not reals: raise FileNotFoundError(f"no DWI output for {out_prefix}: {r.stdout[-800:]}")
+    re_ = sum(np.loadtxt(f) for f in reals); im = sum(np.loadtxt(f) for f in imags)     # per-process sums over walkers
     S = np.sqrt(re_ ** 2 + im ** 2); return S / S[0], time.time() - t0
 
 
@@ -71,12 +89,12 @@ def main():
     ap.add_argument("--tags", nargs="+", default=["straight_0", "straight_90"]); ap.add_argument("--walkers", type=int, default=8000)
     ap.add_argument("--threads", type=int, default=16); ap.add_argument("--out-dir", default="validation/mcmr/mcds")
     a = ap.parse_args()
-    out = Path(a.out_dir); out.mkdir(parents=True, exist_ok=True); meta = json.load(open("validation/mcmr/meta.json"))
+    out = Path(a.out_dir).resolve(); out.mkdir(parents=True, exist_ok=True); meta = json.load(open("validation/mcmr/meta.json"))
     summary = {}
     for tag in a.tags:
         df = pd.read_csv(f"validation/mcmr/{tag}_spheres.csv"); ref = pd.read_csv(f"validation/mcmr/{tag}_ref.csv")
-        geom = str(out / f"{tag}_geometry.txt"); scheme = str(out / f"{tag}_scheme.scheme")
-        write_geometry(df, geom); write_scheme(ref.b_s_mm2.values, ref[["gx", "gy", "gz"]].values, scheme)
+        geom = str(out / f"{tag}_geometry.swc"); scheme = str(out / f"{tag}_scheme.scheme")
+        write_geometry(df, geom, box_um=meta[tag]["box_um"]); write_scheme(ref.b_s_mm2.values, ref[["gx", "gy", "gz"]].values, scheme)
         res = {}
         for init in ("intra", "extra"):
             S, dt = run(geom, scheme, str(out / f"{tag}_{init}"), meta[tag]["box_um"], init, a.walkers, a.threads)

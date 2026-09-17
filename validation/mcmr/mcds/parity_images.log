@@ -1,0 +1,14 @@
+straight_0 intra: 16s
+straight_0 extra: 26s
+  b=1000: S_intra MCDS 0.470 / JAX 0.550 / MCMR 0.824  RMS 0.082 | S_extra MCDS 0.186 / JAX 0.238 / MCMR 0.232  RMS 0.070
+  b=2000: S_intra MCDS 0.288 / JAX 0.390 / MCMR 0.695  RMS 0.110 | S_extra MCDS 0.052 / JAX 0.070 / MCMR 0.074  RMS 0.040
+  b=3000: S_intra MCDS 0.204 / JAX 0.312 / MCMR 0.600  RMS 0.122 | S_extra MCDS 0.024 / JAX 0.032 / MCMR 0.036  RMS 0.026
+  along axon b=1000: MCDS 0.235  JAX 0.299  free 0.135
+  along axon b=3000: MCDS 0.032  JAX 0.095  free 0.002
+straight_90 intra: 16s
+straight_90 extra: 26s
+  b=1000: S_intra MCDS 0.558 / JAX 0.633 / MCMR 0.881  RMS 0.087 | S_extra MCDS 0.178 / JAX 0.271 / MCMR 0.266  RMS 0.096
+  b=2000: S_intra MCDS 0.388 / JAX 0.497 / MCMR 0.790  RMS 0.121 | S_extra MCDS 0.042 / JAX 0.093 / MCMR 0.090  RMS 0.059
+  b=3000: S_intra MCDS 0.302 / JAX 0.427 / MCMR 0.721  RMS 0.137 | S_extra MCDS 0.017 / JAX 0.046 / MCMR 0.048  RMS 0.038
+  along axon b=1000: MCDS 0.487  JAX 0.519  free 0.135
+  along axon b=3000: MCDS 0.295  JAX 0.375  free 0.002
