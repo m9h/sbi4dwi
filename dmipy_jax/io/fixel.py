@@ -19,7 +19,9 @@ def _write_mif(path: Path, arr: np.ndarray, vox=(1.0, 1.0, 1.0), transform=None,
     nd = arr.ndim
     # MRtrix default layout "+0,+1,+2,…" = axis 0 fastest; write the buffer in Fortran order to match.
     layout = ",".join(f"+{i}" for i in range(nd))
-    tf = np.eye(4) if transform is None else np.asarray(transform)
+    tf = np.eye(4) if transform is None else np.asarray(transform, float).copy()
+    # MRtrix's 'transform' is rigid: voxel size lives in 'vox', so strip the scaling from an affine
+    col = np.linalg.norm(tf[:3, :3], axis=0); col[col == 0] = 1.0; tf[:3, :3] = tf[:3, :3] / col
     hdr = ["mrtrix image", f"dim: {','.join(str(s) for s in arr.shape)}",
            f"vox: {','.join(str(v) for v in (list(vox) + [1.0] * (nd - 3))[:nd])}",
            f"layout: {layout}", f"datatype: {dtype}"]
