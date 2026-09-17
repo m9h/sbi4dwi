@@ -31,6 +31,7 @@ def main():
                     help="write every condition's clean MC signal, noisy volume, GT axes and "
                          "f_intra to this .npz (for external methods: FORCE, SBI_dMRI)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--backend", choices=["legacy", "cli"], default="legacy", help="CATERPillar build: legacy .conf (Jan 2026) or the 2026-09 CMake/JSON CLI")
     args = ap.parse_args()
 
     bvals, bvecs = prism_scheme()
@@ -39,7 +40,7 @@ def main():
     for geom in args.geoms:
         df = sb.caterpillar_bundle(icvf=args.icvf, box_um=args.box_um,
                                    tortuous=int(geom == "tortuous"),
-                                   beading=0.3 if geom == "tortuous" else 0.0)
+                                   beading=0.3 if geom == "tortuous" else 0.0, backend=args.backend)
         print(f"\n### {geom}: {len(df)} spheres, {df['id'].nunique()} axons, "
               f"axis {np.round(sb.bundle_axis(df), 3)}", flush=True)
         sf_data = None          # single-bundle voxels → MSMT response function

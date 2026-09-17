@@ -139,3 +139,59 @@ class CATERPillarOracle:
             "mean_glial_process_length": 15,
             "std_glial_process_length": 5
         }
+
+
+class CATERPillarCLI:
+    """CATERPillar ≥ 2026-09 (CMake build, `CATERPillar-cli --config x.json`, PascalCase JSON,
+    space-delimited CSV with `cell_type cell_id component component_id parent_component_id
+    X Y Z inner_radius outer_radius`). Returns the same DataFrame columns as `CATERPillarOracle`
+    (x, y, z, radius, type, id) so `substrate_benchmark` can use either. No seed key exists
+    upstream (std::random_device), so realisations are not reproducible from the config."""
+
+    def __init__(self, binary_path: str = "/home/mhough/dev/_external/CATERPillar/build/CATERPillar-cli"):
+        self.binary_path = binary_path
+        if not os.path.exists(self.binary_path):
+            raise FileNotFoundError(f"CATERPillar-cli not found at {self.binary_path}; build /home/mhough/dev/_external/CATERPillar with CMake.")
+
+    @staticmethod
+    def default_config(box_um=10.0, icvf=0.5, c2=0.98, tortuous=True, beading=0.0, beading_std=0.0, threads=8,
+                       n_populations=1, crossing_type=0, min_radius=0.2, alpha=4.0, beta=0.25, epsilon=0.1):
+        return {
+            "GeneralParameters": {"OutputDirectory": "", "Filename": "substrate", "VoxelEdgeLength": box_um, "Repetitions": 1,
+                                  "OverlappingFactor": 4, "NumberOfThreads": threads},
+            "AxonParameters": {"AxonsICVF": 100.0 * icvf, "AxonsWithMyelinICVF": 0.0, "ArterioleICVF": 0.0, "CapillariesICVF": 0.0,
+                               "CapillaryGamma": 3.0, "ArterioleRadiusMean": 6.0, "ArterioleRadiusStd": 1.0,
+                               "NumberOfPopulations": n_populations, "CrossingFibersType": crossing_type,
+                               "Alpha": alpha, "Beta": beta, "AlphaMyelin": 2.0, "BetaMyelin": 0.25, "MinRadius": min_radius,
+                               "Tortuosity_Epsilon": epsilon, "FODF_c2": c2, "BeadingAmplitude": beading, "BeadingStd": beading_std,
+                               "K1": 0.35, "K2": 0.006, "K3": 0.024, "Tortuous": bool(tortuous), "CanShrink": True,
+                               "RegrowThreshold": 20, "UndulationFactor": 5},
+            "GlialParameters": {**{f"Pop{i}SomaICVF": 0.0 for i in (1, 2, 3)}, **{f"Pop{i}ProcessesICVF": 0.0 for i in (1, 2, 3)},
+                                **{f"Pop{i}SomaRadiusMean": 3.0 for i in (1, 2, 3)}, **{f"Pop{i}SomaRadiusStd": 0.5 for i in (1, 2, 3)},
+                                **{f"Pop{i}MeanProcessLength": 30.0 for i in (1, 2, 3)}, **{f"Pop{i}StdProcessLength": 15.0 for i in (1, 2, 3)},
+                                **{f"Pop{i}NbrPrimaryProcesses": 4 for i in (1, 2, 3)}, **{f"Pop{i}Branching": False for i in (1, 2, 3)}},
+        }
+
+    def generate(self, config: Dict[str, Any], output_dir: Optional[str] = None) -> pd.DataFrame:
+        import json
+        temp = output_dir is None
+        output_dir = output_dir or tempfile.mkdtemp(prefix="caterpillar_cli_")
+        os.makedirs(output_dir, exist_ok=True)
+        config = json.loads(json.dumps(config)); config["GeneralParameters"]["OutputDirectory"] = output_dir
+        cfg_path = os.path.join(output_dir, "config.json"); json.dump(config, open(cfg_path, "w"), indent=1)
+        r = subprocess.run([self.binary_path, "--config", cfg_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"CATERPillar-cli failed ({r.returncode}):\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}")
+        csvs = [p for p in Path(output_dir).glob("*.csv")]
+        if not csvs:
+            raise FileNotFoundError(f"no CSV in {output_dir}")
+        raw = pd.read_csv(csvs[0], sep=r"\s+")
+        ax = raw[raw["cell_type"] == "axon"]
+        df = pd.DataFrame({"x": ax["X"].values, "y": ax["Y"].values, "z": ax["Z"].values,
+                           "radius": ax["inner_radius"].values, "type": 0, "id": ax["cell_id"].values.astype(int),
+                           "parent": ax["parent_component_id"].values.astype(int)})
+        info = Path(output_dir).glob("*_growth_info.txt")
+        df.attrs["growth_info"] = next((open(p).read() for p in info), "")
+        if temp:
+            shutil.rmtree(output_dir)
+        return df
