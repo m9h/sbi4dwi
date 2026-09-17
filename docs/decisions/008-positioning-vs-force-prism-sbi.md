@@ -1168,3 +1168,35 @@ the argmin remains the way to make this a gradient step instead of a
 grid, but it would inherit the same objective problem: the outer loss
 must be a parameter-recovery loss (SBC, synthetic truth), not the
 held-out signal likelihood.
+
+### 10.2 B4 result: the un-severed CATERPillar build (2026-09-17)
+
+CATERPillar `main` (0fd887e) builds with CMake, runs headless (`CATERPillar-cli --config x.json`,
+0.4 s per 10 µm voxel) and every axon spans the voxel. `dmipy_jax/validation/caterpillar.py::CATERPillarCLI`
++ `caterpillar_bundle(backend="cli")`. Two caveats found on the way: still no seed
+key (std::random_device), and the achieved ICVF undershoots the request and varies
+(0.45 / 0.34 / 0.47 / 0.17 for `AxonsICVF: 50` in four runs) — both in the
+CATERPillar note (`docs/outreach/`). Benchmark (Slurm 1785, measured
+intra fraction used as truth; err / recall / f_i):
+
+| substrate [geom f_i] | plus-x | plus-x no-iso | plus-x + dispersion, no-iso | MSMT-CSD |
+|---|---|---|---|---|
+| straight 0° [0.34] | 8.8° / 100 / 0.59 | 10.4° / 100 / **0.38** | **3.4°** / 100 / 0.42 | 4.6° |
+| straight 30° [0.34] | 11.4° / 79 / 0.55 | 13.6° / 70 / 0.39 | 13.9° / 59 / 0.49 | 15.5° / 51 |
+| straight 45° [0.34] | 10.9° / 87 / 0.57 | 15.3° / 62 / 0.40 | **9.6°** / 84 / 0.50 | 22.9° / 50 |
+| straight 60° [0.35] | 8.7° / 95 / 0.55 | 9.9° / 91 / 0.41 | **5.8° / 99** / 0.52 | 30.6° / 50 |
+| straight 90° [0.34] | 2.1° / 100 / 0.53 | 2.1° / 100 / **0.40** | 2.2° / 100 / 0.47 | 43.9° / 52 |
+| tortuous 0° [0.47] | 5.0° / 100 / 0.60 | 4.7° / 100 / **0.50** | **2.7°** / 100 / 0.57 | 1.5° |
+| tortuous 30° [0.47] | 14.0° / 72 / 0.60 | 14.9° / 60 / **0.43** | 13.2° / 71 / 0.76 | 15.0° / 50 |
+| tortuous 45° [0.45] | 9.3° / 95 / 0.61 | 11.9° / 84 / **0.40** | **8.2° / 99** / 0.79 | 22.5° / 50 |
+| tortuous 60° [0.46] | 6.5° / 100 / 0.61 | 9.7° / 98 / **0.43** | **5.6°** / 98 / 0.75 | 30.1° / 50 |
+| tortuous 90° [0.47] | 3.7° / 100 / 0.67 | 3.4° / 100 / **0.41** | 3.7° / 100 / 0.77 | 2.6° |
+
+Same structure as the January build (§6.4, §8.2): no-iso recovers f_i
+within 0.02–0.06 in 10/10, dispersion + no-iso is the orientation winner
+at crossings, MSMT-CSD collapses to 50 % recall beyond 30° on these
+sheet crossings. The un-severed axons change the numbers, not the
+ranking, so the earlier tables stand. The sparser substrates (0.34 vs
+0.50) make the shallow 30° crossing harder for everyone (59–79 % recall).
+Signals exported to `validation/external/substrate_signals_cli.npz` for
+the external runners.
