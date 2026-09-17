@@ -1237,3 +1237,45 @@ WM-only, free D⊥ (`tortuosity=False`) — with the caveat, now measured,
 that below ~0.3 intra fraction f_i should be read from the non-dispersed
 fit. Tier B is closed except for the two items that need external
 inputs (B1 HCP credentials, B2 scanner time).
+
+## 11. Tier C (2026-09-17)
+
+### 11.1 C2: three Monte Carlo engines on one CATERPillar substrate
+
+Permeable_MCDS (CHUV, `whitematter` branch) builds from its `compile.sh`
+recipe and reads CATERPillar spheres as SWC-like axons
+(`validation/run_mcds_parity.py`; geometry needs a `.swc` extension,
+per-process `_rep_NN_DWI.txt` outputs are summed, and spheres crossing a
+periodic face are replicated as images because MCDS wraps walkers but
+not obstacles). On the sphere-chain test it behaves as a tube (0.128
+along the chain vs 0.135 free, 1.00 across), which MCMRSimulator v1.1.0
+does not (0.62). On the exported straight bundle (559 spheres, 10 µm,
+δ 6 / Δ 12 ms, D 2, 8000 walkers), mean signal per shell:
+
+| b | S_intra: MCDS / **JAX** / MCMR | S_extra: MCDS / **JAX** / MCMR | JAX at dt 10 → 2 → 1 µs (intra / extra) |
+|---|---|---|---|
+| 1000 | 0.470 / 0.550 / 0.824 | 0.186 / 0.238 / 0.232 | 0.558 → 0.568 → 0.577 / 0.236 → 0.240 → 0.244 |
+| 2000 | 0.288 / 0.390 / 0.695 | 0.052 / 0.070 / 0.074 | |
+| 3000 | 0.204 / 0.312 / 0.600 | 0.024 / 0.032 / 0.036 | 0.320 → 0.334 → 0.341 / 0.043 → 0.033 → 0.037 |
+| along axon, b = 1000 / 3000 | 0.235 / 0.032 · 0.299 / 0.095 · 0.71 / 0.38 | | free: 0.135 / 0.002 |
+
+- **Extra-cellular**: JAX and MCMRSimulator agree (0.01 RMS, doc 007
+  §8.6) and the JAX walker is converged in time step; MCDS sits 0.05
+  lower even with periodic images — walkers in MCDS see a freer
+  extra-cellular space than the other two engines. Not yet explained
+  (candidates: its stuck-spin discard, or how it initialises "extra"
+  walkers relative to the image spheres).
+- **Intra-axonal**: the three engines bracket each other, MCDS < JAX <
+  MCMR, with MCMR's over-restriction already diagnosed. MCDS lets
+  walkers move more freely along the chain than our union-SDF walker
+  (0.235 vs 0.30–0.33 at b = 1000 along the axon); halving our step
+  twice moves us 0.02 the *other* way, so the difference is in the
+  collision model, not our discretisation. Two engines that both
+  claim to treat overlapping spheres as tubes differ by 0.08 in the
+  intra signal at b = 1000; the honest statement is that the
+  intra-axonal signal of sphere-chain substrates is uncertain to that
+  level across today's simulators, which is exactly the question the
+  OCTOPUS and CATERPillar notes ask (tube vs sphere+cylinder reading).
+- Consequence for the substrate rows: orientation results are robust to
+  this (all engines agree the signal is a dispersed stick), f_i
+  comparisons inherit a ±0.05 engine uncertainty on the intra signal.

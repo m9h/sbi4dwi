@@ -20,7 +20,7 @@ import numpy as np, jax, jax.numpy as jnp, equinox as eqx, optax, h5py
 from dmipy_jax.validation import prism_jax as pj
 
 THETA_NAMES = ["f_intra", "angle_deg", "c2_1", "c2_2", "tortuous"]
-LO = np.array([0.05, 0.0, 0.5, 0.5, 0.0]); HI = np.array([0.85, 90.0, 1.0, 1.0, 1.0])
+LO = np.array([0.05, 0.0, 0.2, 0.2, 0.0]); HI = np.array([0.85, 90.0, 1.0, 1.0, 1.0])
 
 
 def load_library(path):
@@ -55,7 +55,7 @@ def train_ensemble(theta, S, bvals, bvecs, n_models=5, steps=6000, key=0):
     models = []
     for m in range(n_models):
         k = jax.random.key(key + m); em = Emulator(k)
-        opt = optax.adam(optax.warmup_cosine_decay_schedule(0, 2e-3, 300, steps, 1e-5)); st = opt.init(eqx.filter(em, eqx.is_inexact_array))
+        opt = optax.adam(optax.warmup_cosine_decay_schedule(0, 2e-3, min(300, steps // 4), steps, 1e-5)); st = opt.init(eqx.filter(em, eqx.is_inexact_array))
 
         @eqx.filter_jit
         def step(em, st, k):

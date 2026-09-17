@@ -1,0 +1,7 @@
+dt=1e-05 b=1000: S_intra 0.558 (along axon 0.312)  S_extra 0.236   (53s)
+dt=1e-05 b=3000: S_intra 0.320 (along axon 0.103)  S_extra 0.043   (53s)
+dt=2e-06 b=1000: S_intra 0.568 (along axon 0.327)  S_extra 0.240   (196s)
+dt=2e-06 b=3000: S_intra 0.334 (along axon 0.117)  S_extra 0.033   (196s)
+dt=1e-06 b=1000: S_intra 0.577 (along axon 0.335)  S_extra 0.244   (400s)
+dt=1e-06 b=3000: S_intra 0.341 (along axon 0.127)  S_extra 0.037   (400s)
+exit 0
