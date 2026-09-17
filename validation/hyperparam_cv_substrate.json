@@ -1,0 +1,670 @@
+{
+ "rows": [
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.44355010986328,
+   "cv_sd": 2.048363246213803,
+   "angular err": 8.01645083608682
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.44355010986328,
+   "cv_sd": 2.048363246213803,
+   "angular err": 8.01645083608682
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.44355010986328,
+   "cv_sd": 2.048363246213803,
+   "angular err": 8.01645083608682
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43534851074219,
+   "cv_sd": 2.0330817075720877,
+   "angular err": 7.973514381031324
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43443298339844,
+   "cv_sd": 2.0341543875412196,
+   "angular err": 7.9706652567071306
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43443298339844,
+   "cv_sd": 2.0341543875412196,
+   "angular err": 7.9706652567071306
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43443298339844,
+   "cv_sd": 2.0341543875412196,
+   "angular err": 7.9706652567071306
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43341573079427,
+   "cv_sd": 2.0351803339601733,
+   "angular err": 7.973514381031324
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43341573079427,
+   "cv_sd": 2.0351803339601733,
+   "angular err": 7.973514381031324
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43121083577473,
+   "cv_sd": 2.0462834127297898,
+   "angular err": 7.963928327093955
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43121083577473,
+   "cv_sd": 2.0462834127297898,
+   "angular err": 7.963928327093955
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.43121083577473,
+   "cv_sd": 2.0462834127297898,
+   "angular err": 7.963928327093955
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4311752319336,
+   "cv_sd": 2.0304209159098874,
+   "angular err": 8.150371361733106
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4311752319336,
+   "cv_sd": 2.0304209159098874,
+   "angular err": 8.150371361733106
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4311752319336,
+   "cv_sd": 2.0304209159098874,
+   "angular err": 8.150371361733106
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.42974853515625,
+   "cv_sd": 2.0360605177101108,
+   "angular err": 7.901737850377714
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.42974853515625,
+   "cv_sd": 2.0360605177101108,
+   "angular err": 7.901737850377714
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4264424641927,
+   "cv_sd": 2.039632588607073,
+   "angular err": 7.901737850377714
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.41458892822266,
+   "cv_sd": 2.0174654273852193,
+   "angular err": 8.236038777281582
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.41458892822266,
+   "cv_sd": 2.0174654273852193,
+   "angular err": 8.236038777281582
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4128189086914,
+   "cv_sd": 2.018678677280348,
+   "angular err": 8.264706061544238
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.40924072265625,
+   "cv_sd": 2.020895202557998,
+   "angular err": 8.236038777281582
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4046859741211,
+   "cv_sd": 2.0104570225469693,
+   "angular err": 8.264706061544238
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.4046859741211,
+   "cv_sd": 2.0104570225469693,
+   "angular err": 8.264706061544238
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.40428924560547,
+   "cv_sd": 2.0105814221933835,
+   "angular err": 8.226654248514148
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.39958190917969,
+   "cv_sd": 2.0031526105703565,
+   "angular err": 8.226654248514148
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.39958190917969,
+   "cv_sd": 2.0031526105703565,
+   "angular err": 8.226654248514148
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.36322530110677,
+   "cv_sd": 2.2144596035791904,
+   "angular err": 7.390998242967196
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.36322530110677,
+   "cv_sd": 2.2144596035791904,
+   "angular err": 7.390998242967196
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.36322530110677,
+   "cv_sd": 2.2144596035791904,
+   "angular err": 7.390998242967196
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.35594177246094,
+   "cv_sd": 2.1991773194410444,
+   "angular err": 7.457645642783201
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.35594177246094,
+   "cv_sd": 2.1991773194410444,
+   "angular err": 7.457645642783201
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.35594177246094,
+   "cv_sd": 2.1991773194410444,
+   "angular err": 7.457645642783201
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.32597096761067,
+   "cv_sd": 2.161613925027063,
+   "angular err": 7.748367778754366
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.32597096761067,
+   "cv_sd": 2.161613925027063,
+   "angular err": 7.748367778754366
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": -121.32597096761067,
+   "cv_sd": 2.161613925027063,
+   "angular err": 7.748367778754366
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.1112543741862,
+   "cv_sd": 2.2026184974235865,
+   "angular err": 7.255347897592583
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.1112543741862,
+   "cv_sd": 2.2026184974235865,
+   "angular err": 7.255347897592583
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.1112543741862,
+   "cv_sd": 2.2026184974235865,
+   "angular err": 7.255347897592583
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.10755920410156,
+   "cv_sd": 2.0432106199163407,
+   "angular err": 8.181475149556558
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.10755920410156,
+   "cv_sd": 2.0432106199163407,
+   "angular err": 8.181475149556558
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09617106119792,
+   "cv_sd": 2.1275010393650393,
+   "angular err": 8.023646219912285
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09617106119792,
+   "cv_sd": 2.1275010393650393,
+   "angular err": 8.023646219912285
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09617106119792,
+   "cv_sd": 2.1275010393650393,
+   "angular err": 8.023646219912285
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09224192301433,
+   "cv_sd": 2.0482156772771924,
+   "angular err": 8.181475149556558
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09112548828125,
+   "cv_sd": 2.0521635139823777,
+   "angular err": 8.046877168068898
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.09112548828125,
+   "cv_sd": 2.0521635139823777,
+   "angular err": 8.046877168068898
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.08631134033203,
+   "cv_sd": 2.0668441319537205,
+   "angular err": 8.046877168068898
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07862091064453,
+   "cv_sd": 2.076447899844793,
+   "angular err": 7.99335911660512
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07862091064453,
+   "cv_sd": 2.076447899844793,
+   "angular err": 7.99335911660512
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07862091064453,
+   "cv_sd": 2.076447899844793,
+   "angular err": 7.99335911660512
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07530212402344,
+   "cv_sd": 2.0849242849649685,
+   "angular err": 7.974308479516866
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07530212402344,
+   "cv_sd": 2.0849242849649685,
+   "angular err": 7.974308479516866
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.07530212402344,
+   "cv_sd": 2.0849242849649685,
+   "angular err": 7.974308479516866
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.06993357340495,
+   "cv_sd": 2.087061508233411,
+   "angular err": 8.18270095539767
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.06774648030598,
+   "cv_sd": 2.0661393133786263,
+   "angular err": 7.911569769974721
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.06774648030598,
+   "cv_sd": 2.0661393133786263,
+   "angular err": 7.911569769974721
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.06774648030598,
+   "cv_sd": 2.0661393133786263,
+   "angular err": 7.911569769974721
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05750020345052,
+   "cv_sd": 2.0856410802050385,
+   "angular err": 7.9843773041763555
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05750020345052,
+   "cv_sd": 2.0856410802050385,
+   "angular err": 7.9843773041763555
+  },
+  {
+   "lam_spatial": 0.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 0.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05750020345052,
+   "cv_sd": 2.0856410802050385,
+   "angular err": 7.9843773041763555
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05050913492839,
+   "cv_sd": 2.1659795587508985,
+   "angular err": 7.67705005339371
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05050913492839,
+   "cv_sd": 2.1659795587508985,
+   "angular err": 7.67705005339371
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.05050913492839,
+   "cv_sd": 2.1659795587508985,
+   "angular err": 7.67705005339371
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04687245686848,
+   "cv_sd": 2.1827841060748296,
+   "angular err": 7.2858586139884665
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04687245686848,
+   "cv_sd": 2.1827841060748296,
+   "angular err": 7.2858586139884665
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04687245686848,
+   "cv_sd": 2.1827841060748296,
+   "angular err": 7.2858586139884665
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04400889078777,
+   "cv_sd": 2.095993582713584,
+   "angular err": 7.962653238637037
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04400889078777,
+   "cv_sd": 2.095993582713584,
+   "angular err": 7.962653238637037
+  },
+  {
+   "lam_spatial": 10.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 1.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.04400889078777,
+   "cv_sd": 2.095993582713584,
+   "angular err": 7.962653238637037
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 0.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.03690846761067,
+   "cv_sd": 2.063385005951034,
+   "angular err": 8.18270095539767
+  },
+  {
+   "lam_spatial": 1.0,
+   "lam_sparse": 1.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 1.0,
+   "cv_nll": -121.03690846761067,
+   "cv_sd": 2.063385005951034,
+   "angular err": 8.18270095539767
+  }
+ ],
+ "best": {
+  "lam_spatial": 10.0,
+  "lam_sparse": 0.0,
+  "lam_repulsion": 0.0,
+  "lam_diffusivity_prior": 0.0,
+  "cv_nll": -121.44355010986328,
+  "cv_sd": 2.048363246213803,
+  "angular err": 8.01645083608682
+ },
+ "default": {
+  "lam_spatial": 0.0,
+  "lam_sparse": 0.0,
+  "lam_repulsion": 0.0,
+  "lam_diffusivity_prior": 1.0,
+  "cv_nll": -121.05750020345052,
+  "cv_sd": 2.0856410802050385,
+  "angular err": 7.9843773041763555
+ }
+}
