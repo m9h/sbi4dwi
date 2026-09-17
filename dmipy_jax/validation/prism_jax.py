@@ -95,7 +95,7 @@ class PrismConfig:
     d_perp_range: tuple[float, float] = (0.02e-9, 1.5e-9)
     loss: str = "mse"                # "mse" | "nll"
     sigma_init: float = 0.05
-    lam_spatial: float = 0.01
+    lam_spatial: float = 0.01        # PRISM's MSE-scale value; inert under loss='nll' (doc 008 §10.1) — see nll_default_priors()
     huber_delta: float = 0.05
     lam_repulsion: float = 0.01
     lam_sparse: float = 0.02
@@ -117,6 +117,12 @@ class PrismConfig:
 # --------------------------------------------------------------------------- #
 # Neighbour table
 # --------------------------------------------------------------------------- #
+
+def nll_default_priors(cfg: "PrismConfig") -> "PrismConfig":
+    """Prior weights on the Rician-NLL scale (doc 008 §10.1): λ_spatial 300, λ_sparse 10, λ_repulsion 10."""
+    from dataclasses import replace
+    return replace(cfg, lam_spatial=300.0, lam_continuity=150.0, lam_sparse=10.0, lam_repulsion=10.0)
+
 
 def build_neighbour_table(mask: np.ndarray, connectivity: int = 6) -> np.ndarray:
     """(N, n_nb) int32 table of masked-voxel indices; -1 where the

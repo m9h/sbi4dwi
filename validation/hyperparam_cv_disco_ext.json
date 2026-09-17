@@ -1,0 +1,230 @@
+{
+ "rows": [
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.1165974934896,
+   "cv_sd": 1.4725783766245977,
+   "intra-VF r": 0.8971675707119111
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.132568359375,
+   "cv_sd": 1.5068409619481427,
+   "intra-VF r": 0.8461081825051749
+  },
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.1425374348959,
+   "cv_sd": 1.4651877786229761,
+   "intra-VF r": 0.8967458650949214
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.1739095052084,
+   "cv_sd": 1.4645718685314584,
+   "intra-VF r": 0.8441213711750346
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.6045939127604,
+   "cv_sd": 1.3972303459575104,
+   "intra-VF r": 0.9310478036277252
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 888.6498209635416,
+   "cv_sd": 1.52198901504386,
+   "intra-VF r": 0.9329759625466141
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 889.7307535807291,
+   "cv_sd": 1.3765675262598038,
+   "intra-VF r": 0.9213793790503331
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 100.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 889.7461751302084,
+   "cv_sd": 1.3775095519546041,
+   "intra-VF r": 0.9242039635173596
+  },
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 891.5906372070312,
+   "cv_sd": 1.443705936581038,
+   "intra-VF r": 0.9692498228110887
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 891.6859334309896,
+   "cv_sd": 1.43071818880439,
+   "intra-VF r": 0.9554947165668176
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 891.6886800130209,
+   "cv_sd": 1.4453426403763454,
+   "intra-VF r": 0.9584084757362182
+  },
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 891.7104288736979,
+   "cv_sd": 1.5076235728035217,
+   "intra-VF r": 0.9681024487940819
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.0189615885416,
+   "cv_sd": 1.49854561407189,
+   "intra-VF r": 0.9730565126954092
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.0423787434896,
+   "cv_sd": 1.4238954364486887,
+   "intra-VF r": 0.9697784406964097
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.2928466796875,
+   "cv_sd": 1.4116268388755953,
+   "intra-VF r": 0.9658357458908751
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.4154866536459,
+   "cv_sd": 1.4398544200162182,
+   "intra-VF r": 0.9587287710249358
+  },
+  {
+   "lam_spatial": 3000.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.4619547526041,
+   "cv_sd": 1.4615211734666114,
+   "intra-VF r": 0.9631230368932536
+  },
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.4849243164062,
+   "cv_sd": 1.520076370361108,
+   "intra-VF r": 0.9758438187171494
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.5408528645834,
+   "cv_sd": 1.457493096358084,
+   "intra-VF r": 0.9714489824408483
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 30.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.5832926432291,
+   "cv_sd": 1.4749988187611873,
+   "intra-VF r": 0.9631941809979452
+  },
+  {
+   "lam_spatial": 300.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.6724853515625,
+   "cv_sd": 1.515899977368067,
+   "intra-VF r": 0.9737708745550895
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 10.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.8583374023438,
+   "cv_sd": 1.565104103458634,
+   "intra-VF r": 0.9765201901457344
+  },
+  {
+   "lam_spatial": 1000.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.8686319986979,
+   "cv_sd": 1.5279095133847267,
+   "intra-VF r": 0.9739234759237929
+  },
+  {
+   "lam_spatial": 100.0,
+   "lam_sparse": 10.0,
+   "lam_repulsion": 30.0,
+   "lam_diffusivity_prior": 0.0,
+   "cv_nll": 892.9058430989584,
+   "cv_sd": 1.4590621183087185,
+   "intra-VF r": 0.9688407222484618
+  }
+ ],
+ "best": {
+  "lam_spatial": 300.0,
+  "lam_sparse": 100.0,
+  "lam_repulsion": 10.0,
+  "lam_diffusivity_prior": 0.0,
+  "cv_nll": 888.1165974934896,
+  "cv_sd": 1.4725783766245977,
+  "intra-VF r": 0.8971675707119111
+ },
+ "default": null
+}

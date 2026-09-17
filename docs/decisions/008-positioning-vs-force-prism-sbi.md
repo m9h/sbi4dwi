@@ -1122,3 +1122,49 @@ external dependency × technical uncertainty × effort.
 as keys exist) and B4 (GPU idle) → B3 → B5 → B2. Prepare C1 with the
 CHUV email; revisit C2/C3 when B3 shows where the compartment model runs
 out.
+
+### 10.1 B5 result: prior weights under the Rician NLL (2026-09-17)
+
+`validation/tune_hyperparams_cv.py` (Slurm 1784, 1787): measurement-split
+cross-validation (fit on 80 % of directions, Rician NLL on the held-out
+20 %, three splits), grid over (λ_spatial, λ_sparse, λ_repulsion, λ_D),
+with the downstream metric (DiSCo intra-VF r; substrate angular error)
+recorded for every setting. Two findings, one of them a correction.
+
+1. **PRISM's published weights are inert under the NLL loss.** The data
+   term is ≈ 10² per voxel while the prior terms are O(0.1); at
+   λ = 0.01–0.02 (PRISM's MSE-scale values) the priors change nothing to
+   four decimals. Every "no-spatial = plus-x" ablation row in §7.2 was
+   showing this, and the initialisation-insensitivity of §9.1–§9.2 is a
+   property of the likelihood, not of the regularisation. The weights
+   only bite from λ ≈ 1 upward under NLL.
+2. **Held-out likelihood and parameter accuracy disagree once the
+   priors are strong.** DiSCo, 15,267 voxels:
+
+   | λ_spatial / λ_sparse / λ_repulsion | held-out NLL | intra-VF r |
+   |---|---|---|
+   | 0 / 0 / 0 (≈ PRISM defaults under NLL) | 893.6 ± 1.5 | 0.968 |
+   | 100 / 10 / 10 | 892.5 | 0.971 |
+   | **1000 / 10 / 10** | 892.9 | **0.977** |
+   | 300 / 100 / 10 (CV optimum) | **888.1** | 0.897 |
+   | 100 / 100 / 10 | 888.1 | 0.846 |
+
+   Strong sparsity buys 4–5 NLL units on the held-out directions
+   (fewer live fibres predict the signal of the same voxel better) and
+   costs 0.07–0.13 in intra-VF correlation. Measurement-split CV rewards
+   signal compression, not parameter identifiability, so it is the wrong
+   selector for sparsity and repulsion. It is a reasonable selector for
+   the spatial weight, where NLL and accuracy move together (λ_spatial
+   100–1000 improves both).
+3. On the 64-voxel replicated substrate volume the priors are within
+   the split noise either way (ΔNLL 0.4 vs SD 2.0; angular error 8.0°
+   unchanged).
+
+**Decision:** PRISM-JAX NLL defaults become λ_spatial = 300, λ_sparse = 10,
+λ_repulsion = 10, λ_D = 0 (DiSCo intra-VF r 0.977 vs 0.968; held-out NLL
+better than inert priors) — chosen by the downstream metric within the
+CV-improving set, and stated as such. Implicit differentiation through
+the argmin remains the way to make this a gradient step instead of a
+grid, but it would inherit the same objective problem: the outer loss
+must be a parameter-recovery loss (SBC, synthetic truth), not the
+held-out signal likelihood.
