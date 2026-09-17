@@ -1200,3 +1200,40 @@ ranking, so the earlier tables stand. The sparser substrates (0.34 vs
 0.50) make the shallow 30° crossing harder for everyone (59–79 % recall).
 Signals exported to `validation/external/substrate_signals_cli.npz` for
 the external runners.
+
+### 10.3 B3 result: one model for orientation and f_i (2026-09-17)
+
+Ablation of the dispersed, isotropic-free fit on CLI substrates (Slurm 1786,
+1788): tortuosity vs free D⊥ (`-freeperp`), ODI capped at 0.15 (`-odicap`).
+The build's density is erratic, which turned out to be useful: one
+realisation is dense (tortuous, intra fraction 0.70–0.73), the others
+sparse (0.17–0.20). err / recall / f_i, geometry in brackets.
+
+| substrate | no-iso (no dispersion) | disp, no-iso, tortuosity | **disp, no-iso, free D⊥** | disp, no-iso, ODI ≤ 0.15 |
+|---|---|---|---|---|
+| dense tortuous 0° [0.70] | 4.3° / 100 / **0.70** | 4.1° / 0.74 | 3.8° / 0.78 | 4.0° / 0.73 |
+| dense tortuous 45° [0.73] | 7.2° / 100 / 0.60 | 5.7° / 0.78 | **5.8° / 100 / 0.72** | 6.2° / 97 / 0.77 |
+| dense tortuous 90° [0.70] | 4.1° / 0.64 | 4.1° / 0.67 | 3.9° / 0.76 | 4.1° / 0.67 |
+| sparse straight 0° [0.20] | 8.7° / 98 / **0.22** | **4.2°** / 0.24 | 4.9° / 0.24 | 5.3° / 0.24 |
+| sparse straight 45° [0.19] | 16.1° / 57 / 0.24 | 12.4° / 81 / 0.34 | **11.2° / 84** / 0.33 | 16.0° / 68 / 0.32 |
+| sparse straight 90° [0.19] | 4.0° / **0.24** | 4.1° / 0.28 | 4.0° / 0.27 | 4.1° / 0.28 |
+| sparse (0.17) straight / tortuous (0.38), all angles | f_i within +0.05 | +0.07 to +0.19 | same | same |
+
+1. **Dense tissue: dispersed + no-iso + free D⊥ is the joint model.** At
+   the 45° crossing it gives 5.8° / 100 % and f_i 0.72 vs 0.73, where
+   tortuosity coupling inflates f_i (0.78) and the non-dispersed fit
+   deflates it (0.60). At 0° and 90° it over-shoots by 0.06–0.08 — the
+   free D⊥ absorbs some dispersion — so the two are not fully separable
+   at single-Δ; that is the multi-Δ / time-dependence argument again.
+2. **Sparse tissue (f_i ≤ 0.2): dispersion inflates f_i in every
+   variant** (+0.04 to +0.15) while the non-dispersed no-iso fit stays
+   within +0.05; orientation still favours the dispersed fits at
+   crossings. The Watson kernel has nothing to describe at 20 % axon
+   density except the extra-cellular anisotropy, and it takes it.
+3. Capping ODI does not help and costs recall at crossings.
+
+**Decision:** default WM model = dispersed, isotropic-free where tissue is
+WM-only, free D⊥ (`tortuosity=False`) — with the caveat, now measured,
+that below ~0.3 intra fraction f_i should be read from the non-dispersed
+fit. Tier B is closed except for the two items that need external
+inputs (B1 HCP credentials, B2 scanner time).
