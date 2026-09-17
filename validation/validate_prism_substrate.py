@@ -99,10 +99,14 @@ def main():
                     if meth.startswith("plus"):
                         cfg = replace(cfg, learn_diffusivities=True, tortuosity=True,
                                       use_restricted=False, d_par=1.7e-9,
-                                      disperse=meth.endswith("disp") or meth.endswith("disp-noiso"),
+                                      disperse="-disp" in meth,
                                       lam_diffusivity_prior=1.0 if meth == "plus-dprior" else 0.0)
-                    if meth.endswith("-noiso"):
+                    if "-noiso" in meth:
                         cfg = replace(cfg, use_isotropic=False)
+                    if "-freeperp" in meth:          # B3 ablation: dispersion with a free D⊥ instead of tortuosity
+                        cfg = replace(cfg, tortuosity=False)
+                    if "-odicap" in meth:            # B3 ablation: cap ODI at 0.15 (CATERPillar c2 0.98 ≈ ODI 0.05–0.1)
+                        cfg = replace(cfg, odi_range=(0.01, 0.15))
                     if meth.startswith("plus-x"):
                         # decoupled extra-cellular D∥ + intra D∥ anchored at the
                         # intrinsic 2.0 µm²/ms (a physical bound, not a data-set fact)
