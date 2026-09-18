@@ -1279,3 +1279,72 @@ does not (0.62). On the exported straight bundle (559 spheres, 10 µm,
 - Consequence for the substrate rows: orientation results are robust to
   this (all engines agree the signal is a dispersed stick), f_i
   comparisons inherit a ±0.05 engine uncertainty on the intra signal.
+
+### 11.2 C3: emulator-in-the-loop inversion against Monte Carlo (2026-09-17)
+
+The question for C3 was whether a voxel can be fitted against the
+*physics* instead of against Gaussian compartments: train an emulator of
+Monte Carlo signals over a substrate-parameter family, then invert
+held-out MC signals through it with no compartment model at all.
+
+**Library** (`validation/generate_mc_library.py`, log
+`validation/mc_library_generation.log`): 600 CATERPillar CLI substrates
+(10 µm box; requested ICVF 0.3–0.8, crossing angle 0 or 10–90°,
+tortuous/beaded half the time, c2 0.90–0.995), JAX walker on the PRISM
+scheme (δ/Δ 6/12 ms, D 2.0), 4000 particles each; 582 usable (18 too
+few axons), 83 min on the CPU partition. Labels are the *measured*
+descriptors (intra fraction, per-bundle ⟨cos²⟩), since the CLI's
+achieved ICVF undershoots and varies (§10.2): f_intra in the library
+spans 0.04–0.95 rather than the requested 0.3–0.8.
+
+**Emulator** (`validation/emulator_inversion.py`): per-measurement
+Equinox MLP f(θ, b, ĝ) → log S with antipodal-symmetric ĝ features, 5
+seeds, 6000 Adam steps each (107 s on the GB10). Held-out RMSE of S on
+40 substrates: 0.027 (b0), 0.041 (b1000), 0.044 (b2000), 0.044 (b3000)
+— comparable to the Rician noise floor at SNR 30 (0.033), so the
+emulator is not the limiting factor at that SNR.
+
+**Inversion**: Levenberg–Marquardt (Optimistix) over θ + a rotation
+(bundle-1 direction and roll), 8 restarts, on the 40 held-out signals at
+Rician SNR 30 observed in a random lab orientation.
+
+| parameter | r | bias | sd |
+|---|---|---|---|
+| f_intra | 0.98 | +0.009 | 0.042 |
+| crossing angle (°) | 0.63 | +5.1 | 23.1 |
+| c2 bundle 1 | 0.63 | −0.03 | 0.16 |
+| c2 bundle 2 | 0.40 | −0.08 | 0.23 |
+| tortuous (0/1) | 0.53 | +0.04 | 0.44 |
+| bundle-1 axis | median error 6.8° | | |
+
+- **f_intra from MC signals is essentially solved by the emulator**:
+  r = 0.98 with no compartment model, across a density range (0.04–0.95)
+  far wider than any of the Gaussian fits in §8.2/§10.3 were tested on,
+  and without the ±0.05 attribution bias those fits show at low density.
+  This is the strongest f_i result in the document and does not depend
+  on any choice of D∥, D⊥ or tortuosity.
+- **Orientation is fair, geometry is weak.** The bundle axis is
+  recovered to ~7°, i.e. worse than the stick+zeppelin plus-x (4–6°) on
+  the same kind of substrate — the emulator is trained on 582 points in
+  a 5-D θ space, so its angular derivatives are noisier than an
+  analytical model's. Crossing angle, per-bundle dispersion and the
+  tortuous flag are only weakly identified (r 0.4–0.6): at one diffusion
+  time and b ≤ 3000, dispersion and a second bundle at a small angle
+  produce near-identical signals, which is the same degeneracy the
+  compartment fits have, now measured against physics rather than
+  against an assumed model.
+- **Consequence for the roadmap.** The emulator is the right *f_i*
+  estimator and the plus-x remains the right *orientation* estimator;
+  the natural combination is plus-x for the peaks and the emulator for
+  the density given those peaks. Resolving the geometric descriptors
+  needs either the multi-Δ protocol from §9.3 (adds diffusion-time
+  contrast) or a denser library (the 582 points are the bottleneck for
+  the angular derivatives — 5k substrates is a 12 h CPU job).
+- The stick+zeppelin comparison on the same held-out MC signals named in
+  the script docstring was not run; §10.3 already gives that number on
+  the same substrate family.
+
+Artefacts: `validation/emulator_inversion_results.json`,
+`validation/emulator_inversion.log`,
+`/data/datasets/sbi4dwi_mc_library/mc_library.h5` (582 × 160, with
+intra/extra signals stored separately).
