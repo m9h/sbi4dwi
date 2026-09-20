@@ -94,6 +94,7 @@ def build_pam(dirs, vals, mask, affine, sphere, chunk=200_000):
     idx = np.where(mask)
     order = np.argsort(-vals, axis=1); d = np.take_along_axis(dirs, order[:, :, None], 1); v = np.take_along_axis(vals, order, 1)
     d = np.where(v[..., None] > 0, d, 0.0); v = np.where(v > 0, v, 0.0)
+    v = v / np.maximum(v.max(1, keepdims=True), 1e-12)               # per-voxel relative peak values: pmf_threshold is relative for every method
     pind = -np.ones((N, K), np.int32); V = sphere.vertices.astype(np.float32)
     for s in range(0, N, chunk):
         dd = d[s:s + chunk].reshape(-1, 3); pi = np.argmax(np.abs(dd @ V.T), axis=1).reshape(-1, K)
@@ -140,7 +141,7 @@ def track_connectome(pam, track_mask, seed_mask, rois, affine, n_rois, step=0.62
     sc = BinaryStoppingCriterion(track_mask.astype(np.uint8))
     seeds = seeds_from_mask(seed_mask, affine, density=seed_density)
     gen = eudx_tracking(seeds, sc, affine, pam=pam, max_cross=None, max_angle=max_angle, pmf_threshold=0.1, step_size=step,
-                        min_len=10, max_len=400, return_all=False, random_seed=random_seed, nbr_threads=0)
+                        min_len=10, max_len=400, return_all=True, random_seed=random_seed, nbr_threads=0)
     sl = Streamlines(gen)
     if len(sl) == 0:
         return np.zeros((n_rois, n_rois)), 0
@@ -194,7 +195,7 @@ def run_session(session, a):
         log(f"FORCE library {res['t_force_lib']:.0f}s, fit+peaks {res['t_force']:.0f}s")
     del data
     # 5. connectomes
-    if not (out / "connectomes.npz").exists() or a.redo:
+    if not (out / "connectomes.npz").exists() or a.redo or a.redo_connectomes:
         from dmipy_jax.validation import prism_uncertainty as pu
         import jax
         R = np.load(out / "refine.npz"); F = np.load(out / "force.npz"); cms = {}; counts = {}
@@ -342,7 +343,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", choices=["session", "compare", "all"], default="all"); ap.add_argument("--session", choices=["test", "retest"])
     ap.add_argument("--slices", type=int, default=0); ap.add_argument("--n-iter", type=int, default=300); ap.add_argument("--n-post", type=int, default=10)
-    ap.add_argument("--force-sims", type=int, default=1_000_000); ap.add_argument("--num-cpus", type=int, default=16); ap.add_argument("--redo", action="store_true")
+    ap.add_argument("--force-sims", type=int, default=1_000_000); ap.add_argument("--num-cpus", type=int, default=16); ap.add_argument("--redo", action="store_true"); ap.add_argument("--redo-connectomes", action="store_true")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     global OUT

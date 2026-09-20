@@ -1238,6 +1238,93 @@ that below ~0.3 intra fraction f_i should be read from the non-dispersed
 fit. Tier B is closed except for the two items that need external
 inputs (B1 HCP credentials, B2 scanner time).
 
+### 10.4 B1 result: in-vivo scan–rescan on HCP-YA 105923 (2026-09-20)
+
+Unblocked when ConnectomeDB turned out to redirect to BALSA, which now
+issues per-project S3 keys for `hcp-openaccess` (HCP_1200 first visit,
+HCP_Retest second visit). `validation/validate_hcp_retest.py`; both
+visits are the HCP preprocessed 3-shell data (18 b0 + 3 × 90, b = 1000/
+2000/3000, 1.25 mm, 791k brain voxels, 235k WM voxels), each in its own
+ACPC space. Per visit: dipy MSMT-CSD peaks → plus-x refinement (K = 3,
+NLL, learned D∥, tortuosity, CSF/GM on) + Laplace fixel posterior → FORCE
+(dipy 1.12.1, 1M library, default in-vivo prior) → deterministic EuDX
+tracking from every WM voxel (relative peak threshold 0.1, 45°, all
+streamlines ≥ 10 mm) → Desikan 68-ROI connectomes; refine additionally
+tracks 10 posterior direction samples. Visits are aligned by rigid T1w
+registration (0.30°, 0.09 mm — HCP's ACPC alignment already does the
+work; WM Dice 0.954), retest maps resampled nearest-neighbour into the
+first-visit grid and directions rotated. All metrics on the 223k-voxel WM
+intersection.
+
+**Runtime per visit** (one GB10, 16 CPU workers): MSMT peaks 16 min (dipy,
+cvxpy per voxel), refinement 2.5 min for 791k voxels + Laplace 20 s, FORCE
+library 4 min + fit 15 min, tracking 5 s per peak set.
+
+**Whole-brain agreement of the two visits**
+
+| | MSMT-CSD | plus-x refine | FORCE |
+|---|---|---|---|
+| f_i: CCC / mean \|Δ\| / within-subject CoV | | **0.866 / 0.043 / 8.3 %** | ND 0.757 / 0.074 / 10.8 %; ND·f_wm 0.728 / 0.103 / 18.6 % |
+| FA reference (DTI, b ≤ 1000) | 0.925 / 0.048 / 10.3 % | | |
+| main fixel Δθ: median / p90 / < 10° | 8.0° / 33° / 73 % | 8.3° / 41° / 56 % | 28° / 90° / 24 % |
+| all fixels (frac ≥ 0.1): median Δθ to nearest | 8.5° | 13.3° | 22° |
+| fixel-count agreement (mean count) | 72 % (1.8) | 72 % (2.5) | 63 % (2.2) |
+| connectome r(log w) / Dice / edges | 0.916 / 0.816 / ~840 | **0.926 / 0.857 / ~1430** | 0.906 / 0.808 / ~1010 |
+| posterior-mean connectome (10 samples) | | **0.965 / 0.937** | |
+| CV-pruned posterior: CV < 0.5 / 0.3 / 0.2 | | 0.900 / 0.856 / 0.826 (edges 680 / 390 / 233) | |
+
+- **f_i is the clearest win.** Our intra-axonal fraction is more
+  reproducible than FORCE's ND in absolute error (0.043 vs 0.074), CCC
+  (0.87 vs 0.76) and within-subject CoV (8.3 % vs 10.8 %), with zero
+  bias between visits; it is also more reproducible than DTI FA in
+  CoV. FORCE's ND·f_wm, the quantity that matched DiSCo intra-VF best
+  (§8.1), is the least reproducible in vivo (CoV 18.6 %) because f_wm
+  itself is unstable.
+- **Orientations: the refinement inherits the MSMT peak on the main
+  fixel** (8.3° vs 8.0° median) but reports 2.5 fixels per voxel against
+  MSMT's 1.8 at the 0.1 fraction threshold, and the extra small fixels
+  are the ones that disagree (all-fixel median 13.3°). This is the
+  K = 3 prior doing what §7.4 predicted in vivo: the third fixel is
+  weakly determined and should be pruned by the posterior, not by a
+  fixed fraction threshold. FORCE's in-vivo peaks are not reproducible
+  (28° median, 24 % within 10°) — the matching-limited mechanism of
+  §7.3 on a library whose in-vivo prior covers few clean crossings.
+- **Calibration**: the Laplace σ *ranks* the scan–rescan disagreement
+  (Spearman 0.47 over 222k voxels; decile medians rise monotonically
+  from 2.6° to 15.4°) but under-predicts its size by 1.7× (51 % of
+  voxels inside the predicted 90 % cone). The noise-only Laplace cannot
+  contain registration, nearest-neighbour resampling at 1.25 mm,
+  physiological change and head-position effects, so a single
+  in-vivo inflation factor of ≈1.7 is the practical calibration —
+  measurable only because we have a σ to calibrate; no competitor
+  reports one.
+
+  | σ_comb decile median | 2.0° | 2.9° | 3.6° | 4.2° | 4.8° | 5.3° | 6.0° | 6.7° | 7.7° | 9.7° |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | predicted median Δθ | 2.1 | 3.0 | 3.6 | 4.0 | 4.5 | 5.1 | 5.6 | 6.3 | 7.2 | 8.9 |
+  | observed median Δθ | 2.6 | 4.3 | 5.8 | 7.2 | 8.8 | 10.6 | 12.3 | 13.9 | 15.1 | 15.4 |
+
+- **Connectomes**: on identical tracking, the refined peaks give the
+  most reproducible MAP connectome (r 0.926, Dice 0.857) with the most
+  edges, MSMT next, FORCE last. Averaging the connectome over 10
+  posterior direction samples lifts reproducibility to r 0.965 / Dice
+  0.937 — the posterior-mean connectome is the in-vivo deliverable.
+  CV pruning, which was the best row on DiSCo (§9.2), *lowers* r here
+  because it removes the weak edges that are nevertheless reproducible
+  at this scale; what the posterior CV does carry is edge-level
+  predictive value — the test-visit edge CV predicts the scan–rescan
+  edge disagreement with Spearman 0.40 over 1833 shared edges, so it
+  belongs as an edge weight or confidence, not as a hard threshold.
+- Caveats: one subject; deterministic tracking on peaks (the DiSCo
+  protocol), not probabilistic FOD tracking; the first pass with an
+  absolute peak threshold (`compare_results_tracking_v1.json`) gave the
+  same ordering with fewer streamlines.
+
+Artefacts: `validation/hcp_retest/{compare_results.json,
+compare_results_tracking_v1.json, run_sessions.log,
+run_connectomes_v2.log}`; per-visit peak/fixel/posterior arrays and
+connectomes in `/data/datasets/hcp/b1/{test,retest}/`.
+
 ## 11. Tier C (2026-09-17)
 
 ### 11.1 C2: three Monte Carlo engines on one CATERPillar substrate
