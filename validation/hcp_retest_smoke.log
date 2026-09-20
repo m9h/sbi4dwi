@@ -1,0 +1,76 @@
+   Building sbi4dwi @ file:///home/mhough/dev/sbi4dwi
+      Built sbi4dwi @ file:///home/mhough/dev/sbi4dwi
+Uninstalled 1 package in 0.45ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 0.53ms
+10:52:10 test: (145, 174, 145, 288), 68,745 mask voxels
+10:52:13 FA done 1s
+/home/mhough/dev/sbi4dwi/.venv/lib/python3.12/site-packages/dipy/testing/decorators.py:192: UserWarning: Some b-values are higher than 1200.
+        The DTI fit might be affected. It is advised to use
+        mask_for_response_msmt with bvalues lower than 1200, followed by
+        response_from_mask_msmt with all bvalues to overcome this.
+  return func(*args, **kwargs)
+/home/mhough/dev/sbi4dwi/.venv/lib/python3.12/site-packages/dipy/testing/decorators.py:192: UserWarning: Some b-values are higher than 1200.
+        The DTI fit might be affected.
+  return func(*args, **kwargs)
+/home/mhough/dev/sbi4dwi/.venv/lib/python3.12/site-packages/cvxpy/problems/problem.py:1539: UserWarning: Solution may be inaccurate. Try another solver, adjusting the solver settings, or solve with verbose=True for more information.
+  warnings.warn(
+10:53:54 MSMT peaks 100s; mean #peaks 1.98
+10:54:28 refine 21s, Laplace 12s; D∥=1.38 D∥ex=1.08 f_i(WM)=0.536 median σ=3.22°
+[2026-09-20 10:54:28][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+/home/mhough/miniforge3/lib/python3.12/multiprocessing/popen_fork.py:66: RuntimeWarning: os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.
+  self.pid = os.fork()
+10:55:38 FORCE library 27s, fit+peaks 40s
+10:55:38 connectome msmt: 22,835 streamlines, 37 edges, 0s
+10:55:38 connectome refine: 45,869 streamlines, 48 edges, 0s
+10:55:39 connectome force: 22,633 streamlines, 29 edges, 0s
+10:55:40 posterior sample 0: 45,300 streamlines, 0s
+10:55:40 posterior sample 1: 45,230 streamlines, 0s
+10:55:41 test done
+10:55:51 retest: (145, 174, 145, 288), 68,242 mask voxels
+10:55:53 FA done 1s
+/home/mhough/dev/sbi4dwi/.venv/lib/python3.12/site-packages/cvxpy/problems/problem.py:1539: UserWarning: Solution may be inaccurate. Try another solver, adjusting the solver settings, or solve with verbose=True for more information.
+  warnings.warn(
+10:57:29 MSMT peaks 96s; mean #peaks 1.98
+10:58:02 refine 22s, Laplace 9s; D∥=1.40 D∥ex=1.06 f_i(WM)=0.539 median σ=3.31°
+[2026-09-20 10:58:02][dipy] INFO: Found 3 non-zero b-value shells. You can compute DKI metrics (AK, RK, MK, KFA) by setting compute_dki=True.
+10:59:12 FORCE library 27s, fit+peaks 41s
+10:59:12 connectome msmt: 23,814 streamlines, 36 edges, 0s
+10:59:12 connectome refine: 47,453 streamlines, 56 edges, 0s
+10:59:13 connectome force: 22,618 streamlines, 23 edges, 0s
+10:59:14 posterior sample 0: 46,902 streamlines, 0s
+10:59:14 posterior sample 1: 46,831 streamlines, 0s
+10:59:14 retest done
+[2026-09-20 10:59:15][dipy] INFO: ➞ Running rigid step from affine registration...
+11:01:38 rigid registration 144s: T1 corr 0.956 → 0.967, rotation 0.30°, |t| 0.09 mm
+11:01:38 WM intersection 31,095 voxels (Dice of WM masks 0.971)
+11:01:38   fa           r=0.945 CCC=0.944 |Δ|=0.047 bias=-0.010 wsCV=9.1% (mean 0.467)
+11:01:38   refine_fi    r=0.848 CCC=0.848 |Δ|=0.039 bias=-0.002 wsCV=7.0% (mean 0.538)
+11:01:38   force_nd     r=0.712 CCC=0.709 |Δ|=0.078 bias=-0.012 wsCV=11.0% (mean 0.624)
+11:01:38   force_nd_wm  r=0.669 CCC=0.665 |Δ|=0.110 bias=-0.016 wsCV=18.8% (mean 0.513)
+11:01:38   msmt    main fixel Δθ median 7.96° p90 28.1° (<10°: 77.1%) | all fixels median 8.22° | count agree 76.9% (mean 1.75/1.70)
+11:01:38   refine  main fixel Δθ median 7.47° p90 36.9° (<10°: 60.6%) | all fixels median 12.39° | count agree 78.5% (mean 2.60/2.61)
+11:01:38   calibration: Spearman(σ, Δθ)=0.400; obs/pred median 1.92; within predicted 90% 46.2%
+11:01:38     σ_comb  1.91°  pred median  2.03°  observed  2.85°  (n=3,097)
+11:01:38     σ_comb  2.57°  pred median  2.68°  observed  4.27°  (n=3,097)
+11:01:38     σ_comb  3.00°  pred median  3.10°  observed  5.74°  (n=3,097)
+11:01:38     σ_comb  3.38°  pred median  3.38°  observed  7.07°  (n=3,096)
+11:01:38     σ_comb  3.75°  pred median  3.66°  observed  8.07°  (n=3,097)
+11:01:38     σ_comb  4.13°  pred median  3.97°  observed  8.77°  (n=3,097)
+11:01:38     σ_comb  4.53°  pred median  4.32°  observed 10.20°  (n=3,096)
+11:01:38     σ_comb  5.01°  pred median  4.74°  observed 11.38°  (n=3,097)
+11:01:38     σ_comb  5.65°  pred median  5.34°  observed 12.68°  (n=3,097)
+11:01:38     σ_comb  6.89°  pred median  6.46°  observed 12.44°  (n=3,097)
+11:01:38   force   main fixel Δθ median 29.31° p90 85.6° (<10°: 22.0%) | all fixels median 24.02° | count agree 55.2% (mean 2.11/2.10)
+11:01:38   connectome msmt   : r(log)=0.749 Dice=0.735 edges [26, 23]
+11:01:38   connectome refine : r(log)=0.876 Dice=0.789 edges [34, 42]
+11:01:38   connectome force  : r(log)=0.564 Dice=0.516 edges [17, 14]
+11:01:38   connectome posterior CV<0.2: r(log)=0.549 Dice=0.385 edges [12, 14]
+11:01:38   connectome posterior CV<0.3: r(log)=0.577 Dice=0.488 edges [21, 20]
+11:01:38   connectome posterior CV<0.5: r(log)=0.770 Dice=0.615 edges [27, 25]
+11:01:38   connectome posterior mean: r(log)=0.898 Dice=0.863
+11:01:38   edge CV (test) vs scan–rescan disagreement: Spearman -0.070 over 41 shared edges
+11:01:38 compare done
+exit 0
