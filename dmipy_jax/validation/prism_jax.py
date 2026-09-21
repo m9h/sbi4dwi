@@ -86,6 +86,7 @@ class PrismConfig:
     # Ablation (doc 007 §3.1): drop PRISM's restricted isotropic pool.
     use_restricted: bool = True
     use_isotropic: bool = True       # False → CSF and GM balls disabled (WM-only voxels, e.g. substrates)
+    use_gm: bool = True              # False → GM ball off, CSF ball kept (NODDI-style free water only; doc 008 §10.4)
     tortuosity_scale: bool = False   # learn a global factor s ∈ (0.5, 2) in D⊥,ex = s·D∥,ex·(1 − f_i)
     odi_init: float = 0.1
     odi_range: tuple[float, float] = (0.01, 0.5)
@@ -205,6 +206,8 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
         logits = logits.at[:, -1].set(-1e9)
     if not cfg.use_isotropic:
         logits = logits.at[:, 0].set(-1e9).at[:, 1].set(-1e9)
+    if not cfg.use_gm:
+        logits = logits.at[:, 1].set(-1e9)
     out = {
         "s0": jax.nn.softplus(params["s0_raw"]),
         "fracs": jax.nn.softmax(logits, axis=-1),
