@@ -1325,6 +1325,71 @@ compare_results_tracking_v1.json, run_sessions.log,
 run_connectomes_v2.log}`; per-visit peak/fixel/posterior arrays and
 connectomes in `/data/datasets/hcp/b1/{test,retest}/`.
 
+### 10.5 B1 cohort: five HCP retest subjects + NODDI reference (2026-09-20)
+
+Same pipeline as §10.4 on 103818, 105923, 111312, 114823, 115320 (all
+from HCP_1200 / HCP_Retest via BALSA), plus AMICO 2.1.1 NODDI per visit
+(`validation/validate_hcp_retest.py --stage noddi`; 1.5 min per visit)
+and a second refinement with the isotropic compartments off
+(`validation/hcp_refine_variant.py --variant noiso`). Mean ± sd over
+subjects; WM intersection 200–225k voxels each; registration 0.3–2.4°.
+`validation/summarize_hcp_retest.py` → `validation/hcp_retest/summary.json`.
+
+**f_i scan–rescan, five subjects**
+
+| estimator | CCC | mean \|Δ\| | within-subject CoV |
+|---|---|---|---|
+| plus-x refine, **no isotropic** (WM model of §10.3) | 0.883 ± 0.030 | **0.030 ± 0.004** | **5.5 ± 0.8 %** |
+| NODDI NDI·(1−FWF), AMICO | **0.894 ± 0.023** | 0.034 ± 0.004 | 5.6 ± 0.7 % |
+| NODDI NDI | 0.872 ± 0.024 | 0.047 ± 0.006 | 7.0 ± 0.8 % |
+| plus-x refine, default (CSF + GM balls) | 0.835 ± 0.025 | 0.044 ± 0.004 | 8.2 ± 0.8 % |
+| DTI FA (reference) | 0.912 ± 0.028 | 0.051 ± 0.008 | 10.7 ± 1.8 % |
+| FORCE ND | 0.723 ± 0.029 | 0.074 ± 0.003 | 10.7 ± 0.5 % |
+| FORCE ND·f_wm | 0.694 ± 0.029 | 0.105 ± 0.003 | 18.4 ± 0.9 % |
+| NODDI ODI | 0.853 ± 0.035 | 0.054 ± 0.009 | 26.5 ± 2.9 % |
+
+- **Where the default model's variance comes from**
+  (`validation/diagnose_hcp_fi_variance.py`, 105923): not the crossings.
+  Δf_i is the same for 1, 2 and 3-fixel voxels (sd 0.056–0.082) and
+  *largest* in coherent high-FA voxels (sd 0.10 at FA > 0.7); it
+  correlates with Δ(f_csf + f_gm) at r = 0.52, and the two balls take
+  0.31 of the WM signal (0.24 with the GM ball off), against NODDI's
+  free-water fraction of ≈0.1. This is §7.2's attribution mechanism in
+  vivo: the isotropic compartments absorb hindered extra-cellular signal
+  and the split between them and f_i is not stable across visits. A CSF-
+  only variant does not fix it (CCC 0.910 but CoV 9.4 %, 105923).
+- **With the balls off, our f_i is as reproducible as NODDI's** — ahead
+  on absolute error and CoV, behind by 0.01 in CCC, and every subject
+  keeps the ordering. The default model sits behind NODDI, so the honest
+  statement for the in-vivo section is "on par with NODDI, clearly
+  better than FORCE", with the WM-only model, exactly as §10.3
+  concluded on substrates. The price is orientation: with no isotropic
+  sink the third fixel fills instead (2.96 fixels per voxel, main fixel
+  Δθ 12.4° vs 8.5°), so in vivo the deliverable is a two-model pair —
+  orientations and posterior from the default model, f_i from the
+  no-iso fit — until a proper prior on the isotropic fractions (or a
+  free-water map from a different contrast) replaces the balls.
+- **Orientation, connectome and calibration all replicate across the
+  five subjects** with small spread: MSMT main fixel 8.0 ± 0.3°, refine
+  8.5 ± 0.8°, FORCE 26 ± 2° (24 % within 10°); connectome r 0.921 /
+  0.928 / 0.908 (MSMT / refine / FORCE) and Dice 0.82 / 0.86 / 0.81;
+  posterior-mean connectome **0.968 ± 0.003 / 0.935 ± 0.002**; CV pruning
+  still lowers r (0.904 at CV < 0.5); the edge CV predicts scan–rescan
+  edge disagreement at ρ = 0.36 ± 0.04; the Laplace σ ranks Δθ at
+  ρ = 0.46 ± 0.02 and under-predicts it by 1.76 ± 0.10 (1.70–1.96, the
+  largest on the noisiest subject). The inflation factor is stable
+  enough to be used as a constant.
+- FA is more reproducible in CCC than every microstructure index (0.91)
+  but not in CoV (10.7 %); CCC rewards its wide dynamic range across WM.
+
+**Runtime per visit on the GB10**: refinement 2.5 min + Laplace 20 s (+2.7
+min for the no-iso refit), AMICO NODDI 1.5 min, MSMT peaks 15–17 min,
+FORCE 17–19 min. Full cohort (5 subjects × 2 visits, everything) 6.5 h.
+
+Artefacts: `validation/hcp_retest/{<subj>_compare_results.json,
+<subj>_variant_noiso.json, summary.json, run_cohort_driver.log,
+run_cohort_noiso.log}`; per-visit arrays in `/data/datasets/hcp/b1/<subj>/`.
+
 ## 11. Tier C (2026-09-17)
 
 ### 11.1 C2: three Monte Carlo engines on one CATERPillar substrate

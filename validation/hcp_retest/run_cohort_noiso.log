@@ -1,0 +1,107 @@
+=== noiso 103818 Sun Sep 20 11:10:18 PM PDT 2026
+E0920 23:10:47.789556 2369514 slow_operation_alarm.cc:73] Constant folding an instruction is taking > 1s:
+
+  %reduce_sum.143 = s32[708916]{0} reduce(%constant.918, %constant.679), dimensions={1}, to_apply=%region_11.14, metadata={op_name="jit(<lambda>)/while/body/eval_jaxpr/jvp()/reduce_sum" stack_frame_id=294}
+
+This isn't necessarily a bug; constant-folding is inherently a trade-off between compilation time and speed at runtime. XLA has some guards that attempt to keep constant folding from taking too long, but fundamentally you'll always be able to come up with an input program that takes a long time.
+
+If you'd like to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
+E0920 23:10:47.804566 2369405 slow_operation_alarm.cc:140] The operation took 1.015222641s
+Constant folding an instruction is taking > 1s:
+
+  %reduce_sum.143 = s32[708916]{0} reduce(%constant.918, %constant.679), dimensions={1}, to_apply=%region_11.14, metadata={op_name="jit(<lambda>)/while/body/eval_jaxpr/jvp()/reduce_sum" stack_frame_id=294}
+
+This isn't necessarily a bug; constant-folding is inherently a trade-off between compilation time and speed at runtime. XLA has some guards that attempt to keep constant folding from taking too long, but fundamentally you'll always be able to come up with an input program that takes a long time.
+
+If you'd like to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
+23:12:49 test noiso: 132s D∥=1.78 f_i(WM)=0.512
+23:15:23 retest noiso: 135s D∥=1.85 f_i(WM)=0.528
+refine         f_i CCC=0.854 |Δ|=0.041 wsCV=7.6% mean 0.508 (f_iso WM 0.299) | main fixel Δθ median 7.83° <10° 58.1% | count agree 74.0% (mean 2.53)
+refine_noiso   f_i CCC=0.893 |Δ|=0.030 wsCV=5.2% mean 0.515 (f_iso WM 0.000) | main fixel Δθ median 11.41° <10° 45.2% | count agree 96.6% (mean 2.96)
+=== noiso 111312 Sun Sep 20 11:15:27 PM PDT 2026
+23:17:58 test noiso: 127s D∥=1.93 f_i(WM)=0.534
+23:20:22 retest noiso: 124s D∥=1.94 f_i(WM)=0.540
+refine         f_i CCC=0.833 |Δ|=0.040 wsCV=7.6% mean 0.514 (f_iso WM 0.303) | main fixel Δθ median 7.98° <10° 57.3% | count agree 74.4% (mean 2.55)
+refine_noiso   f_i CCC=0.886 |Δ|=0.029 wsCV=5.2% mean 0.537 (f_iso WM 0.000) | main fixel Δθ median 12.02° <10° 43.4% | count agree 97.5% (mean 2.97)
+=== noiso 114823 Sun Sep 20 11:20:27 PM PDT 2026
+E0920 23:21:01.345688 2371284 slow_operation_alarm.cc:73] Constant folding an instruction is taking > 1s:
+
+  %reduce_sum.143 = s32[774166]{0} reduce(%constant.918, %constant.679), dimensions={1}, to_apply=%region_11.14, metadata={op_name="jit(<lambda>)/while/body/eval_jaxpr/jvp()/reduce_sum" stack_frame_id=294}
+
+This isn't necessarily a bug; constant-folding is inherently a trade-off between compilation time and speed at runtime. XLA has some guards that attempt to keep constant folding from taking too long, but fundamentally you'll always be able to come up with an input program that takes a long time.
+
+If you'd like to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
+E0920 23:21:01.459351 2371176 slow_operation_alarm.cc:140] The operation took 1.113751186s
+Constant folding an instruction is taking > 1s:
+
+  %reduce_sum.143 = s32[774166]{0} reduce(%constant.918, %constant.679), dimensions={1}, to_apply=%region_11.14, metadata={op_name="jit(<lambda>)/while/body/eval_jaxpr/jvp()/reduce_sum" stack_frame_id=294}
+
+This isn't necessarily a bug; constant-folding is inherently a trade-off between compilation time and speed at runtime. XLA has some guards that attempt to keep constant folding from taking too long, but fundamentally you'll always be able to come up with an input program that takes a long time.
+
+If you'd like to file a bug, run with envvar XLA_FLAGS=--xla_dump_to=/tmp/foo and attach the results.
+23:23:21 test noiso: 152s D∥=1.83 f_i(WM)=0.511
+23:26:06 retest noiso: 143s D∥=1.85 f_i(WM)=0.518
+refine         f_i CCC=0.793 |Δ|=0.051 wsCV=9.7% mean 0.514 (f_iso WM 0.304) | main fixel Δθ median 9.97° <10° 50.1% | count agree 70.1% (mean 2.55)
+refine_noiso   f_i CCC=0.834 |Δ|=0.037 wsCV=6.9% mean 0.518 (f_iso WM 0.000) | main fixel Δθ median 13.67° <10° 38.3% | count agree 96.4% (mean 2.96)
+=== noiso 115320 Sun Sep 20 11:26:09 PM PDT 2026
+23:28:25 test noiso: 123s D∥=1.93 f_i(WM)=0.556
+23:30:38 retest noiso: 121s D∥=1.91 f_i(WM)=0.548
+refine         f_i CCC=0.831 |Δ|=0.044 wsCV=7.9% mean 0.543 (f_iso WM 0.284) | main fixel Δθ median 8.36° <10° 56.1% | count agree 73.1% (mean 2.55)
+refine_noiso   f_i CCC=0.874 |Δ|=0.032 wsCV=5.6% mean 0.563 (f_iso WM 0.000) | main fixel Δθ median 12.50° <10° 41.5% | count agree 97.3% (mean 2.97)
+5 subjects: 103818 105923 111312 114823 115320
+
+f_i refine: CCC                                     0.835 ± 0.025  (n=5)
+f_i refine: |Δ|                                     0.044 ± 0.004  (n=5)
+f_i refine: wsCV %                                  8.207 ± 0.760  (n=5)
+FORCE ND: CCC                                       0.723 ± 0.029  (n=5)
+FORCE ND: |Δ|                                       0.074 ± 0.003  (n=5)
+FORCE ND: wsCV %                                   10.713 ± 0.537  (n=5)
+FORCE ND·f_wm: CCC                                  0.694 ± 0.029  (n=5)
+FORCE ND·f_wm: |Δ|                                  0.105 ± 0.003  (n=5)
+FORCE ND·f_wm: wsCV %                              18.354 ± 0.919  (n=5)
+NODDI NDI: CCC                                      0.872 ± 0.024  (n=5)
+NODDI NDI: |Δ|                                      0.047 ± 0.006  (n=5)
+NODDI NDI: wsCV %                                   6.956 ± 0.779  (n=5)
+NODDI NDI·(1−FWF): CCC                              0.894 ± 0.023  (n=5)
+NODDI NDI·(1−FWF): |Δ|                              0.034 ± 0.004  (n=5)
+NODDI NDI·(1−FWF): wsCV %                           5.644 ± 0.707  (n=5)
+NODDI ODI: CCC                                      0.853 ± 0.035  (n=5)
+NODDI ODI: |Δ|                                      0.054 ± 0.009  (n=5)
+NODDI ODI: wsCV %                                  26.501 ± 2.938  (n=5)
+DTI FA: CCC                                         0.912 ± 0.028  (n=5)
+DTI FA: |Δ|                                         0.051 ± 0.008  (n=5)
+DTI FA: wsCV %                                     10.732 ± 1.763  (n=5)
+msmt: main fixel Δθ median °                        7.975 ± 0.293  (n=5)
+msmt: main fixel <10° %                            71.624 ± 4.465  (n=5)
+msmt: fixel count agree %                          70.782 ± 2.592  (n=5)
+msmt: connectome r(log)                             0.921 ± 0.009  (n=5)
+msmt: connectome Dice                               0.820 ± 0.017  (n=5)
+refine: main fixel Δθ median °                      8.494 ± 0.765  (n=5)
+refine: main fixel <10° %                          55.567 ± 2.833  (n=5)
+refine: fixel count agree %                        72.812 ± 1.504  (n=5)
+refine: connectome r(log)                           0.928 ± 0.005  (n=5)
+refine: connectome Dice                             0.856 ± 0.004  (n=5)
+force: main fixel Δθ median °                      26.265 ± 1.594  (n=5)
+force: main fixel <10° %                           24.511 ± 1.717  (n=5)
+force: fixel count agree %                         62.257 ± 1.296  (n=5)
+force: connectome r(log)                            0.908 ± 0.010  (n=5)
+force: connectome Dice                              0.814 ± 0.010  (n=5)
+posterior mean: connectome r(log)                   0.968 ± 0.003  (n=5)
+posterior mean: connectome Dice                     0.935 ± 0.002  (n=5)
+posterior CV<0.5: r(log)                            0.904 ± 0.009  (n=5)
+posterior CV<0.3: r(log)                            0.850 ± 0.011  (n=5)
+edge CV vs disagreement: Spearman                   0.356 ± 0.040  (n=5)
+calibration: Spearman(σ, Δθ)                        0.463 ± 0.021  (n=5)
+calibration: obs/pred median                        1.759 ± 0.101  (n=5)
+calibration: within predicted 90% %                49.837 ± 2.604  (n=5)
+f_i refine no-iso: CCC                              0.883 ± 0.030  (n=5)
+f_i refine no-iso: |Δ|                              0.030 ± 0.004  (n=5)
+f_i refine no-iso: wsCV %                           5.459 ± 0.795  (n=5)
+f_i refine no-iso: main fixel Δθ median °          12.429 ± 0.744  (n=5)
+f_i refine (variant run): CCC                       0.835 ± 0.025  (n=5)
+f_i refine (variant run): |Δ|                       0.044 ± 0.004  (n=5)
+f_i refine (variant run): wsCV %                    8.207 ± 0.760  (n=5)
+f_i refine (variant run): main fixel Δθ median °    8.494 ± 0.765  (n=5)
+registration rotation °                             0.961 ± 0.835  (n=5)
+WM Dice                                             0.933 ± 0.024  (n=5)
+followup exit 0
