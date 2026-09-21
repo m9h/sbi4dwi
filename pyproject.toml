@@ -67,6 +67,7 @@ dependencies = [
   "gpjax>=0.13.4",
   "simpleitk>=2.5.3",
   "chex>=0.1.92",
+  "dmri-amico>=2.1.1",
 ]
 
 [project.urls]

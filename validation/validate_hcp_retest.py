@@ -28,8 +28,7 @@ import argparse, json, time, os
 from pathlib import Path
 import numpy as np, nibabel as nib
 
-ROOT = Path("/data/datasets/hcp"); OUT = ROOT / "b1"
-SUBJ = "105923"
+ROOT = Path("/data/datasets/hcp"); SUBJ = "105923"; OUT = ROOT / "b1" / SUBJ
 WM_LABELS = [2, 41, 251, 252, 253, 254, 255, 77, 7, 46, 10, 49, 11, 50, 12, 51, 13, 52, 17, 53, 18, 54, 26, 58, 28, 60]   # WM + deep GM (tracking mask)
 WM_ONLY = [2, 41, 251, 252, 253, 254, 255, 77]
 
@@ -216,6 +215,32 @@ def run_session(session, a):
 
 
 # --------------------------------------------------------------------------- #
+# stage: NODDI (AMICO 2.x) — the standard in-vivo f_i reference
+# --------------------------------------------------------------------------- #
+def run_noddi(session, a):
+    import amico, glob
+    out = OUT / session; out.mkdir(parents=True, exist_ok=True)
+    if (out / "noddi.npz").exists() and not a.redo:
+        return
+    d = ROOT / session / SUBJ / "T1w" / "Diffusion"; work = out / "amico"; work.mkdir(exist_ok=True)
+    scheme = work / "hcp.scheme"; amico.util.fsl2scheme(str(d / "bvals"), str(d / "bvecs"), str(scheme), bStep=100)
+    t0 = time.time(); amico.setup()
+    ae = amico.Evaluation(study_path=str(work), subject=".", output_path=str(work / "fit"))
+    ae.set_config("nthreads", a.num_cpus)
+    ae.load_data(dwi_filename=str(d / "data.nii.gz"), scheme_filename=str(scheme), mask_filename=str(d / "nodif_brain_mask.nii.gz"), b0_thr=50)
+    ae.set_model("NODDI"); ae.generate_kernels(regenerate=True); ae.load_kernels(); ae.fit(); ae.save_results()
+    mask = np.load(out / "grid.npz")["mask"]
+    def load(*names):
+        for n in names:
+            f = glob.glob(str(work / "fit" / f"fit_{n}.nii.gz")) or glob.glob(str(work / "**" / f"fit_{n}.nii.gz"), recursive=True)
+            if f: return np.asarray(nib.load(f[0]).dataobj, np.float32)[mask]
+        raise FileNotFoundError(names)
+    ndi, odi, fwf = load("NDI", "ICVF"), load("ODI", "OD"), load("FWF", "ISOVF")
+    np.savez_compressed(out / "noddi.npz", ndi=ndi, odi=odi, fwf=fwf)
+    log(f"{session} NODDI (AMICO) {time.time()-t0:.0f}s; WM NDI mean {ndi[np.load(out / 'grid.npz')['wm'][mask]].mean():.3f}")
+
+
+# --------------------------------------------------------------------------- #
 # stage: compare
 # --------------------------------------------------------------------------- #
 def rigid_t1(session_moving="retest", session_static="test"):
@@ -278,6 +303,9 @@ def run_compare(a):
     sc = {"fa": (fa_t, pull(fa_r)), "refine_fi": (T["refine.npz"]["fintra"], pull(Rr["refine.npz"]["fintra"])),
           "force_nd": (T["force.npz"]["nd"], pull(Rr["force.npz"]["nd"])),
           "force_nd_wm": (T["force.npz"]["nd"] * T["force.npz"]["wm"], pull(Rr["force.npz"]["nd"] * Rr["force.npz"]["wm"]))}
+    if (OUT / "test" / "noddi.npz").exists() and (OUT / "retest" / "noddi.npz").exists():
+        Nt, Nr = np.load(OUT / "test" / "noddi.npz"), np.load(OUT / "retest" / "noddi.npz")
+        sc["noddi_ndi"] = (Nt["ndi"], pull(Nr["ndi"])); sc["noddi_ndi_tissue"] = (Nt["ndi"] * (1 - Nt["fwf"]), pull(Nr["ndi"] * (1 - Nr["fwf"]))); sc["noddi_odi"] = (Nt["odi"], pull(Nr["odi"]))
     res["scalars"] = {}
     for k, (x, y) in sc.items():
         x, y = x[sel].astype(float), y[sel].astype(float); d = x - y
@@ -341,17 +369,20 @@ def run_compare(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", choices=["session", "compare", "all"], default="all"); ap.add_argument("--session", choices=["test", "retest"])
+    ap.add_argument("--stage", choices=["session", "noddi", "compare", "all"], default="all"); ap.add_argument("--subject", default="105923"); ap.add_argument("--session", choices=["test", "retest"])
     ap.add_argument("--slices", type=int, default=0); ap.add_argument("--n-iter", type=int, default=300); ap.add_argument("--n-post", type=int, default=10)
     ap.add_argument("--force-sims", type=int, default=1_000_000); ap.add_argument("--num-cpus", type=int, default=16); ap.add_argument("--redo", action="store_true"); ap.add_argument("--redo-connectomes", action="store_true")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
-    global OUT
-    if a.out: OUT = Path(a.out)
+    global OUT, SUBJ
+    SUBJ = a.subject; OUT = Path(a.out) if a.out else ROOT / "b1" / SUBJ
     OUT.mkdir(parents=True, exist_ok=True)
     if a.stage in ("session", "all"):
         for s in ([a.session] if a.session else ["test", "retest"]):
             run_session(s, a)
+    if a.stage in ("noddi", "all"):
+        for s_ in ([a.session] if a.session else ["test", "retest"]):
+            run_noddi(s_, a)
     if a.stage in ("compare", "all"):
         run_compare(a)
 
