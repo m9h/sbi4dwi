@@ -1500,3 +1500,76 @@ Artefacts: `validation/emulator_inversion_results.json`,
 `validation/emulator_inversion.log`,
 `/data/datasets/sbi4dwi_mc_library/mc_library.h5` (582 × 160, with
 intra/extra signals stored separately).
+
+## 12. Protocol transfer HCP-YA → HCP-A by digital twin (2026-09-25)
+
+Motivation: a planned UCSF Graves' orbitopathy / thyroid eye disease study
+on a Prisma with the HCP-A (Lifespan) diffusion protocol. The question is
+what the new protocol will deliver relative to the HCP-YA data we have
+validated on, *before* anyone is scanned, and how harmonisation works
+when the forward model takes the acquisition as an explicit input.
+
+`validation/protocol_transfer_hcpa.py`. For each of the five retest
+subjects the first-visit WM fit (190–235k voxels) is the ground-truth
+tissue; it is forward-simulated with Rician noise on
+(i) the subject's own HCP-YA scheme (b 1000/2000/3000 × 90 + 18 b0,
+1.25 mm; measured WM b0 SNR 18–21),
+(ii) the HCP-A scheme (b 1500 × 93 + b 3000 × 92 + 28 b0, AP and PA →
+398 volumes, 1.5 mm; SNR scaled by (1.5/1.25)³ = 1.73 → 31–37),
+(iii) HCP-A at HCP-YA SNR (directions/shells only), and refitted with the
+same model from a perturbed initialisation. Each model is tested against
+its own fitted tissue (default = CSF + GM balls; no-iso = §10.5's WM
+model). Scan times: HCP-YA 59 min, HCP-A 21.4 min. No partial-volume or
+Prisma-vs-Skyra hardware effects are modelled.
+
+**Recovery of the generating tissue, mean over five subjects**
+
+| model / protocol | f_i sd | f_i mean \|Δ\| | f_i bias | main fixel Δθ median | < 10° | fixel count agree |
+|---|---|---|---|---|---|---|
+| default / HCP-YA | 0.054 | 0.042 | +0.029 | 3.27° | 87 % | 81 % |
+| default / HCP-A dirs at YA SNR | 0.040 | 0.033 | +0.018 | 2.52° | 91 % | 85 % |
+| default / **HCP-A** | **0.031** | **0.024** | +0.013 | **1.39°** | 96 % | 90 % |
+| no-iso / HCP-YA | 0.010 | 0.008 | +0.002 | 1.63° | 93 % | 98 % |
+| no-iso / HCP-A dirs at YA SNR | 0.008 | 0.006 | +0.002 | 1.28° | 94 % | 99 % |
+| no-iso / **HCP-A** | **0.005** | **0.004** | +0.000 | **0.72°** | 97 % | 99 % |
+
+Between-subject sd of every entry is ≤ 0.006 in f_i and ≤ 0.3° in angle.
+
+**Fisher / CRLB per voxel** (single fibre, f_i 0.5, diffusivities global
+as in the fit; sd of f_i): HCP-YA 0.063, HCP-A 0.039, HCP-A at YA SNR
+0.067; per √minute of scan time HCP-A is **2.7× more efficient**
+(0.18 vs 0.49). Two- and three-fibre voxels: same ratios (0.077 → 0.047,
+0.159 → 0.095). Fibre angle CRLB halves (0.49° → 0.23°). With
+diffusivities free per voxel the CRLBs are 3× larger for every protocol —
+the reason D∥ is a global parameter in the fit.
+
+- **HCP-A is expected to be the better protocol for everything the
+  models estimate**, by 1.7–2.3× in precision, even though it drops the
+  b = 1000 shell and is a third of the scan time. Two-thirds of the gain
+  is the voxel-volume SNR; one-third is the 398-volume two-shell design
+  itself (row "HCP-A dirs at YA SNR"). This is the slide for the UCSF
+  planning: quantified before the first scan, with the caveat that 1.5 mm
+  partial voluming in thin structures is not in the simulation.
+- **The f_i / f_iso degeneracy is the dominant error of the default
+  model on any protocol**: sd 0.054 vs 0.010 for the WM-only model on
+  identical HCP-YA data, with a +0.03 bias (f_i leaks into the balls). In
+  vivo this appeared as the retest CoV gap of §10.5 (8.2 % vs 5.5 %); in
+  simulation it is 5×. A prior on the isotropic fractions is the single
+  most valuable modelling change left.
+- **Harmonisation at the model level**: the same tissue on two protocols
+  gives the same f_i to within the bias column above (≤ 0.03 default,
+  ≤ 0.002 no-iso) with no image-level harmonisation, because the
+  acquisition enters the likelihood explicitly. What remains
+  scanner-specific — noise floor, gradient nonlinearity, the in-vivo σ
+  inflation factor (1.76 ± 0.10 on HCP-YA) — is estimated per scanner,
+  and the digital twin gives the expected posterior widths to check the
+  first UCSF controls against.
+- **Not covered here**: orbital diffusion. The HCP-A protocol is a brain
+  protocol; for optic nerve and extraocular muscles a coronal RESOLVE
+  block (multi-shot EPI) is the realistic quantitative option and a
+  TGSE-BLADE trace DWI the distortion-free qualitative one (Siemens
+  product; version-dependent). Our SBI posteriors on a 20–30-direction
+  RESOLVE scheme with a single-fibre optic-nerve model are the natural
+  next design step; the Fisher tool chooses its b-values.
+
+Artefacts: `validation/hcp_retest/protocol_transfer_hcpa.{json,log}`.
