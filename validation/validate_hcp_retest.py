@@ -182,8 +182,11 @@ def run_session(session, a):
                             sigma_deg=post.sigma_deg.astype(np.float32), cov=post.cov.astype(np.float32), e1=post.e1.astype(np.float32), e2=post.e2.astype(np.float32))
         res["d_par"] = float(fit.d_par * 1e9); res["d_par_extra"] = float((fit.d_par_extra or fit.d_par) * 1e9); res["fintra_wm_mean"] = float(fit.fintra[wm[mask]].mean())
         log(f"refine {res['t_refine']:.0f}s, Laplace {res['t_laplace']:.0f}s; D∥={res['d_par']:.2f} D∥ex={res['d_par_extra']:.2f} f_i(WM)={res['fintra_wm_mean']:.3f} median σ={np.median(post.sigma_deg[:, 0]):.2f}°")
-    # 4. FORCE
-    if not (out / "force.npz").exists() or a.redo:
+    # 4. FORCE (skipped when the marker file exists: settled on 13 subjects, 38 min/subject of CPU; run later with --stage session if wanted)
+    skip_force = (ROOT / "b1" / "SKIP_FORCE").exists() and not (out / "force.npz").exists()
+    if skip_force:
+        log("FORCE skipped (marker /data/datasets/hcp/b1/SKIP_FORCE)")
+    if not skip_force and (not (out / "force.npz").exists() or a.redo):
         from dipy.reconst.force import FORCEModel, force_peaks
         t0 = time.time(); model = FORCEModel(gtab, compute_odf=False)
         model.generate(num_simulations=a.force_sims, num_cpus=a.num_cpus, use_cache=True); res["t_force_lib"] = time.time() - t0
@@ -197,9 +200,11 @@ def run_session(session, a):
     if not (out / "connectomes.npz").exists() or a.redo or a.redo_connectomes:
         from dmipy_jax.validation import prism_uncertainty as pu
         import jax
-        R = np.load(out / "refine.npz"); F = np.load(out / "force.npz"); cms = {}; counts = {}
+        R = np.load(out / "refine.npz"); cms = {}; counts = {}
         keep = R["wm_fracs"] >= 0.10
-        sets = {"msmt": (msmt_d, msmt_v), "refine": (R["dirs"], np.where(keep, R["wm_fracs"], 0.0)), "force": (F["dirs"], F["vals"])}
+        sets = {"msmt": (msmt_d, msmt_v), "refine": (R["dirs"], np.where(keep, R["wm_fracs"], 0.0))}
+        if (out / "force.npz").exists():
+            F = np.load(out / "force.npz"); sets["force"] = (F["dirs"], F["vals"])
         for name, (d, v) in sets.items():
             t0 = time.time(); cm, n = track_connectome(build_pam(d, v, mask, affine, default_sphere), track_mask, seed_mask, rois, affine, n_rois)
             cms[name] = cm; counts[name] = n; log(f"connectome {name}: {n:,} streamlines, {int((cm > 0).sum() // 2)} edges, {time.time()-t0:.0f}s")
@@ -209,7 +214,7 @@ def run_session(session, a):
             t0 = time.time(); cm, n = track_connectome(build_pam(S[s], np.where(keep, R["wm_fracs"], 0.0), mask, affine, default_sphere), track_mask, seed_mask, rois, affine, n_rois, random_seed=s + 1)
             samples.append(cm); log(f"posterior sample {s}: {n:,} streamlines, {time.time()-t0:.0f}s")
         samples = np.stack(samples)
-        np.savez_compressed(out / "connectomes.npz", msmt=cms["msmt"], refine=cms["refine"], force=cms["force"], posterior=samples, counts=json.dumps(counts))
+        np.savez_compressed(out / "connectomes.npz", posterior=samples, counts=json.dumps(counts), **cms)
     json.dump(res, open(out / f"session_results.json", "w"), indent=1)
     log(f"{session} done")
 
@@ -282,8 +287,8 @@ def conn_metrics(A, B):
 
 
 def run_compare(a):
-    T = {k: np.load(OUT / "test" / k) for k in ["grid.npz", "msmt.npz", "refine.npz", "force.npz", "connectomes.npz"]}
-    Rr = {k: np.load(OUT / "retest" / k) for k in ["grid.npz", "msmt.npz", "refine.npz", "force.npz", "connectomes.npz"]}
+    files = ["grid.npz", "msmt.npz", "refine.npz", "connectomes.npz"] + (["force.npz"] if (OUT / "test" / "force.npz").exists() and (OUT / "retest" / "force.npz").exists() else [])
+    T = {k: np.load(OUT / "test" / k) for k in files}; Rr = {k: np.load(OUT / "retest" / k) for k in files}; has_force = "force.npz" in files
     fa_t, fa_r = np.load(OUT / "test" / "fa.npy"), np.load(OUT / "retest" / "fa.npy")
     res = {}
     t0 = time.time(); reg, r0, r1 = rigid_t1(); res["registration"] = {"affine": reg.tolist(), "t1_corr_before": r0, "t1_corr_after": r1,
@@ -300,9 +305,10 @@ def run_compare(a):
     def pull(x):   # retest in-mask array → test in-mask order
         y = np.zeros((len(lin),) + x.shape[1:], x.dtype); y[ok] = x[lin[ok]]; return y
     # ---- scalars
-    sc = {"fa": (fa_t, pull(fa_r)), "refine_fi": (T["refine.npz"]["fintra"], pull(Rr["refine.npz"]["fintra"])),
-          "force_nd": (T["force.npz"]["nd"], pull(Rr["force.npz"]["nd"])),
-          "force_nd_wm": (T["force.npz"]["nd"] * T["force.npz"]["wm"], pull(Rr["force.npz"]["nd"] * Rr["force.npz"]["wm"]))}
+    sc = {"fa": (fa_t, pull(fa_r)), "refine_fi": (T["refine.npz"]["fintra"], pull(Rr["refine.npz"]["fintra"]))}
+    if has_force:
+        sc["force_nd"] = (T["force.npz"]["nd"], pull(Rr["force.npz"]["nd"]))
+        sc["force_nd_wm"] = (T["force.npz"]["nd"] * T["force.npz"]["wm"], pull(Rr["force.npz"]["nd"] * Rr["force.npz"]["wm"]))
     if (OUT / "test" / "noddi.npz").exists() and (OUT / "retest" / "noddi.npz").exists():
         Nt, Nr = np.load(OUT / "test" / "noddi.npz"), np.load(OUT / "retest" / "noddi.npz")
         sc["noddi_ndi"] = (Nt["ndi"], pull(Nr["ndi"])); sc["noddi_ndi_tissue"] = (Nt["ndi"] * (1 - Nt["fwf"]), pull(Nr["ndi"] * (1 - Nr["fwf"]))); sc["noddi_odi"] = (Nt["odi"], pull(Nr["odi"]))
@@ -315,8 +321,9 @@ def run_compare(a):
     # ---- fixels
     res["fixels"] = {}
     sets = {"msmt": (T["msmt.npz"]["dirs"], T["msmt.npz"]["vals"] > 0, Rr["msmt.npz"]["dirs"], Rr["msmt.npz"]["vals"] > 0),
-            "refine": (T["refine.npz"]["dirs"], T["refine.npz"]["wm_fracs"] >= 0.1, Rr["refine.npz"]["dirs"], Rr["refine.npz"]["wm_fracs"] >= 0.1),
-            "force": (T["force.npz"]["dirs"], T["force.npz"]["vals"] > 0, Rr["force.npz"]["dirs"], Rr["force.npz"]["vals"] > 0)}
+            "refine": (T["refine.npz"]["dirs"], T["refine.npz"]["wm_fracs"] >= 0.1, Rr["refine.npz"]["dirs"], Rr["refine.npz"]["wm_fracs"] >= 0.1)}
+    if has_force:
+        sets["force"] = (T["force.npz"]["dirs"], T["force.npz"]["vals"] > 0, Rr["force.npz"]["dirs"], Rr["force.npz"]["vals"] > 0)
     for k, (dt, kt, dr_, kr) in sets.items():
         dr_ = pull(dr_) @ Rrot; kr = pull(kr)                              # rotate retest dirs into test frame: (d_m^T R) = (R^T d_m)^T
         nt, nr = kt.sum(1), kr.sum(1); both = sel & (nt > 0) & (nr > 0)
@@ -349,7 +356,7 @@ def run_compare(a):
             for b in bins: log(f"    σ_comb {b['sigma_comb_median']:5.2f}°  pred median {b['pred_median_deg']:5.2f}°  observed {b['obs_median_deg']:5.2f}°  (n={b['n']:,})")
     # ---- connectomes
     Ct, Cr = T["connectomes.npz"], Rr["connectomes.npz"]; res["connectomes"] = {}
-    for k in ["msmt", "refine", "force"]:
+    for k in (["msmt", "refine", "force"] if has_force else ["msmt", "refine"]):
         res["connectomes"][k] = conn_metrics(Ct[k], Cr[k]); o = res["connectomes"][k]; log(f"  connectome {k:7s}: r(log)={o['r_log']:.3f} Dice={o['dice']:.3f} edges {o['n_edges']}")
     Pt, Pr = Ct["posterior"], Cr["posterior"]; mt_, mr_ = Pt.mean(0), Pr.mean(0); sdt, sdr = Pt.std(0), Pr.std(0)
     res["connectomes"]["posterior_mean"] = conn_metrics(mt_, mr_)
