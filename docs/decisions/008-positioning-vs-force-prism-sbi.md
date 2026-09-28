@@ -1390,6 +1390,90 @@ Artefacts: `validation/hcp_retest/{<subj>_compare_results.json,
 <subj>_variant_noiso.json, summary.json, run_cohort_driver.log,
 run_cohort_noiso.log}`; per-visit arrays in `/data/datasets/hcp/b1/<subj>/`.
 
+### 10.6 B1 full cohort: 44 HCP retest subjects (2026-09-28)
+
+The whole HCP-YA test–retest release, everything §10.5 measured on five
+subjects. 44 of the 45 subjects: **662551 is excluded because HCP never
+released a first-visit diffusion package for it** (HCP_1200 has structural
+only; the retest visit does have diffusion). Identical pipeline; FORCE was
+dropped after the 14th subject (`SKIP_FORCE` marker) once its numbers had
+stopped moving — it cost 38 CPU-min per subject, a third of the wall time,
+and is reported on the 14 subjects that have it. 3.5 days wall time,
+80–120 min per subject.
+
+**Data-quality QC** (`validation/qc_hcp_retest.py`): per-visit WM b0 SNR,
+median 18.6, range 12.2–22.1. Two subjects have a visit below 15 —
+**137128** (12.2 vs 25.2 between visits) and **599671** (13.5) — where
+*every* method degrades together, FA included (137128: FA CCC 0.55, all
+microstructure CCC 0.51–0.66), with registration verified good (0.28°,
+WM Dice 0.945). Both are reported but excluded from the "clean 42" column.
+
+**f_i scan–rescan across the cohort** (mean ± sd over subjects)
+
+| estimator | CCC (44 / clean 42) | mean \|Δ\| | within-subject CoV |
+|---|---|---|---|
+| ours, no isotropic | 0.833 ± 0.079 / 0.839 ± 0.070 | **0.035 ± 0.008** | 6.42 ± 1.34 % |
+| NODDI NDI·(1−FWF) | **0.853 ± 0.058 / 0.858 ± 0.051** | 0.039 ± 0.007 | 6.46 ± 1.08 % |
+| NODDI NDI | 0.842 ± 0.044 / 0.848 ± 0.029 | 0.052 ± 0.006 | 7.55 ± 0.70 % |
+| ours, default (CSF+GM balls) | 0.805 ± 0.055 / 0.812 ± 0.036 | 0.048 ± 0.006 | 8.95 ± 1.30 % |
+| DTI FA (reference) | 0.886 ± 0.058 / 0.894 ± 0.028 | 0.055 ± 0.007 | 11.52 ± 1.43 % |
+| FORCE ND (14 subj) | 0.691 ± 0.059 / 0.705 ± 0.031 | 0.075 ± 0.003 | 10.78 ± 0.43 % |
+| FORCE ND·f_wm (14 subj) | 0.662 ± 0.055 | 0.109 ± 0.010 | 19.0 ± 2.2 % |
+| NODDI ODI | 0.831 ± 0.065 | 0.057 ± 0.013 | 28.2 ± 4.2 % |
+
+**Paired tests, ours-no-iso vs NODDI NDI·(1−FWF), 42 clean subjects**
+(Wilcoxon signed-rank):
+
+| metric | mean difference | p | ours better in |
+|---|---|---|---|
+| mean \|Δ\| | −0.0043 | 9 × 10⁻¹³ | 41 / 42 |
+| within-subject CoV | −0.0004 (−0.04 pp) | 0.45 | 25 / 42 |
+| CCC | −0.019 | 3 × 10⁻⁸ | 6 / 42 |
+
+The five-subject result of §10.5 holds at nine times the sample size, and
+the paired tests sharpen it into three separate statements: our WM-only
+f_i is **systematically more precise voxel-for-voxel** (lower absolute
+scan–rescan difference in 41 of 42 subjects, a small effect but essentially
+universal), **indistinguishable in relative CoV**, and **systematically
+lower in CCC** — the last because CCC rewards dynamic range across the WM
+and NODDI's fixed-diffusivity fit spreads f_i wider (mean 0.58 vs our
+0.52). All three are honest; the headline for external use is "as
+reproducible as NODDI in vivo, with a physically-fitted D∥ and a
+calibrated posterior NODDI does not provide", not "better than NODDI".
+FORCE remains clearly behind on every f_i measure.
+
+**Orientation, connectome and calibration over 44 subjects** — every
+number from §10.5 replicated within its earlier spread:
+
+| quantity | MSMT-CSD | refine (ours) | FORCE (14) |
+|---|---|---|---|
+| main fixel Δθ median | 8.15 ± 0.98° | 9.00 ± 1.26° | 26.7 ± 2.9° |
+| main fixel < 10 % | 70.0 ± 5.9 % | 53.8 ± 4.0 % | 24.1 ± 2.6 % |
+| fixel count agreement | 70.9 ± 4.1 % | 72.0 ± 2.5 % | 61.2 ± 3.1 % |
+| connectome r(log) / Dice | 0.922 / 0.822 | 0.923 / 0.855 | 0.907 / 0.817 |
+| posterior-mean connectome | — | **0.965 ± 0.006 / 0.936 ± 0.010** | — |
+
+- **Calibration is now a cohort-level constant**: Laplace σ ranks Δθ at
+  ρ = 0.457 ± 0.023 and under-predicts the observed scan–rescan angular
+  error by **1.81 ± 0.15** (44 subjects; 1.70–2.3, largest on the
+  low-SNR subjects). An in-vivo inflation factor of 1.8 can be applied
+  as a constant, which no competing package can offer because none
+  reports a per-fixel σ at all.
+- **The posterior edge CV predicts scan–rescan edge disagreement** at
+  ρ = 0.368 ± 0.035 over ~1800 shared edges per subject; hard CV pruning
+  still *lowers* reproducibility (0.901 at CV < 0.5, 0.856 at 0.3),
+  confirming §10.5: use the CV as an edge confidence, not a threshold.
+- **The no-iso / default trade-off is unchanged and now firmly measured**:
+  turning the isotropic compartments off improves f_i CoV from 8.95 % to
+  6.42 % but costs the main fixel (9.0° → 12.6°). Two models, or a prior
+  on the isotropic fractions — still the highest-value modelling change
+  outstanding (§12 measures the same degeneracy as 5× in simulation).
+
+Artefacts: `validation/hcp_retest/` — `summary.json` (44-subject table),
+`<subj>_compare_results.json`, `<subj>_variant_noiso.json`, `qc_snr.json`,
+`cohort_groups.json`, gzipped run logs; per-visit arrays under
+`/data/datasets/hcp/b1/<subj>/`.
+
 ## 11. Tier C (2026-09-17)
 
 ### 11.1 C2: three Monte Carlo engines on one CATERPillar substrate

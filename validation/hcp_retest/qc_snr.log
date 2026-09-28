@@ -1,0 +1,48 @@
+103818: test 21.3 retest 21.0
+105923: test 20.7 retest 19.1
+111312: test 20.4 retest 22.7
+114823: test 17.9 retest 19.8
+115320: test 18.5 retest 19.1
+122317: test 21.2 retest 21.0
+125525: test 20.2 retest 20.3
+130518: test 18.7 retest 16.2
+135528: test 19.7 retest 20.1
+137128: test 12.2 retest 25.2  FLAG
+139839: test 17.9 retest 19.1
+143325: test 19.5 retest 20.2
+144226: test 19.5 retest 21.3
+146129: test 16.7 retest 18.0
+149337: test 17.1 retest 18.4
+149741: test 20.0 retest 20.4
+/home/mhough/dev/sbi4dwi/validation/qc_hcp_retest.py:16: RuntimeWarning: invalid value encountered in divide
+  X = data[wm][:, b < 50]; o[v] = float(np.median(X.mean(1) / X.std(1, ddof=1))); del data
+151526: test nan retest 16.9
+158035: test 22.1 retest 21.8
+169343: test 19.4 retest 21.3
+172332: test 19.5 retest 20.3
+175439: test 18.8 retest 16.8
+177746: test 22.9 retest 21.8
+185442: test 18.4 retest 19.3
+187547: test 23.1 retest 21.1
+192439: test 23.6 retest 22.1
+194140: test 17.2 retest 18.1
+195041: test 19.1 retest 17.9
+200109: test 21.9 retest 24.0
+200614: test 18.1 retest 20.7
+204521: test 19.1 retest 18.4
+250427: test nan retest 18.8
+287248: test 19.0 retest 21.0
+341834: test 19.2 retest 18.8
+433839: test 16.8 retest 18.6
+562345: test 16.5 retest 18.7
+599671: test 13.5 retest 17.6  FLAG
+601127: test 18.6 retest 18.5
+627549: test 19.6 retest 20.0
+660951: test 19.5 retest 19.5
+783462: test 18.9 retest 17.0
+859671: test 19.9 retest 22.8
+861456: test 20.7 retest 20.8
+877168: test nan retest nan
+917255: test 16.7 retest 18.0
+flagged: ['137128', '599671']
+exit 0

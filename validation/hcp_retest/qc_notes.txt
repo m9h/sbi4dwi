@@ -1,0 +1,2 @@
+137128: first-visit WM b0 SNR 12.2 vs retest 25.2 (cohort typical 18-21); registration fine (0.28°, WM Dice 0.945); all methods degrade (FA CCC 0.55). Data-quality outlier -> report cohort with and without.
+662551: no first-visit Diffusion package in HCP_1200 (retest exists). Excluded; cohort = 44.
