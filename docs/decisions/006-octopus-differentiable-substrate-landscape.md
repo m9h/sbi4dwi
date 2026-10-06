@@ -117,6 +117,12 @@ not a cold one.
 
 ---
 
+### 1.4 Update 2026-10-06 — OCTOPUS still unreleased; ConCeG is a second grey-matter generator
+
+- **OCTOPUS:** no code release as of 2026-10-06. The Mic-map GitHub organisation lists WMTI-Watson_DL, CATERPillar, PIRACY, graymatter_swissknife, DfMRI and nexi, with no OCTOPUS repository. The preprint still promises code "upon publication". bioRxiv returned HTTP 429, so a v2 was not ruled out directly; searches found none. The early-access note (docs/outreach/octopus-early-access.md) remains an unsent draft.
+- **ConCeG** (Aird-Rossiter, Şimşek, Jallais, Jones, Kanari, Palombo; arXiv 2607.03286, submitted 2026-07-03, final version 2026-09-22): Contextual Cellular Growth, which "combines topological neuron synthesis with a spatially constrained growth network" to build grey-matter substrates for dMRI simulation. It comes from the Cardiff/Palombo line (SANDI-type grey-matter models) and is independent of OCTOPUS and CATERPillar. No code link on the arXiv page. Only the abstract has been read; its geometry format, soma/neurite statistics and validation are unchecked.
+- **Consequence for §9:** Phase 3 no longer depends on OCTOPUS alone. Any generator that emits SWC or meshes feeds the same Phase 2 ingestion path, so ConCeG is a second candidate source for grey-matter substrates, and it is the one aimed at SANDI-type signal models. Both remain unavailable until code is released; the practical step is an early-access request to its authors alongside the OCTOPUS one (draft only, to be sent by the user).
+
 ## 2. ReMiDi — differentiable FEM (the UCSC inverse half)
 
 **Paper:** Khole PP, Petiwala ZK, Magesh SP, Mirafzali E, Gupta U, Li J-R,
@@ -489,3 +495,5 @@ OCTOPUS; it is blocked on this.
 
 8. GPU-accelerated JEMRIS for extensive MRI simulations. MAGMA, 2025.
    DOI: 10.1007/s10334-025-01281-z (unrelated to the UCSC line; see §5)
+
+9. Aird-Rossiter C, Şimşek K, Jallais M, Jones DK, Kanari L, Palombo M. *Contextual Cellular Growth (ConCeG) of neural cells for realistic grey matter tissue generation for diffusion MRI simulations.* arXiv 2607.03286 (submitted 2026-07-03; final version 2026-09-22).
