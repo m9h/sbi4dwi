@@ -87,6 +87,8 @@ class PrismConfig:
     use_restricted: bool = True
     use_isotropic: bool = True       # False → CSF and GM balls disabled (WM-only voxels, e.g. substrates)
     use_gm: bool = True              # False → GM ball off, CSF ball kept (NODDI-style free water only; doc 008 §10.4)
+    lam_iso: float = 0.0             # one-sided prior on f_iso = f_csf+f_gm above iso_target (collapses the WM-only/default two-model workaround; doc 008 §13)
+    iso_target: float = 0.1
     tortuosity_scale: bool = False   # learn a global factor s ∈ (0.5, 2) in D⊥,ex = s·D∥,ex·(1 − f_i)
     odi_init: float = 0.1
     odi_range: tuple[float, float] = (0.01, 0.5)
@@ -480,7 +482,10 @@ def total_loss(params, y, bvals, bvecs, nb, cfg: PrismConfig):
         centre = cfg.d_par if cfg.diffusivity_prior_centre is None else cfg.diffusivity_prior_centre
         z = (jnp.log(phys["d_par"]) - jnp.log(centre)) / cfg.diffusivity_prior_sd
         d_prior = cfg.lam_diffusivity_prior * z ** 2
-    reg = (d_prior
+    iso_prior = 0.0
+    if cfg.lam_iso > 0:
+        iso_prior = cfg.lam_iso * jnp.mean(jnp.maximum(phys["fracs"][:, 0] + phys["fracs"][:, 1] - cfg.iso_target, 0.0) ** 2)
+    reg = (d_prior + iso_prior
            + cfg.lam_spatial * huber_laplacian(phys["fracs"], nb, cfg.huber_delta)
            + cfg.lam_repulsion * direction_repulsion(f_wm, phys["dirs"])
            + cfg.lam_sparse * minor_fibre_sparsity(f_wm, cfg.tau_sparse)

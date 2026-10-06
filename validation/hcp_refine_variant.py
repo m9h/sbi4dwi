@@ -9,7 +9,7 @@ sys.path.insert(0, "validation"); import validate_hcp_retest as V
 from dmipy_jax.validation import dipy_refine as dr, prism_jax as pj
 from dipy.data import default_sphere
 
-ap = argparse.ArgumentParser(); ap.add_argument("--subject", default="105923"); ap.add_argument("--variant", default="noiso"); ap.add_argument("--n-iter", type=int, default=300)
+ap = argparse.ArgumentParser(); ap.add_argument("--subject", default="105923"); ap.add_argument("--variant", default="noiso"); ap.add_argument("--n-iter", type=int, default=300); ap.add_argument("--lam-iso", type=float, default=0.0); ap.add_argument("--iso-target", type=float, default=0.1)
 a = ap.parse_args(); V.SUBJ = a.subject; V.OUT = V.ROOT / "b1" / a.subject
 K = 2 if a.variant == "k2" else 3
 for session in ["test", "retest"]:
@@ -17,6 +17,7 @@ for session in ["test", "retest"]:
     if out.exists(): continue
     data, affine, gtab, mask, aparc = V.load_session(session); z = np.load(V.OUT / session / "msmt.npz")
     cfg = dr.default_config(K, n_iter=a.n_iter, wm_only=(a.variant == "noiso"))
+    if a.lam_iso > 0: cfg = replace(cfg, lam_iso=a.lam_iso, iso_target=a.iso_target)
     if a.variant == "csfonly": cfg = replace(cfg, use_gm=False) if hasattr(cfg, "use_gm") else cfg
     pam = V.build_pam(z["dirs"], z["vals"], mask, affine, default_sphere)
     t0 = time.time(); _, _, fit = dr.refine_peaks(data, gtab, mask, pam, n_fibres=K, cfg=cfg, affine=affine, laplace=False); jax.block_until_ready(fit.fintra)
