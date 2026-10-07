@@ -1,0 +1,44 @@
+{
+ "refine single": {
+  "r_log_mean": 0.885485795129202,
+  "r_log_sd": 0.00918987072106145,
+  "icc_median": 0.41982862246230174,
+  "icc_frac_gt_0.6": 0.2658038825286212
+ },
+ "seed-only mean": {
+  "r_log_mean": 0.885485795129202,
+  "r_log_sd": 0.00918987072106145,
+  "icc_median": 0.41982862246230174,
+  "icc_frac_gt_0.6": 0.2658038825286212
+ },
+ "const-\u03c3 mean": {
+  "r_log_mean": 0.956912267814008,
+  "r_log_sd": 0.005593702311079124,
+  "icc_median": 0.6064011873698868,
+  "icc_frac_gt_0.6": 0.5116973618715779
+ },
+ "Laplace posterior mean": {
+  "r_log_mean": 0.9619318364390623,
+  "r_log_sd": 0.005368393257180669,
+  "icc_median": 0.640269087347275,
+  "icc_frac_gt_0.6": 0.578397212543554
+ },
+ "seed-only mean - refine single": {
+  "mean_diff": 0.0,
+  "p": NaN,
+  "n_pos": 0,
+  "n": 42
+ },
+ "const-\u03c3 mean - seed-only mean": {
+  "mean_diff": 0.07142647268480597,
+  "p": 4.547473508864641e-13,
+  "n_pos": 42,
+  "n": 42
+ },
+ "Laplace posterior mean - const-\u03c3 mean": {
+  "mean_diff": 0.005019568625054311,
+  "p": 4.547473508864641e-13,
+  "n_pos": 42,
+  "n": 42
+ }
+}

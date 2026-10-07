@@ -1657,3 +1657,46 @@ the reason D∥ is a global parameter in the fit.
   next design step; the Fisher tool chooses its b-values.
 
 Artefacts: `validation/hcp_retest/protocol_transfer_hcpa.{json,log}`.
+
+## 13. Does the uncertainty earn its keep? Group reliability and tracking controls (2026-10-07)
+
+Two questions left open by §10.6: does the per-edge posterior help *group* statistics, and is the posterior-mean connectome gain (0.965 vs 0.92) due to the calibrated per-fixel σ or just to averaging several tracking runs. Clean 42 subjects, Desikan 68, edges present in ≥50 % of test visits (2009). Scripts: `validation/uncertainty_group_reliability.py`, `validation/uncertainty_control_tracking.py`; results in `validation/hcp_retest/uncertainty_group_reliability.json`, `uncertainty_control_tracking.json`.
+
+### 13.1 Between-subject edge reliability (ICC(3,1), test vs retest)
+
+| edge weight | median ICC | frac ICC > 0.6 |
+|---|---|---|
+| MSMT counts (log) | 0.470 | 0.28 |
+| refine counts (log) | 0.420 | 0.27 |
+| **posterior mean (log)** | **0.640** | **0.58** |
+| posterior mean × (1 − CV) | 0.535 | 0.37 |
+| posterior mean, CV < 0.5 only | 0.442 | 0.20 |
+
+Edge CV predicts edge ICC: Spearman −0.67 (p ≈ 1e-259); posterior-mean ICC by CV tertile 0.766 / 0.640 / 0.478. So the posterior tells you which edges will be reliable across people, but *using* it to down-weight or prune edges lowers reliability, as it did for scan–rescan r in §10.4. The uncertainty is a reliability map, not a filter.
+
+### 13.2 Controls: what produces the posterior-mean gain
+
+Per visit, 10 tracking runs of (A) the refine peaks with only the tracker seed changed, (B) the refine peaks jittered with a constant isotropic σ = 3.3° (the cohort median Laplace σ), and (C) the Laplace posterior samples from §10.6.
+
+| connectome | scan–rescan r(log) | edge ICC median | frac > 0.6 |
+|---|---|---|---|
+| refine, single run | 0.885 ± 0.009 | 0.420 | 0.27 |
+| (A) seed-only mean | 0.885 ± 0.009 | 0.420 | 0.27 |
+| (B) constant-σ mean | 0.957 ± 0.006 | 0.606 | 0.51 |
+| (C) Laplace posterior mean | 0.962 ± 0.005 | 0.640 | 0.58 |
+
+(A) is identical to the single run: EuDX with seeds from a density-1 mask is deterministic, so re-seeding averages nothing. (B) vs (A): +0.071, 42/42 subjects, p = 4.5e-13. (C) vs (B): +0.005, 42/42, p = 4.5e-13; ICC 0.606 → 0.640.
+
+**Reading.** Most of the gain is *direction-perturbation averaging*: jittering peaks by a plausible constant angle and averaging the connectomes captures 0.071 of the 0.077. The calibrated per-fixel σ adds a small but perfectly consistent increment (+0.005 r, +0.034 median ICC, every subject). The honest claim is therefore: "posterior-averaged tractography is far more reproducible than single-run tractography (0.96 vs 0.89), and the calibrated per-fixel posterior is consistently, modestly better than a constant jitter". It is not "calibrated uncertainty is what makes the connectome reproducible". Constant-σ averaging is trivially available to any MRtrix/DIPY user; the per-fixel posterior is what we uniquely add, and its measured value on this metric is small. Its larger value is §13.1: the CV ranks edge reliability (ρ = −0.67), which no count-based pipeline can offer.
+
+### 13.3 Isotropic-fraction prior (one subject, 105923)
+
+A one-sided quadratic prior `lam_iso · mean(max(f_csf + f_gm − iso_target, 0)²)` with target 0.1 (`PrismConfig.lam_iso`, `iso_target`), against the default model (f_i CCC 0.866, wsCV 8.3 %, main-fixel Δθ 8.33°, count agree 72.4 %):
+
+| λ_iso | f_i CCC | wsCV | f_iso (WM) | Δθ main | count agree |
+|---|---|---|---|---|---|
+| 1e3 | 0.931 | 5.3 % | 0.124 | 9.62° | 86.5 % |
+| 1e4 | 0.929 | 4.7 % | 0.101 | 12.19° | 95.7 % |
+| 1e5 | 0.929 | 4.7 % | 0.099 | 12.34° | 96.0 % |
+
+λ = 1e3 reaches the no-iso model's f_i reproducibility (§10.4: 0.926 / 4.5 %) while keeping the CSF/GM balls, at a 1.3° orientation cost; stronger priors buy nothing in f_i and cost 4°. One subject; the cohort refit is the next step before it replaces the two-model workaround in §10.6.
