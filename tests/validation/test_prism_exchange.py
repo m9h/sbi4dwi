@@ -1,7 +1,14 @@
 import numpy as np, jax, jax.numpy as jnp, pytest
 from dmipy_jax.validation import prism_exchange as px
 
-jax.config.update("jax_enable_x64", True)
+
+
+@pytest.fixture(autouse=True)
+def _x64():
+    # Local, not global: a module-level jax.config.update leaked float64 into
+    # every test collected after this file.
+    with jax.enable_x64():
+        yield
 
 
 def _scheme():

@@ -6,6 +6,8 @@ to j-Wave simulation inputs and running differentiable acoustic simulation.
 """
 
 import pytest
+
+pytest.importorskip("jwave")
 import numpy as np
 import jax
 import jax.numpy as jnp

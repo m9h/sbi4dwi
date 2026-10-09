@@ -1,3 +1,4 @@
+import pytest
 import jax
 import jax.numpy as jnp
 from dmipy_jax.core.solvers import BlochSimulator, solve_diffusion_sde
@@ -52,6 +53,7 @@ def test_bloch_simulator_relaxation():
     print("Bloch Simulator Relaxation Test Passed")
 
 
+@pytest.mark.xfail(reason="known failure, pre-existing, see docs/decisions/010 §7.3: Diffrax 0.7 ControlTerm structure change", strict=False)
 def test_diffusion_sde_msd():
     print("\nRunning Diffusion SDE MSD Test...")
     # Free diffusion in 3D

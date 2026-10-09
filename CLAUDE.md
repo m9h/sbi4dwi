@@ -49,12 +49,16 @@ uv run pytest        # run tests
 
 ### Testing
 ```bash
-uv run pytest tests/ --noconftest     # skip sybil-based conftest
-uv run pytest tests/test_oracle.py -v --noconftest  # single file
+uv run pytest                              # full suite (dmipy_jax/tests + tests)
+uv run pytest tests/test_oracle.py -v      # single file
+uv run pytest docs/tutorials               # markdown tutorials as doctests (sybil)
+JAX_PLATFORMS=cpu uv run pytest            # CPU; use this for compile-heavy or agent-run suites
+uv run pytest --cov=dmipy_jax              # coverage is opt-in
 ```
-The root `conftest.py` requires `sybil` (for markdown doctests). Use
-`--noconftest` when running test files directly. The configured test paths
-in pyproject.toml are `dmipy_jax/tests/` and `docs/tutorials/`.
+The root `conftest.py` loads sybil only if it is installed, so `--noconftest`
+is no longer needed. Equivalence with the original dmipy code is tested
+against vendored closed forms (`dmipy_jax/tests/test_callaghan_reference.py`);
+the reference source is `git show 7b254f4:dmipy/...`, not a dmipy install.
 
 ### Equinox patterns
 All differentiable objects (models, simulators) are `eqx.Module` subclasses.
@@ -246,4 +250,4 @@ The project has been built incrementally over ~2 months:
 - Don't hardcode b-value units — always check SI vs FSL
 - Don't skip b0 normalisation — train and deploy must match
 - Don't make external simulators JAX dependencies — use the oracle boundary
-- Don't run `pytest` without `--noconftest` unless `sybil` is installed
+- Don't pass b-values in s/mm² to the signal kernels — they are SI-only (no unit heuristics)

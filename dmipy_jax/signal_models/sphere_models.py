@@ -4,7 +4,8 @@ import jax.numpy as jnp
 from jax import jit, lax
 import scipy.special as ssp
 from jax.scipy import special as jsp
-from dmipy_jax.constants import SPHERE_ROOTS, GYRO_MAGNETIC_RATIO
+from dmipy_jax.constants import SPHERE_ROOTS, GYRO_MAGNETIC_RATIO, spherical_bessel_derivative_roots
+import functools
 import equinox as eqx
 from typing import Any
 from jaxtyping import Array
@@ -188,65 +189,101 @@ def spherical_jn_derivative_jax(n, z):
         )
 
 
+def _spherical_jn_stack_host(z, n_max):
+    import numpy as np
+    orders = np.arange(n_max + 1, dtype=np.float64)
+    return ssp.spherical_jn(orders[:, None].astype(int), np.asarray(z, dtype=np.float64)[None, :]).astype(z.dtype)
+
+
+@functools.partial(jax.custom_jvp, nondiff_argnums=(1,))
+def spherical_jn_stack(z, n_max):
+    """``j_n(z)`` for all orders ``n = 0 .. n_max`` in one host callback; shape ``(n_max+1,) + z.shape``.
+
+    Differentiable in ``z`` through ``j_n'(z) = j_{n-1}(z) - (n+1)/z j_n(z)`` (``j_0' = -j_1``).
+    """
+    z = jnp.asarray(z)
+    out = jax.ShapeDtypeStruct((n_max + 1,) + z.shape, z.dtype)
+    return jax.pure_callback(
+        lambda z_in: _spherical_jn_stack_host(z_in.reshape(-1), n_max).reshape((n_max + 1,) + z_in.shape),
+        out, z, vmap_method="sequential",
+    )
+
+
+@spherical_jn_stack.defjvp
+def _spherical_jn_stack_jvp(n_max, primals, tangents):
+    (z,) = primals
+    (dz,) = tangents
+    full = spherical_jn_stack(z, n_max + 1)
+    val = full[:-1]
+    return val, _spherical_jn_derivative_from_stack(full, z) * dz[None]
+
+
+def _spherical_jn_derivative_from_stack(j, z):
+    """``j_n'(z)`` for n = 0 .. len(j)-2 given ``j[n] = j_n(z)`` for n = 0 .. len(j)-1."""
+    n_max = j.shape[0] - 2
+    n = jnp.arange(1, n_max + 1, dtype=z.dtype)
+    safe_z = jnp.where(jnp.abs(z) < jnp.finfo(z.dtype).tiny, 1.0, z)
+    der_pos = j[0:n_max] - (n[:, None] + 1.0) / safe_z[None, :] * j[1:n_max + 1]
+    der_0 = -j[1:2]
+    return jnp.concatenate([der_0, der_pos], axis=0)
+
+
 def g3_sphere_callaghan(q, tau, diameter, diffusion_constant, alpha):
+    r"""Callaghan (1995) finite-time attenuation for diffusion inside a sphere
+    with reflecting walls (narrow-pulse limit).
+
+    .. math::
+
+        E(q,\tau) = \frac{9 j_1(x)^2}{x^2}
+          + \sum_{(n,k)\neq(0,0)} 6(2n+1)\, e^{-\alpha_{nk}^2 D\tau/R^2}
+            \frac{\alpha_{nk}^2}{\alpha_{nk}^2 - n(n+1)}
+            \frac{(x\, j_n'(x))^2}{(x^2-\alpha_{nk}^2)^2},
+        \qquad x = 2\pi q R,
+
+    where ``alpha[k, n]`` are the roots of ``j_n'`` from
+    :func:`dmipy_jax.constants.spherical_bessel_derivative_roots`. The first
+    term is the ``alpha = 0`` eigenmode and equals the Stejskal-Tanner sphere
+    ``(3 j_1(x)/x)^2``, which the series reduces to as ``tau -> inf``; as
+    ``D tau << R^2`` it tends to free diffusion ``exp(-b D)``.
+
+    This is derived from the eigenfunction expansion (``psi_nkm = j_n(alpha r/R) Y_nm``,
+    ``|psi_nk|^2`` normalisation ``R^3 j_n(alpha)^2 (1 - n(n+1)/alpha^2)/2``). The
+    original dmipy ``S3SphereCallaghanApproximation`` used the cylindrical roots
+    ``J_m'`` with weight ``alpha^2 - n(n-1)`` and an invalid
+    ``spherical_jn`` call, so it is not usable as a reference; the limit tests in
+    ``dmipy_jax/tests/test_callaghan_reference.py`` pin this implementation instead.
+
+    Args:
+        q: (N,) q-values in m^-1 (``q > 0``; the caller masks ``q = 0`` to 1).
+        tau: scalar or (N,) diffusion time in s.
+        diameter: sphere diameter in m.
+        diffusion_constant: intra-sphere diffusivity in m^2/s.
+        alpha: (n_roots, n_functions) root table.
     """
-    Callaghan sphere model kernel.
-    alpha: roots (n_roots, n_functions)
-    """
+    q = jnp.asarray(q)
+    tau = jnp.broadcast_to(jnp.asarray(tau, dtype=q.dtype), q.shape)
     radius = diameter / 2.0
-    q_argument = 2 * jnp.pi * q * radius
-    q_argument_2 = q_argument ** 2
-    
-    # 2 * sum ...
-    # We loop over n efficiently using fori_loop
-    
-    n_functions = alpha.shape[1]
-    
-    # Must use python loop because bessel_jn order n must be static int
-    accum = jnp.zeros_like(q_argument)
-    for n in range(int(n_functions)):
-        Jder_n = spherical_jn_derivative_jax(n, q_argument)
-        
-        # Vectorize over k (roots)
-        # alpha[:, n] -> (K,)
-        alphas_n = alpha[:, n] # Dynamic slice
-        alphas_n2 = alphas_n**2
-        
-        # Broadcasting setup
-        # alphas_n2: (K,)
-        # q: (N,) or scalar. q_argument: (N,)
-        
-        # (K, 1)
-        an2_col = alphas_n2[:, None]
-        
-        E_times = jnp.exp(-an2_col * diffusion_constant * tau / radius**2) # (K, N)
-        
-        denom_weight = an2_col - n*(n+1)
-        # Guard against zero division (shouldn't happen for valid roots > 0, but alpha[0,0]=0)
-        denom_weight = jnp.where(denom_weight == 0, 1.0, denom_weight) 
-        
-        weight = ((2 * n + 1) * an2_col) / denom_weight
-        
-        # J_term
-        # q_arg (N,)
-        # Jder_n (N,)
-        num_geom = q_argument * Jder_n # (N,)
-        denom_geom = (q_argument_2[None, :] - an2_col) ** 2 # (K, N)
-        
-        # Guard against singularity
-        denom_geom = jnp.maximum(denom_geom, 1e-12)
-        
-        # Full term (K, N)
-        # weight (K, 1) * E_times (K, N)
-        term_k = E_times * weight 
-        
-        # num_geom (N,) -> (1, N)
-        term = term_k * num_geom[None, :] / denom_geom
-        
-        sum_k = jnp.sum(term, axis=0) # (N,)
-        accum = accum + sum_k
-    
-    return accum    
+    x = 2.0 * jnp.pi * q * radius
+    x2 = x ** 2
+    n_roots, n_functions = alpha.shape
+
+    j = spherical_jn_stack(x, n_functions)                  # j_0 .. j_{n_functions}, (M+1, N)
+    jp = _spherical_jn_derivative_from_stack(j, x)          # j_0' .. j_{M-1}', (M, N)
+
+    alpha2 = alpha ** 2                                     # (K, M)
+    n = jnp.arange(n_functions, dtype=x.dtype)
+    nonzero_root = alpha2 > 0
+    weight_denom = jnp.where(nonzero_root, alpha2 - n[None, :] * (n[None, :] + 1.0), 1.0)
+    weight = jnp.where(nonzero_root, 6.0 * (2.0 * n[None, :] + 1.0) * alpha2 / weight_denom, 0.0)  # (K, M)
+
+    decay = jnp.exp(-alpha2[None] * diffusion_constant * tau[:, None, None] / radius ** 2)  # (N, K, M)
+    denom = (x2[:, None, None] - alpha2[None]) ** 2
+    denom = jnp.maximum(denom, jnp.finfo(x.dtype).tiny)
+    xjp2 = (x[None, :] * jp) ** 2                           # (M, N)
+    series = jnp.sum(decay * weight[None] * xjp2.T[:, None, :] / denom, axis=(1, 2))
+
+    zero_mode = 9.0 * j[1] ** 2 / x2
+    return zero_mode + series
 
 
 @jit
@@ -375,17 +412,7 @@ class SphereCallaghan(eqx.Module):
         self.number_of_roots = number_of_roots
         self.number_of_functions = number_of_functions
         
-        self.alpha = self._precompute_roots(number_of_roots, number_of_functions)
-        
-    def _precompute_roots(self, n_roots, n_functions):
-        import numpy as np
-        alpha = np.empty((n_roots, n_functions))
-        alpha[0, 0] = 0
-        if n_roots > 1:
-            alpha[1:, 0] = ssp.jnp_zeros(0, n_roots - 1)
-        for m in range(1, n_functions):
-            alpha[:, m] = ssp.jnp_zeros(m, n_roots)
-        return jnp.array(alpha)
+        self.alpha = spherical_bessel_derivative_roots(number_of_roots, number_of_functions)
 
     def __call__(self, bvals, gradient_directions, **kwargs):
         diameter = kwargs.get('diameter', self.diameter)
@@ -409,5 +436,9 @@ class SphereCallaghan(eqx.Module):
             tau = kwargs['big_delta'] - kwargs['small_delta']/3.0
         else:
              raise ValueError("SphereCallaghan requires 'tau' or 'big_delta'/'small_delta'.")
-             
-        return g3_sphere_callaghan(q, tau, diameter, diff_const, self.alpha)
+
+        q = jnp.asarray(q)
+        nonzero = q * diameter > 1e-12
+        safe_q = jnp.where(nonzero, q, 1.0 / (jnp.pi * diameter))   # x = 2 where masked
+        e = g3_sphere_callaghan(safe_q, tau, diameter, diff_const, self.alpha)
+        return jnp.where(nonzero, e, 1.0)

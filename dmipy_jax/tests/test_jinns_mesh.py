@@ -1,7 +1,8 @@
 import pytest
+
+meshio = pytest.importorskip("meshio")
 import jax.numpy as jnp
 import numpy as np
-import meshio
 import os
 from dmipy_jax.io.jinns_mesh import load_mesh_to_jax
 

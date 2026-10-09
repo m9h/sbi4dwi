@@ -3,7 +3,8 @@ import jax.numpy as jnp
 import scipy.special as ssp
 from jax.scipy import special as jsp
 from jax import pure_callback, jit, vmap, lax
-from dmipy_jax.constants import GYRO_MAGNETIC_RATIO
+from dmipy_jax.constants import GYRO_MAGNETIC_RATIO, bessel_derivative_roots
+import functools
 import equinox as eqx
 from jaxtyping import Array, Float
 from typing import Any, Tuple
@@ -58,10 +59,10 @@ def c2_cylinder(bvals, bvecs, mu, lambda_par, diameter, big_delta, small_delta):
     Computes signal for a Cylinder with finite radius (Soderman approximation).
     
     Args:
-        bvals: (N,) array of b-values in s/mm^2.
+        bvals: (N,) array of b-values in s/m^2 (SI).
         bvecs: (N, 3) array of gradient directions.
         mu: (3,) array defining the fiber orientation.
-        lambda_par: Scalar diffusivity along the fiber (mm^2/s).
+        lambda_par: Scalar diffusivity along the fiber (m^2/s).
         diameter: Cylinder diameter in meters.
         big_delta: Diffusion time / pulse separation (s).
         small_delta: Pulse duration (s).
@@ -82,21 +83,10 @@ def c2_cylinder(bvals, bvecs, mu, lambda_par, diameter, big_delta, small_delta):
     
     # However, standard dmipy uses q directly if available, or derives it.
     # Let's derive q_mag from bvals.
+    # q = sqrt(b / tau) / (2 pi) in m^-1 for SI b-values (s/m^2); b = (2 pi q)^2 tau.
     tau = big_delta - small_delta / 3.0
-    q_mag = jnp.sqrt(bvals / (tau + 1e-9)) / (2 * jnp.pi)
-    
-    # Unit Handling:
-    # If bvals are in s/mm^2 (max ~10000), q_mag is in mm^-1.
-    # If bvals are in s/m^2 (SI, >1e6), q_mag is in m^-1.
-    # We want q_mag in m^-1.
-    # Heuristic: If mean(bvals) > 50000, assume SI.
-    # Using 'bvals' max to be safe.
-    is_si = jnp.max(bvals) > 50000.0
-    
-    # If not SI (s/mm^2), we multiply by 1e3 to get m^-1.
-    # If SI (s/m^2), we leave as is.
-    scaling = jnp.where(is_si, 1.0, 1e3)
-    q_mag = q_mag * scaling
+    safe_tau = jnp.where(tau > 0, tau, 1.0)
+    q_mag = jnp.sqrt(jnp.maximum(bvals, 0.0) / safe_tau) / (2 * jnp.pi)
     
     # Project gradients perpendicular to fiber axis
     # |g_perp| = |g - (g . mu)mu| = |g| * sqrt(1 - (g_hat . mu)^2)
@@ -136,10 +126,10 @@ def c1_stick(bvals, bvecs, mu, lambda_par):
     Computes signal for a Stick (zero-radius cylinder).
     
     Args:
-        bvals: (N,) array of b-values in s/mm^2.
+        bvals: (N,) array of b-values in s/m^2 (SI).
         bvecs: (N, 3) array of gradient directions.
         mu: (3,) array defining the fiber orientation.
-        lambda_par: Scalar diffusivity along the fiber (mm^2/s).
+        lambda_par: Scalar diffusivity along the fiber (m^2/s).
         
     Returns:
         (N,) array of signal attenuation (0.0 to 1.0).
@@ -162,7 +152,7 @@ class RestrictedCylinder(eqx.Module):
     mu : array, shape(2)
         angles [theta, phi] representing main orientation on the sphere.
     lambda_par : float
-        parallel diffusivity in mm^2/s.
+        parallel diffusivity in m^2/s.
     diameter : float
         cylinder diameter in meters.
 
@@ -223,200 +213,154 @@ class RestrictedCylinder(eqx.Module):
         return c2_cylinder(bvals, gradient_directions, mu_cart, lambda_par, diameter, big_delta, small_delta)
 
 
-@jax.custom_jvp
-def bessel_jn_safe(z, v):
-    """
-    Computes J_v(z) using scipy.special.jv via pure_callback (Host CPU),
-    with custom JVP for gradients.
-    v is treated as a float/array input in the signature for JVP, 
-    but we expect it to be integer-like constant usually.
-    Actually, to support 'v' as auxiliary, we should trace it?
-    Let's assume v is an integer scalar passed as argument.
-    """
-    # Callback to host scipy
-    # Output shape matches z
-    result_shape = jax.ShapeDtypeStruct(z.shape, z.dtype)
-    return pure_callback(lambda z_in, v_in: ssp.jv(v_in, z_in), result_shape, z, v, vmap_method='legacy_vectorized')
+def _bessel_j_stack_host(z, n_max):
+    import numpy as np
+    import scipy.special as ssp
+    orders = np.arange(n_max + 1, dtype=np.float64)
+    return ssp.jv(orders[:, None], np.asarray(z, dtype=np.float64)[None, :]).astype(z.dtype)
 
-@bessel_jn_safe.defjvp
-def bessel_jn_safe_jvp(primals, tangents):
-    z, v = primals
-    hz, hv = tangents
-    # dJ_v/dz = 0.5 * (J_(v-1) - J_(v+1))
-    # We assume dJ_v/dv = 0 (v is integer constant)
-    val = bessel_jn_safe(z, v)
-    
-    j_minus = bessel_jn_safe(z, v - 1.0)
-    j_plus = bessel_jn_safe(z, v + 1.0)
-    diff_val = 0.5 * (j_minus - j_plus)
-    
-    return val, diff_val * hz
+
+@functools.partial(jax.custom_jvp, nondiff_argnums=(1,))
+def bessel_j_stack(z, n_max):
+    """``J_v(z)`` for all integer orders ``v = 0 .. n_max`` in one host callback.
+
+    Returns an array of shape ``(n_max + 1,) + z.shape``. ``n_max`` must be a
+    static Python int. The derivative is supplied by a custom JVP using
+    ``J_v'(z) = (J_{v-1}(z) - J_{v+1}(z)) / 2`` and ``J_0'(z) = -J_1(z)``, so
+    the kernel is differentiable in ``z`` while the Bessel evaluation itself
+    runs through ``scipy.special.jv`` on the host.
+    """
+    z = jnp.asarray(z)
+    out_shape = jax.ShapeDtypeStruct((n_max + 1,) + z.shape, z.dtype)
+    flat = pure_callback(
+        lambda z_in: _bessel_j_stack_host(z_in.reshape(-1), n_max).reshape((n_max + 1,) + z_in.shape),
+        out_shape, z, vmap_method="sequential",
+    )
+    return flat
+
+
+@bessel_j_stack.defjvp
+def _bessel_j_stack_jvp(n_max, primals, tangents):
+    (z,) = primals
+    (dz,) = tangents
+    full = bessel_j_stack(z, n_max + 1)          # orders 0 .. n_max+1
+    val = full[:-1]
+    j_minus = jnp.concatenate([-full[1:2], full[:-2]], axis=0)  # J_{v-1}; J_{-1} = -J_1
+    j_plus = full[1:]
+    deriv = 0.5 * (j_minus - j_plus)
+    return val, deriv * dz[None]
 
 
 def bessel_jn_fixed(v, z):
-    """
-    Computes J_v(z) safely using the callback mechanism.
-    """
-    # Ensure inputs are appropriate for the callback
-    # v might be int, cast to float for JVP consistency if needed or pass as is?
-    # ssp.jv takes real order.
-    return bessel_jn_safe(z, float(v))
+    """``J_v(z)`` for a single static integer order ``v`` (kept for compatibility)."""
+    return bessel_j_stack(z, int(v))[int(v)]
+
 
 def jvp_v1(v, z):
+    """First derivative ``J_v'(z) = (J_{v-1}(z) - J_{v+1}(z)) / 2`` for static integer ``v >= 1``."""
+    st = bessel_j_stack(z, int(v) + 1)
+    return 0.5 * (st[int(v) - 1] - st[int(v) + 1])
+
+
+def callaghan_perpendicular_attenuation(q, tau, diameter, diffusion_perp, alpha):
+    r"""Callaghan (1995) finite-time attenuation for diffusion inside a cylinder,
+    measured perpendicular to its axis.
+
+    Faithful port of dmipy's ``C3CylinderCallaghanApproximation.perpendicular_attenuation``
+    (``git show 7b254f4:dmipy/signal_models/cylinder_models.py``):
+
+    .. math::
+
+        E(q,\tau) = \sum_k 4\, e^{-\alpha_{0k}^2 D \tau / R^2}
+            \frac{x^2}{(x^2-\alpha_{0k}^2)^2} J_1(x)^2
+          + \sum_{m\ge1}\sum_k 8\, e^{-\alpha_{mk}^2 D \tau / R^2}
+            \frac{\alpha_{mk}^2}{\alpha_{mk}^2-m^2}
+            \frac{(x J_m'(x))^2}{(x^2-\alpha_{mk}^2)^2},
+        \qquad x = 2\pi q R,
+
+    where ``alpha[k, m]`` are the roots of ``J_m'`` from
+    :func:`dmipy_jax.constants.bessel_derivative_roots` (``alpha[0, 0] = 0``).
+
+    Args:
+        q: (N,) perpendicular q-values in m^-1.
+        tau: scalar or (N,) diffusion time in s.
+        diameter: cylinder diameter in m.
+        diffusion_perp: intra-cylindrical diffusivity in m^2/s.
+        alpha: (n_roots, n_functions) root table.
+
+    Returns:
+        (N,) attenuation. Not defined at ``q = 0`` (the caller masks it to 1).
     """
-    Compute the first derivative of Bessel function of the first kind Jv(z) with respect to z.
-    Formula: Jv'(z) = 0.5 * (J(v-1, z) - J(v+1, z))
-    """
-    # Use bessel_jn_fixed for consistency
-    return 0.5 * (bessel_jn_fixed(v - 1, z) - bessel_jn_fixed(v + 1, z))
+    q = jnp.asarray(q)
+    tau = jnp.broadcast_to(jnp.asarray(tau, dtype=q.dtype), q.shape)
+    radius = diameter / 2.0
+    x = 2.0 * jnp.pi * q * radius                     # (N,)
+    x2 = x ** 2
+    n_roots, n_functions = alpha.shape
+
+    # All Bessel orders needed: J_0 .. J_{n_functions} (J_m' needs J_{m+1}).
+    J = bessel_j_stack(x, n_functions)                # (n_functions+1, N)
+
+    alpha2 = alpha ** 2                               # (K, M)
+    decay = jnp.exp(-alpha2[None] * diffusion_perp * tau[:, None, None] / radius ** 2)  # (N, K, M)
+    denom = (x2[:, None, None] - alpha2[None]) ** 2   # (N, K, M)
+    denom = jnp.maximum(denom, jnp.finfo(x.dtype).tiny)
+
+    # m = 0 term: 4 exp(.) x^2 / (x^2 - a^2)^2 J_1(x)^2
+    term0 = 4.0 * decay[:, :, 0] * x2[:, None] / denom[:, :, 0] * (J[1] ** 2)[:, None]
+    res = jnp.sum(term0, axis=1)
+
+    if n_functions > 1:
+        m = jnp.arange(1, n_functions)
+        # J_m'(x) = (J_{m-1} - J_{m+1}) / 2 for m >= 1
+        Jp = 0.5 * (J[0:n_functions - 1] - J[2:n_functions + 1])   # (M-1, N)
+        xJp2 = (x[None, :] * Jp) ** 2                                # (M-1, N)
+        a2 = alpha2[:, 1:]                                           # (K, M-1)
+        weight = a2 / (a2 - m[None, :] ** 2)                         # (K, M-1)
+        term_m = 8.0 * decay[:, :, 1:] * weight[None] * xJp2.T[:, None, :] / denom[:, :, 1:]
+        res = res + jnp.sum(term_m, axis=(1, 2))
+    return res
 
 
 def c3_cylinder_callaghan(bvals, bvecs, mu, lambda_par, diameter, diffusion_perp, tau, alpha):
-    """
-    Computes signal for a Cylinder with finite radius using Callaghan's approximation.
-    
+    """Signal of a finite-radius cylinder: stick along ``mu`` times Callaghan's
+    perpendicular attenuation.
+
+    All quantities are SI, as everywhere in the package: ``bvals`` in s/m^2,
+    diffusivities in m^2/s, ``diameter`` in m, ``tau`` in s. The q-value follows
+    dmipy's PGSE convention ``b = (2 pi q)^2 tau``, i.e. ``q = sqrt(b/tau)/(2 pi)``
+    in m^-1.
+
     Args:
-        bvals: (N,) array of b-values in s/mm^2.
-        bvecs: (N, 3) array of gradient directions.
-        mu: (3,) array defining the fiber orientation.
-        lambda_par: Scalar diffusivity along the fiber (mm^2/s).
-        diameter: Cylinder diameter in meters.
-        diffusion_perp: Perpendicular diffusivity (m^2/s) - typically same as intrinsic or smaller.
-        tau: Diffusion time (s).
-        alpha: (n_roots, n_functions) array of roots of J_n'(x)=0.
-        
+        bvals: (N,) b-values in s/m^2.
+        bvecs: (N, 3) unit gradient directions.
+        mu: (3,) unit fibre orientation.
+        lambda_par: parallel diffusivity (m^2/s).
+        diameter: cylinder diameter (m).
+        diffusion_perp: perpendicular intra-cylindrical diffusivity (m^2/s).
+        tau: scalar or (N,) diffusion time (s).
+        alpha: (n_roots, n_functions) roots of ``J_m'`` (see
+            :func:`dmipy_jax.constants.bessel_derivative_roots`).
+
     Returns:
-        (N,) array of signal attenuation.
+        (N,) signal attenuation.
     """
-    # 1. Parallel Signal (Stick)
-    # Project gradients onto fiber axis: (g . mu)
+    bvals = jnp.asarray(bvals)
+    tau = jnp.broadcast_to(jnp.asarray(tau, dtype=bvals.dtype), bvals.shape)
+
     dot_prod = jnp.dot(bvecs, mu)
-    signal_par = jnp.exp(-bvals * lambda_par * (dot_prod ** 2))
-    
-    # 2. Perpendicular Signal (Callaghan)
-    # Need q-values.
-    # q = sqrt(b / tau) / (2pi) if we assume narrow pulse approximation for the q definition in Callaghan?
-    # Legacy code uses q directly from acquisition.
-    # q_mag = sqrt(b / tau) / (2pi) approx for Stejskal Tanner?
-    # Actually, legacy uses: q = acquisition_scheme.qvalues
-    # Here we typically start from bvals. 
-    # Let's approximate q from bvals and tau assuming SGP or similar effective time.
-    # q = 1/(2*pi) * sqrt(b/tau)
-    # This matches the SGP relation b = (2pi q)^2 * tau.
-    
-    q_mag = jnp.sqrt(bvals / (tau + 1e-12)) / (2 * jnp.pi)
-    
-    # Unit Handling (SI vs Legacy)
-    is_si = jnp.max(bvals) > 50000.0
-    scaling = jnp.where(is_si, 1.0, 1e3)
-    q_mag = q_mag * scaling # Convert to m^-1 if needed
-    
-    # Ensure tau broadcasts with (1, K) if it is (N,)
-    if jnp.ndim(tau) == 1:
-        tau = tau[:, None]
-    
-    # Project gradients perpendicular to fiber axis
-    sin_theta_sq = 1 - dot_prod**2
-    # Clip to avoid negative due to precision
-    # Also clip lower bound to avoid NaN gradient at 0
-    sin_theta_sq = jnp.clip(sin_theta_sq, 1e-12, 1.0) 
+    signal_par = jnp.exp(-bvals * lambda_par * dot_prod ** 2)
+
+    safe_tau = jnp.where(tau > 0, tau, 1.0)
+    q_mag = jnp.sqrt(jnp.maximum(bvals, 0.0) / safe_tau) / (2.0 * jnp.pi)
+    sin_theta_sq = jnp.clip(1.0 - dot_prod ** 2, 1e-12, 1.0)   # lower clip keeps the sqrt gradient finite
     q_perp = q_mag * jnp.sqrt(sin_theta_sq)
-    
-    radius = diameter / 2.0
-    
-    # Pre-calculate common terms
-    q_argument = 2 * jnp.pi * q_perp * radius
-    q_argument_2 = q_argument ** 2
-    
-    # Initialize response (summing updates)
-    # We will accumulate signal attenuation.
-    # Note: legacy code calculates the attenuation E_perp, then multiplies.
-    
-    # --- m = 0 case ---
-    # alpha[k, 0] roots
-    alpha_0 = alpha[:, 0] # (K,)
-    
-    # J0 term (actually eq uses J1 for m=0 term update?)
-    # Legacy: J = special.j1(q_argument) ** 2
-    # update = 4 * exp(...) * q_arg^2 / (q_arg^2 - alpha^2)^2 * J
-    
-    J_m0 = bessel_jn_fixed(1, q_argument) ** 2 # (N,)
-    
-    # Vectorize compute over K roots for m=0
-    # exp_factor: (K,) scalar (per root)
-    # But tau is (N,) or scalar? usually scalar per shell, but can be array.
-    # Let's assume tau is scalar for now or broadcastable.
-    
-    # We need to broadcast (N, K).
-    # q_argument: (N,)
-    # alpha_0: (K,)
-    
-    # Reshape for broadcasting
-    q_arg_2_expanded = q_argument_2[:, None] # (N, 1)
-    alpha_0_expanded = alpha_0[None, :]      # (1, K)
-    alpha_0_sq = alpha_0_expanded ** 2
-    
-    # exp_term: (1, K) usually, if tau is scalar. If tau is (N,), then (N, K).
-    # diffusion_perp is scalar. radius is scalar.
-    exp_term_0 = jnp.exp(-alpha_0_sq * diffusion_perp * tau / (radius ** 2))
-    
-    denom_0 = (q_arg_2_expanded - alpha_0_sq) ** 2
-    
-    # Prevent division by zero if q_arg ~ alpha (resonance)
-    denom_0 = jnp.maximum(denom_0, 1e-12)
-    
-    term_0 = (8 * exp_term_0 * q_arg_2_expanded / denom_0)
-    
-    # Sum over k
-    sum_0 = jnp.sum(term_0, axis=1) # (N,)
-    
-    res = sum_0 * J_m0
-    
-    # --- m > 0 cases ---
-    # We loop over m efficiently.
-    # Since m ranges 1..50, we can Python-loop and accumulate.
-    # It adds nodes to the graph but 50 is manageable.
-    
-    n_functions = alpha.shape[1]
-    
-    # Iterate m from 1 to n_functions
-    # Using jax.lax.fori_loop to handle dynamic bounds (n_functions is tracer if alpha is dynamic leaf JAX array).
-    
-    # Iterate m from 1 to n_functions
-    # Must use python loop because bessel_jn order v must be static int
-    for m in range(1, int(n_functions)):
-        # alpha for this m
-        alpha_m = alpha[:, m] # (K,)
-        
-        # J term: J'm(q_arg)
-        # JAX special.bessel_jn(z, v=v)
-        J_val = jvp_v1(m, q_argument) # (N,)
-        
-        alpha_m_sq = alpha_m[None, :] ** 2 # (1, K)
-        
-        q_arg_J = (q_argument * J_val) ** 2 # (N,)
-        q_arg_J_expanded = q_arg_J[:, None] # (N, 1)
-        
-        # Denom
-        denom_m = (q_arg_2_expanded - alpha_m_sq) ** 2
-        denom_m = jnp.maximum(denom_m, 1e-12)
-        
-        # exp term
-        exp_term_m = jnp.exp(-alpha_m_sq * diffusion_perp * tau / (radius ** 2))
-        
-        # Update term
-        # 8 * exp(...) * alpha^2 / (alpha^2 - m^2) * q_arg_J / denom
-        
-        numerator_factor = alpha_m_sq / (alpha_m_sq - m**2) # (1, K)
-        
-        term_m = (16 * exp_term_m * numerator_factor * q_arg_J_expanded / denom_m)
-        
-        sum_m = jnp.sum(term_m, axis=1) # (N,)
-        
-    # Handle q_perp = 0 case (no attenuation perpendicular)
-    res = jnp.where(q_perp > 1e-9, res, 1.0)
-    
-    return signal_par * res
+
+    nonzero = q_perp * diameter > 1e-12                           # x = 2 pi q R > ~6e-12
+    safe_q = jnp.where(nonzero, q_perp, 1.0 / (jnp.pi * diameter))  # x = 2 where masked
+    e_perp = callaghan_perpendicular_attenuation(safe_q, tau, diameter, diffusion_perp, alpha)
+    e_perp = jnp.where(nonzero, e_perp, 1.0)
+    return signal_par * e_perp
 
 
 class CallaghanRestrictedCylinder(eqx.Module):
@@ -431,7 +375,7 @@ class CallaghanRestrictedCylinder(eqx.Module):
     mu : array, shape(2)
         angles [theta, phi] representing main orientation on the sphere.
     lambda_par : float
-        parallel diffusivity in mm^2/s.
+        parallel diffusivity in m^2/s.
     diameter : float
         cylinder (axon) diameter in meters.
     diffusion_perpendicular : float
@@ -475,17 +419,7 @@ class CallaghanRestrictedCylinder(eqx.Module):
         self.diffusion_perpendicular = diffusion_perpendicular
         self.number_of_roots = number_of_roots
         self.number_of_functions = number_of_functions
-        
-        # Pre-calculate alpha (roots) using scipy.special (on CPU/host)
-        self.alpha = self._precompute_roots(number_of_roots, number_of_functions)
-
-    def _precompute_roots(self, n_roots, n_functions):
-        import numpy as np
-        import scipy.special as ssp
-        alpha = np.empty((n_roots, n_functions))
-        for m in range(n_functions):
-            alpha[:, m] = ssp.jnp_zeros(m, n_roots)
-        return jnp.array(alpha)
+        self.alpha = bessel_derivative_roots(number_of_roots, number_of_functions)
 
     def __call__(self, bvals, gradient_directions, **kwargs):
         lambda_par = kwargs.get('lambda_par', self.lambda_par)
@@ -525,7 +459,7 @@ class C1Stick(eqx.Module):
     mu : array, shape(2)
         angles [theta, phi] representing main orientation on the sphere.
     lambda_par : float
-        parallel diffusivity in mm^2/s.
+        parallel diffusivity in m^2/s.
     """
     
     mu: Any = None

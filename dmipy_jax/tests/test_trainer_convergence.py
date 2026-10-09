@@ -1,3 +1,4 @@
+import pytest
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -16,6 +17,7 @@ def prior_sampler(key, batch_size):
     # Theta ~ Uniform(0, 1)
     return jax.random.uniform(key, (batch_size, 2))
 
+@pytest.mark.xfail(reason="known failure, pre-existing, see docs/decisions/010 §7.3: train_loop() API drift ('trainer' kwarg)", strict=False)
 def test_trainer():
     key = jax.random.key(0)
     

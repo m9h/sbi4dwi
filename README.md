@@ -348,14 +348,14 @@ signal = fem.simulate_acquisition(acquisition)
 ## Testing
 
 ```bash
-# Unit tests (skip sybil-based conftest)
-uv run pytest tests/ --noconftest
-
-# Module tests
-uv run pytest dmipy_jax/tests/ --noconftest
+# Full suite (dmipy_jax/tests + tests); add JAX_PLATFORMS=cpu to stay off the GPU
+uv run pytest
 
 # Single file
-uv run pytest tests/test_oracle.py -v --noconftest
+uv run pytest tests/test_oracle.py -v
+
+# Markdown tutorials as doctests (needs sybil)
+uv run pytest docs/tutorials
 ```
 
 ## Tech Stack

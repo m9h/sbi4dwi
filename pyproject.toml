@@ -22,7 +22,6 @@ classifiers = [
 ]
 dependencies = [
   "jax[cuda13]",
-  "dmipy",
   "numpy",
   "jaxlib",
   "jaxopt",
@@ -97,13 +96,22 @@ doc = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=dmipy_jax --cov-report=term-missing"
+# Coverage is opt-in: `uv run pytest --cov=dmipy_jax`. Having it in addopts made
+# the bare command slow and, on the GB10, prone to hanging under tracing.
+addopts = "--import-mode=importlib"
 testpaths = [
     "dmipy_jax/tests",
-    "docs/tutorials",
+    "tests",
 ]
+# Markdown tutorials are collected by the root conftest (sybil) only when asked:
+#   uv run pytest docs/tutorials
+
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+markers = [
+    "slow: long-running test (deselect with -m 'not slow')",
+    "gpu: needs a CUDA device (deselect with -m 'not gpu')",
 ]
 
 [tool.uv.sources]

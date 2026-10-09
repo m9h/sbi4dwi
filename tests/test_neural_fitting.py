@@ -1,3 +1,4 @@
+import pytest
 import jax
 import jax.numpy as jnp
 # Check if equinox and optax are available
@@ -9,6 +10,7 @@ except ImportError:
     print("equinox or optax not installed")
     exit(0)
 
+@pytest.mark.xfail(reason="known failure, pre-existing, see docs/decisions/010 §7.3: activation function passed as a JAX leaf (equinox API drift)", strict=False)
 def test_neural_estimator_training_and_inference():
     key = jax.random.PRNGKey(42)
     

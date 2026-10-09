@@ -22,4 +22,7 @@ jobs:
       run: uv sync --all-extras --dev
 
     - name: Run tests
+      # CPU only on the hosted runner; the GPU extra is installed but unused.
+      env:
+        JAX_PLATFORMS: cpu
       run: uv run pytest

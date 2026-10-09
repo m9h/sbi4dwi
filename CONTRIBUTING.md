@@ -36,13 +36,12 @@ is automatically installed in editable mode.
 ### Verify the installation
 
 ```bash
-uv run pytest tests/ --noconftest     # run tests (skip sybil conftest)
+uv run pytest                         # run tests
 uv run python -c "import dmipy_jax"   # import smoke test
 ```
 
-**Note on `--noconftest`**: the root `conftest.py` requires `sybil` for markdown
-doctests. Use `--noconftest` when running test files directly unless you have
-`sybil` installed.
+The root `conftest.py` enables sybil markdown doctests only when sybil is
+installed and only for paths you pass explicitly (`uv run pytest docs/tutorials`).
 
 ---
 
@@ -159,12 +158,13 @@ The `JaxAcquisition` class always stores b-values in SI.
 ### Running tests
 
 ```bash
-uv run pytest tests/ --noconftest                    # full suite
-uv run pytest tests/test_comparison.py -v --noconftest  # single file
-uv run pytest tests/ --noconftest -k "test_mdn"      # by name
+uv run pytest                                  # full suite
+uv run pytest tests/test_comparison.py -v      # single file
+uv run pytest -k "test_mdn"                    # by name
+JAX_PLATFORMS=cpu uv run pytest                # CPU only (CI does this)
 ```
 
-Coverage is reported automatically via `--cov=dmipy_jax --cov-report=term-missing`
+Coverage is opt-in: `uv run pytest --cov=dmipy_jax --cov-report=term-missing`
 (configured in `pyproject.toml`).
 
 ### Test requirements

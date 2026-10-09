@@ -18,7 +18,7 @@ def test_sphere_stejskal_tanner_execution():
     model = sphere_models.SphereStejskalTanner()
     # Mock data
     N = 10
-    bvals = jnp.linspace(0, 3000, N)
+    bvals = jnp.linspace(0, 3000, N) * 1e6  # s/m^2
     bvecs = jnp.zeros((N, 3))
     
     # Must provide q explicitly or timing
@@ -36,7 +36,7 @@ def test_sphere_stejskal_tanner_execution():
 def test_sphere_callaghan_execution():
     model = sphere_models.SphereCallaghan(number_of_roots=10, number_of_functions=10)
     N = 10
-    bvals = jnp.linspace(0, 3000, N)
+    bvals = jnp.linspace(0, 3000, N) * 1e6  # s/m^2
     bvecs = jnp.zeros((N, 3))
     
     params = {
@@ -54,7 +54,7 @@ def test_sphere_callaghan_execution():
 def test_plane_stejskal_tanner_execution():
     model = plane_models.PlaneStejskalTanner()
     N = 10
-    bvals = jnp.linspace(0, 3000, N)
+    bvals = jnp.linspace(0, 3000, N) * 1e6  # s/m^2
     bvecs = jnp.zeros((N, 3))
     
     params = {
@@ -71,7 +71,7 @@ def test_plane_stejskal_tanner_execution():
 def test_plane_callaghan_execution():
     model = plane_models.PlaneCallaghan(number_of_roots=20)
     N = 10
-    bvals = jnp.linspace(0, 3000, N)
+    bvals = jnp.linspace(0, 3000, N) * 1e6  # s/m^2
     bvecs = jnp.zeros((N, 3))
     
     params = {
@@ -86,49 +86,35 @@ def test_plane_callaghan_execution():
     # Plane Callaghan has sines and cosines, should decay.
     assert jnp.all(jnp.isfinite(signal))
 
-def test_sphere_equivalence_legacy():
-    try:
-        from dmipy.signal_models import sphere_models as leg_sphere
-        from dmipy.core.acquisition_scheme import acquisition_scheme_from_bvalues
-    except ImportError:
-        pytest.skip("Legacy dmipy not found.")
-        
-    # Stejskal Tanner
-    print("Testing Sphere Stejskal Tanner Equivalence...")
+def test_sphere_stejskal_tanner_closed_form():
+    """dmipy S2SphereStejskalTannerApproximation.sphere_attenuation (7b254f4):
+    E = (3/x^2 (sin x / x - cos x))^2, x = 2 pi q R, q = sqrt(b/tau)/(2 pi)."""
     bvals = np.array([0, 1000e6, 2000e6])
-    bvecs = np.zeros((3,3)); bvecs[:,0]=1
-    delta=0.01; Delta=0.03
-    acq = acquisition_scheme_from_bvalues(bvals, bvecs, delta=delta, Delta=Delta)
-    
-    leg_model = leg_sphere.S2SphereStejskalTannerApproximation(diameter=6e-6)
-    leg_sig = leg_model(acq)
-    
-    jax_model = sphere_models.SphereStejskalTanner(diameter=6e-6)
+    bvecs = np.zeros((3, 3)); bvecs[:, 0] = 1
+    delta = 0.01; Delta = 0.03
+    diameter = 6e-6
+    tau = Delta - delta / 3
+    q = np.sqrt(bvals[1:] / tau) / (2 * np.pi)
+    x = 2 * np.pi * q * diameter / 2
+    want = np.r_[1.0, (3 / x ** 2 * (np.sin(x) / x - np.cos(x))) ** 2]
+
+    jax_model = sphere_models.SphereStejskalTanner(diameter=diameter)
     jax_sig = jax_model(jnp.array(bvals), jnp.array(bvecs), big_delta=Delta, small_delta=delta)
-    
-    np.testing.assert_allclose(leg_sig, jax_sig, atol=1e-5)
-    print("Sphere Stejskal Tanner Matches.")
+    np.testing.assert_allclose(np.asarray(jax_sig), want, rtol=1e-5, atol=1e-6)
 
-def test_plane_equivalence_legacy():
-    try:
-        from dmipy.signal_models import plane_models as leg_plane
-        from dmipy.core.acquisition_scheme import acquisition_scheme_from_bvalues
-    except ImportError:
-        pytest.skip("Legacy dmipy not found.")
 
-    # Stejskal Tanner
-    print("Testing Plane Stejskal Tanner Equivalence...")
-    bvals = np.array([0, 1000e6])
-    bvecs = np.zeros((2,3)); bvecs[:,0]=1
-    delta=0.01; Delta=0.03
-    acq = acquisition_scheme_from_bvalues(bvals, bvecs, delta=delta, Delta=Delta)
-    
-    leg_model = leg_plane.P2PlaneStejskalTannerApproximation(diameter=5e-6)
-    leg_sig = leg_model(acq)
-    
-    jax_model = plane_models.PlaneStejskalTanner(diameter=5e-6)
+def test_plane_stejskal_tanner_closed_form():
+    """dmipy P2PlaneStejskalTannerApproximation.plane_attenuation (7b254f4):
+    E = 2 (1 - cos x) / x^2, x = 2 pi q * diameter."""
+    bvals = np.array([0, 1000e6, 3000e6])
+    bvecs = np.zeros((3, 3)); bvecs[:, 0] = 1
+    delta = 0.01; Delta = 0.03
+    diameter = 5e-6
+    tau = Delta - delta / 3
+    q = np.sqrt(bvals[1:] / tau) / (2 * np.pi)
+    x = 2 * np.pi * q * diameter
+    want = np.r_[1.0, 2 * (1 - np.cos(x)) / x ** 2]
+
+    jax_model = plane_models.PlaneStejskalTanner(diameter=diameter)
     jax_sig = jax_model(jnp.array(bvals), jnp.array(bvecs), big_delta=Delta, small_delta=delta)
-    
-    np.testing.assert_allclose(leg_sig, jax_sig, atol=1e-5)
-    print("Plane Stejskal Tanner Matches.")
-
+    np.testing.assert_allclose(np.asarray(jax_sig), want, rtol=1e-5, atol=1e-6)

@@ -209,15 +209,6 @@ wheels = [
 ]
 
 [[package]]
-name = "boto"
-version = "2.49.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c8/af/54a920ff4255664f5d238b5aebd8eedf7a07c7a5e71e27afcfe840b82f51/boto-2.49.0.tar.gz", hash = "sha256:ea0d3b40a2d852767be77ca343b58a9e3a4b00d9db440efb8da74b4e58025e5a", size = 1478498, upload-time = "2018-07-11T20:58:58.057Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/10/c0b78c27298029e4454a472a1919bde20cb182dab1662cec7f2ca1dcc523/boto-2.49.0-py2.py3-none-any.whl", hash = "sha256:147758d41ae7240dc989f0039f27da8ca0d53734be0eb869ef16e3adcfa462e8", size = 1359202, upload-time = "2018-07-11T20:58:55.711Z" },
-]
-
-[[package]]
 name = "boto3"
 version = "1.42.34"
 source = { registry = "https://pypi.org/simple" }
@@ -867,23 +858,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/3c/5b40f8862390e9172e776cf610f3791c1af01f140a5698799fbe4a97206f/dm_tree-0.1.9-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:b06e7a5da1c31a82521a60060573527e8d24b9920fdd20b2ec86f08412737598", size = 180821, upload-time = "2025-03-31T08:35:44.474Z" },
     { url = "https://files.pythonhosted.org/packages/84/1d/3cdbeeb3f6937a47a26cee502bffeccc2e55b97dfcce8a1d1135ea1b5b47/dm_tree-0.1.9-cp313-cp313t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6893fcdc5cf1a4f459cfc383526d35d42e7c671ae565d7e429a2f2cb2cb93e89", size = 147282, upload-time = "2025-01-30T20:45:33.896Z" },
     { url = "https://files.pythonhosted.org/packages/c5/37/15603079854394f16e3833a7b50696c1f3cbf30a2243a119f64f18a16f36/dm_tree-0.1.9-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e1f5d1e96b3a7de22b25b13a5eb30f41f8cf9c02dd4479a24920de99e780903c", size = 153052, upload-time = "2025-01-30T20:45:35.907Z" },
-]
-
-[[package]]
-name = "dmipy"
-version = "1.0.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "boto" },
-    { name = "cvxpy" },
-    { name = "dipy" },
-    { name = "numpy" },
-    { name = "pathlib" },
-    { name = "scipy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/b0/64976af45e4a28503917606d85573930f31644fc533cd912b7a67f097c4a/dmipy-1.0.4.tar.gz", hash = "sha256:ccc6da735a3e88e31cc1ae7f0b74cc106f5ce9d30134cf115544437d64064415", size = 27814870, upload-time = "2021-01-19T21:49:29.009Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/db/4df06a0837b1f08880628c5ffb5e68735b32aba522128b3ed16022adeb36/dmipy-1.0.4-py3-none-any.whl", hash = "sha256:04481bd2a662f1374e9759a5190e4617494a11d55648e14343b0c71a30600c50", size = 27961528, upload-time = "2021-01-19T21:48:35.461Z" },
 ]
 
 [[package]]
@@ -2877,15 +2851,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pathlib"
-version = "1.0.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ac/aa/9b065a76b9af472437a0059f77e8f962fe350438b927cb80184c32f075eb/pathlib-1.0.1.tar.gz", hash = "sha256:6940718dfc3eff4258203ad5021090933e5c04707d5ca8cc9e73c94a7894ea9f", size = 49298, upload-time = "2014-09-03T15:41:57.18Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/f9/690a8600b93c332de3ab4a344a4ac34f00c8f104917061f779db6a918ed6/pathlib-1.0.1-py3-none-any.whl", hash = "sha256:f35f95ab8b0f59e6d354090350b44a80a80635d22efdedfa84c7ad1cf0a74147", size = 14363, upload-time = "2022-05-04T13:37:20.585Z" },
-]
-
-[[package]]
 name = "patool"
 version = "4.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3554,7 +3519,6 @@ dependencies = [
     { name = "datalad" },
     { name = "diffrax" },
     { name = "dipy" },
-    { name = "dmipy" },
     { name = "dmri-amico" },
     { name = "e3nn-jax" },
     { name = "equinox" },
@@ -3627,7 +3591,6 @@ requires-dist = [
     { name = "datalad" },
     { name = "diffrax" },
     { name = "dipy", specifier = ">=1.12.1" },
-    { name = "dmipy" },
     { name = "dmri-amico", specifier = ">=2.1.1" },
     { name = "e3nn-jax", specifier = ">=0.20.8" },
     { name = "equinox" },
