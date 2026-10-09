@@ -1700,3 +1700,21 @@ A one-sided quadratic prior `lam_iso · mean(max(f_csf + f_gm − iso_target, 0)
 | 1e5 | 0.929 | 4.7 % | 0.099 | 12.34° | 96.0 % |
 
 λ = 1e3 reaches the no-iso model's f_i reproducibility (§10.4: 0.926 / 4.5 %) while keeping the CSF/GM balls, at a 1.3° orientation cost; stronger priors buy nothing in f_i and cost 4°. One subject; the cohort refit is the next step before it replaces the two-model workaround in §10.6.
+
+### 13.4 Isotropic-fraction prior on the full cohort (2026-10-08)
+
+λ_iso = 1e3, target 0.1, refit on both visits of the 42 clean subjects (`validation/hcp_refine_variant.py --variant iso1e3 --lam-iso 1000`; per-subject `validation/hcp_retest/<subj>_variant_iso1e3.json`, summary `iso_prior_cohort.json`). Paired Wilcoxon over subjects.
+
+| model | f_i CCC | \|Δ\| | wsCV | main-fixel Δθ | count agree |
+|---|---|---|---|---|---|
+| default (CSF+GM balls, no prior) | 0.812 ± 0.036 | 0.048 | 8.9 % | 8.83° | 72 % |
+| no-iso (WM only, §10.6) | 0.839 ± 0.070 | 0.035 | 6.4 % | 12.43° | 96 % |
+| **iso prior λ=1e3** | **0.867 ± 0.052** | 0.036 | 6.8 % | 10.16° | 86 % |
+| NODDI NDI·(1−FWF) | 0.858 ± 0.051 | 0.039 | 6.5 % | — | — |
+| MSMT-CSD | — | — | — | 7.99° | — |
+
+- vs default: CCC +0.055 (higher in 40/42, p = 1e-10), |Δ| −0.012 and wsCV −2.1 points (lower in 41/42, p = 9e-13); Δθ +1.34° (worse in 42/42).
+- vs no-iso: CCC +0.028 (38/42, p = 4e-7); |Δ| equal (p = 0.10); wsCV +0.4 points (worse, p = 9e-6); Δθ 2.3° better, count agreement 10 points worse.
+- vs NODDI tissue fraction: CCC +0.009 (33/42, p = 7e-4); |Δ| −0.003 (lower in 37/42, p = 8e-6); wsCV +0.4 points (worse in 35/42, p = 4e-6).
+
+**Reading.** The prior collapses the two-model workaround: one fit with the isotropic compartments kept now matches the WM-only model on |Δ| and beats it on CCC, and against NODDI it is ahead on two of three f_i metrics and behind by 0.4 points of CoV on the third. That is the same "on par with NODDI" verdict as §10.6, reached with a single model and with the CSF/GM fractions still estimated (WM f_iso 0.11–0.13 instead of 0.30). The remaining cost is orientation: 10.2° vs 8.8° default and 8.0° MSMT, because the prior pushes signal out of the isotropic pool into a third fixel (mean count 2.8). The iso-prior model should become the B1 default for f_i; for tractography the default model's peaks (or MSMT's) remain the better initialisation, which the DIPY workflow already allows by running the two configurations from the same MSMT peaks.
