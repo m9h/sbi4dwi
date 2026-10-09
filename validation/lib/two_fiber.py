@@ -17,7 +17,7 @@ from dmipy_jax.acquisition import JaxAcquisition
 from dmipy_jax.pipeline.simulator import ModelSimulator
 
 # Re-export so call sites only have to import from one place
-from dmipy_jax.validation.three_fiber import (  # noqa: F401
+from validation.lib.three_fiber import (  # noqa: F401
     acq_to_gtab_si,
     make_multishell_acquisition,
 )

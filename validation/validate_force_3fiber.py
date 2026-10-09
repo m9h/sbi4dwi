@@ -47,18 +47,18 @@ from dipy.reconst.force import FORCEModel, load_force_simulations
 from dmipy_jax.library.generator import LibraryGenerator
 from dmipy_jax.library.matcher import DictionaryMatcher
 from dmipy_jax.library.storage import SimulationLibrary
-from dmipy_jax.validation.force_baselines import (
+from validation.lib.force_baselines import (
     csd_peaks_from_signal,
     dipy_force_label_directions_from_signal,
     dipy_force_peaks_from_signal,
     gqi_peaks_from_signal,
 )
-from dmipy_jax.validation.force_helpers import (
+from validation.lib.force_helpers import (
     best_three_peaks,
     check_all_three_detected,
     params3_to_orientations,
 )
-from dmipy_jax.validation.three_fiber import (
+from validation.lib.three_fiber import (
     acq_to_gtab_si,
     build_three_stick_simulator,
     make_multishell_acquisition,

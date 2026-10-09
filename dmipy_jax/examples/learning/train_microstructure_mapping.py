@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from typing import Tuple
 
 # DMIPY-JAX imports
-from dmipy_jax.validation.histology import HistoDataset, HistologySimulator
+from validation.lib.histology import HistoDataset, HistologySimulator
 from dmipy_jax.learning.microstructure_mapping import MicrostructureMapper
 from dmipy_jax.signal_models import cylinder_models
 from dmipy_jax.core.acquisition import SimpleAcquisitionScheme

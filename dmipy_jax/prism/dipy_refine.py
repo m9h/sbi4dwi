@@ -14,9 +14,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Optional, Tuple
 import numpy as np
-from dmipy_jax.validation import prism_jax as pj, prism_uncertainty as pu
-
-
+from dmipy_jax.prism import prism_jax as pj, prism_uncertainty as pu
 def default_config(n_fibres: int, n_iter: int = 300, d_par_init: float = 1.7e-9, wm_only: bool = False, lam_iso: float = 0.0) -> pj.PrismConfig:
     """The plus-x model: learned diffusivities, decoupled extra-cellular D∥,
     tortuosity, no restricted pool; isotropic compartments off for WM-only tissue.
@@ -67,7 +65,7 @@ def posterior_pams(post, mask: np.ndarray, n_samples: int, key, sphere=None, aff
     """Yield one PeaksAndMetrics per posterior direction sample (for CV-pruned connectomes)."""
     import jax
     from dipy.data import default_sphere
-    from dmipy_jax.validation.disco_tracking import peaks_to_pam
+    from dmipy_jax.prism.tracking import peaks_to_pam
     sphere = sphere or default_sphere; affine = np.eye(4) if affine is None else affine
     S = post.sample_dirs(key, n_samples); idx = np.argwhere(mask); K = post.dirs.shape[1]
     for s in range(n_samples):

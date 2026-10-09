@@ -1,8 +1,5 @@
 import numpy as np, jax, jax.numpy as jnp, pytest
-from dmipy_jax.validation import prism_exchange as px
-
-
-
+from validation.lib import prism_exchange as px
 @pytest.fixture(autouse=True)
 def _x64():
     # Local, not global: a module-level jax.config.update leaked float64 into

@@ -4,7 +4,7 @@ DIPY-side baseline adapters for the FORCE replication / 3-fibre benchmarks.
 Each adapter takes a 1D measurement signal (numpy, shape ``(M,)``) and a
 prepared model object, returns a list of unit-vector peak directions on the
 sphere. Listing instead of array so callers can apply
-:func:`dmipy_jax.validation.force_helpers.best_two_peaks` /
+:func:`validation.lib.force_helpers.best_two_peaks` /
 :func:`best_three_peaks` uniformly.
 """
 

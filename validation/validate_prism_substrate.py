@@ -11,9 +11,9 @@ recall, and f_i vs the measured intra-cellular fraction.
 import argparse, time
 from dataclasses import replace
 import numpy as np, jax
-from dmipy_jax.validation import substrate_benchmark as sb
-from dmipy_jax.validation import prism_jax as pj
-from dmipy_jax.validation.prism_synthetic import prism_scheme
+from validation.lib import substrate_benchmark as sb
+from dmipy_jax.prism import prism_jax as pj
+from validation.lib.prism_synthetic import prism_scheme
 
 
 def main():
@@ -68,7 +68,7 @@ def main():
                 if meth == "msmt":
                     from dipy.core.gradients import gradient_table
                     from dipy.data import default_sphere
-                    from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
+                    from validation.lib.msmt_baseline import msmt_csd_pam
                     gtab = gradient_table(bvals / 1e6, bvecs=bvecs)
                     # oracle response: WM response estimated from the *single-bundle*
                     # voxels of the same geometry (appended as a second slice)
@@ -83,7 +83,7 @@ def main():
                     fr = v / np.maximum(v.sum(1, keepdims=True), 1e-12); fi = np.full(N, np.nan)
                 elif meth == "select":
                     # per-voxel Laplace-evidence selection between plus-x and plus-x-disp
-                    from dmipy_jax.validation import prism_uncertainty as pu
+                    from dmipy_jax.prism import prism_uncertainty as pu
                     cfgx = replace(pj.PrismConfig(n_fibres=2, n_iter=args.n_iter, loss="nll"),
                                    learn_diffusivities=True, tortuosity=True, use_restricted=False,
                                    separate_extra_dpar=True, lam_diffusivity_prior=1.0,

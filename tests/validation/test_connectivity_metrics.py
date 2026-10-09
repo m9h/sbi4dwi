@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 
-_helper = pytest.importorskip("dmipy_jax.validation.connectivity_metrics")
+_helper = pytest.importorskip("validation.lib.connectivity_metrics")
 
 
 # --------------------------------------------------------------------------- #
@@ -34,7 +34,7 @@ class TestConnectivityLinCCC:
         """CCC must drop when one matrix is a scaled copy of the other,
         even though Pearson r stays at 1.0. This is the failure mode
         §21.8 flagged: Pearson r=0.82 may hide a 2× scale bias."""
-        from dmipy_jax.validation.force_disco_connectivity import (
+        from validation.lib.force_disco_connectivity import (
             connectivity_pearson,
         )
         rng = np.random.default_rng(1)

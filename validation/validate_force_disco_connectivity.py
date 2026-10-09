@@ -26,7 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dmipy_jax.validation.force_disco_connectivity import (
+from validation.lib.force_disco_connectivity import (
     connectivity_pearson,
     lin_ccc,
     load_gt_connectivity,

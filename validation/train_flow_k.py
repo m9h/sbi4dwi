@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np, jax, jax.numpy as jnp, equinox as eqx
 sys.path.insert(0, str(Path(__file__).parent))
 from diagnose_flow_variants import build_flow, train
-from dmipy_jax.validation.prism_jax import PrismConfig, forward
+from dmipy_jax.prism.prism_jax import PrismConfig, forward
 
 TWO_PI = 2 * np.pi
 
@@ -27,7 +27,7 @@ def load_scheme(name):
         d = m.load_protocol_data(30)
         return np.asarray(d["bvals"]) * 1e6, np.asarray(d["bvecs"])
     if name == "prism":
-        from dmipy_jax.validation.prism_synthetic import prism_scheme
+        from validation.lib.prism_synthetic import prism_scheme
         return prism_scheme()
     z = np.load(name); b = z["bvals"]; return (b if b.max() > 1e5 else b * 1e6), z["bvecs"]
 

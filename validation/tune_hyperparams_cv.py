@@ -20,8 +20,8 @@ from dataclasses import replace
 from pathlib import Path
 import numpy as np, jax, jax.numpy as jnp, nibabel as nib
 from scipy.stats import pearsonr
-from dmipy_jax.validation import prism_jax as pj
-from dmipy_jax.validation.force_disco import disco_subject_path
+from dmipy_jax.prism import prism_jax as pj
+from validation.lib.force_disco import disco_subject_path
 
 vdfp = importlib.util.module_from_spec(s := importlib.util.spec_from_file_location("vdfp", Path(__file__).with_name("validate_disco_force_protocol.py"))); s.loader.exec_module(vdfp)
 
@@ -31,7 +31,7 @@ GRID = {"lam_spatial": [0.0, 1.0, 10.0, 100.0], "lam_sparse": [0.0, 1.0, 10.0], 
 
 def heldout_nll(fit, data, mask, bvals, bvecs, idx_test):
     """Rician NLL of held-out measurements under the fitted parameters (σ from the fit)."""
-    from dmipy_jax.validation.prism_jax import forward, rician_nll
+    from dmipy_jax.prism.prism_jax import forward, rician_nll
     y = jnp.asarray(data[mask][:, idx_test]); bv = jnp.asarray(bvals[idx_test]); gv = jnp.asarray(bvecs[idx_test])
     phys = {"s0": jnp.asarray(fit.s0), "fracs": jnp.asarray(fit.fracs), "dirs": jnp.asarray(fit.dirs), "fintra": jnp.asarray(fit.fintra),
             "d_par": jnp.asarray(fit.d_par), "d_perp": jnp.asarray(fit.d_perp), "sigma": jnp.asarray(fit.sigma if fit.sigma else 0.05)}

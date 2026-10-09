@@ -41,8 +41,8 @@ from dipy.tracking.streamline import Streamlines
 from dipy.tracking.tracker import eudx_tracking
 from dipy.tracking.utils import connectivity_matrix, seeds_from_mask
 
-from dmipy_jax.validation.connectivity_metrics import connectivity_dice_f1
-from dmipy_jax.validation.force_disco import disco_subject_path
+from validation.lib.connectivity_metrics import connectivity_dice_f1
+from validation.lib.force_disco import disco_subject_path
 
 DISCO = disco_subject_path(1)
 
@@ -94,7 +94,7 @@ def run_force(d, num_sims, num_cpus, diffusivity="range"):
 
 
 def run_msmt(d):
-    from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
+    from validation.lib.msmt_baseline import msmt_csd_pam
     pam, _ = msmt_csd_pam(d["data"], d["gtab"], d["mask"], default_sphere)
     pam.affine = d["affine"]
     return pam
@@ -102,8 +102,8 @@ def run_msmt(d):
 
 def run_prism_plus(d, n_fibres, n_iter, library_size, n_samples, key=0):
     import jax
-    from dmipy_jax.validation import prism_uncertainty as pu
-    from dmipy_jax.validation.prism_jax import PrismConfig, fit_prism, prism_fit_to_pam
+    from dmipy_jax.prism import prism_uncertainty as pu
+    from dmipy_jax.prism.prism_jax import PrismConfig, fit_prism, prism_fit_to_pam
     import importlib.util, sys
     spec = importlib.util.spec_from_file_location(
         "vpdc", Path(__file__).with_name("validate_prism_disco_connectivity.py"))
@@ -119,7 +119,7 @@ def run_prism_plus(d, n_fibres, n_iter, library_size, n_samples, key=0):
     post = pu.laplace_fixel_posterior(fit, d["data"], bvals_si, bvecs)
     # posterior direction samples → connectomes under the protocol tracker
     S = post.sample_dirs(jax.random.PRNGKey(key), n_samples)
-    from dmipy_jax.validation.disco_tracking import peaks_to_pam
+    from dmipy_jax.prism.tracking import peaks_to_pam
     idx = np.argwhere(d["mask"]); K = post.dirs.shape[1]
     cms = []
     for s in range(n_samples):
@@ -147,7 +147,7 @@ def main():
     ap.add_argument("--n-samples", type=int, default=20)
     args = ap.parse_args()
 
-    from dmipy_jax.validation import prism_uncertainty as pu
+    from dmipy_jax.prism import prism_uncertainty as pu
     rows = []
     for snr in args.snrs:
         d = load_protocol_data(snr)

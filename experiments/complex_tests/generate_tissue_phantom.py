@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import os
 import pandas as pd
-from dmipy_jax.validation.caterpillar import CATERPillarOracle
+from dmipy_jax.simulation.substrates.caterpillar import CATERPillarOracle
 from dmipy_jax.simulation.monte_carlo import simulate_trajectories
 from dmipy_jax.simulation.sphere_sdf import MultiSphereSDF
 

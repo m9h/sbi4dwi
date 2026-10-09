@@ -16,9 +16,7 @@ from dipy.io.gradients import read_bvals_bvecs
 from dipy.segment.mask import median_otsu
 from dipy.reconst.csdeconv import ConstrainedSphericalDeconvModel, auto_response_ssst
 from dipy.direction import peaks_from_model
-from dmipy_jax.validation import dipy_refine as dr
-
-
+from dmipy_jax.prism import dipy_refine as dr
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-iter", type=int, default=300); ap.add_argument("--force-sims", type=int, default=500_000)
@@ -41,7 +39,7 @@ def main():
     jax.block_until_ready(fit.fintra); res["t_refine"] = time.time() - t0
     print(f"refine (K=3, {a.n_iter} it): {res['t_refine']:.0f}s = {1e3*res['t_refine']/N:.2f} ms/voxel; D∥={fit.d_par*1e9:.2f} D∥ex={(fit.d_par_extra or fit.d_par)*1e9:.2f} "
           f"f_i mean {fit.fintra.mean():.3f} [{np.percentile(fit.fintra, 5):.2f}, {np.percentile(fit.fintra, 95):.2f}]", flush=True)
-    from dmipy_jax.validation import prism_uncertainty as pu
+    from dmipy_jax.prism import prism_uncertainty as pu
     t0 = time.time(); post = pu.laplace_fixel_posterior(fit, data.astype(np.float32), np.asarray(gtab.bvals) * 1e6, np.asarray(gtab.bvecs)); res["t_laplace"] = time.time() - t0
     print(f"Laplace posterior: {res['t_laplace']:.0f}s; median σ_θ (main fixel) {np.median(post.sigma_deg[:, 0]):.2f}°", flush=True)
     # agreement of refined main peak with CSD main peak

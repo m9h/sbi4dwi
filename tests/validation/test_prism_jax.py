@@ -9,7 +9,7 @@ import pytest
 jax = pytest.importorskip("jax")
 import jax.numpy as jnp  # noqa: E402
 
-from dmipy_jax.validation import prism_jax as pj  # noqa: E402
+from dmipy_jax.prism import prism_jax as pj  # noqa: E402
 
 
 def _scheme(n_dirs=32, bvals_mm2=(1000, 2000, 3000), seed=0):
@@ -254,7 +254,7 @@ def test_pam_adapter_shapes_and_threshold():
 
 class TestSyntheticBenchmark:
     def test_protocol_shape(self):
-        from dmipy_jax.validation import prism_synthetic as ps
+        from validation.lib import prism_synthetic as ps
         bvals, bvecs = ps.prism_scheme()
         assert bvals.shape == (193,)
         assert sorted(set(np.round(bvals / 1e6).astype(int))) == [0, 1000, 2000, 3000]
@@ -264,7 +264,7 @@ class TestSyntheticBenchmark:
         assert len(ps.ANGLES) == 16 and ps.ANGLES[0] == 15 and ps.ANGLES[-1] == 90
 
     def test_gt_angles_are_as_labelled(self):
-        from dmipy_jax.validation import prism_synthetic as ps
+        from validation.lib import prism_synthetic as ps
         b = ps.make_benchmark(snr=None)
         for a in ps.ANGLES:
             g = b["gt_dirs"][b["angle"] == a][0]
@@ -272,7 +272,7 @@ class TestSyntheticBenchmark:
             assert got == pytest.approx(a, abs=1e-6)
 
     def test_score_perfect_prediction(self):
-        from dmipy_jax.validation import prism_synthetic as ps
+        from validation.lib import prism_synthetic as ps
         b = ps.make_benchmark(snr=None)
         sc = ps.score_by_angle(b["gt_dirs"], b["gt_fracs"][:, 2:4], b)
         e, r = sc["overall"]
@@ -281,8 +281,8 @@ class TestSyntheticBenchmark:
     def test_msmt_oracle_response_mask_is_used(self):
         """Synthetic MSMT must build its WM response from the GT single-fibre
         voxels, not an FA percentile (which selects crossing voxels here)."""
-        from dmipy_jax.validation import prism_synthetic as ps
-        from dmipy_jax.validation import msmt_baseline as mb
+        from validation.lib import prism_synthetic as ps
+        from validation.lib import msmt_baseline as mb
         b = ps.make_benchmark(snr=None)
         wm = np.zeros(b["mask"].shape, bool); wm[b["mask"]] = b["angle"] == 0
         assert wm.sum() == 200

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 
-force_stanford = pytest.importorskip("dmipy_jax.validation.force_stanford")
+force_stanford = pytest.importorskip("validation.lib.force_stanford")
 
 
 # --------------------------------------------------------------------------- #
@@ -89,7 +89,7 @@ class TestSmallRoiFit:
 class TestForceMapSanity:
     def test_fa_within_unit_interval(self):
         """FORCE FA must lie in [0, 1] within the brain mask."""
-        from dmipy_jax.validation.force_stanford import (
+        from validation.lib.force_stanford import (
             fit_force_or_load_cached_maps,
         )
         cache = Path.home() / ".cache" / "dipy_force" / "force_matched_500k.npz"
@@ -105,7 +105,7 @@ class TestForceMapSanity:
 
     def test_tissue_fractions_sum_close_to_one(self):
         """Within the mask, WM + GM + CSF (CSF == FW per FORCE) ≈ 1."""
-        from dmipy_jax.validation.force_stanford import (
+        from validation.lib.force_stanford import (
             fit_force_or_load_cached_maps,
         )
         cache = Path.home() / ".cache" / "dipy_force" / "force_matched_500k.npz"

@@ -6,7 +6,7 @@ import argparse, json, sys, time
 from dataclasses import replace
 import numpy as np, jax
 sys.path.insert(0, "validation"); import validate_hcp_retest as V
-from dmipy_jax.validation import dipy_refine as dr, prism_jax as pj
+from dmipy_jax.prism import dipy_refine as dr, prism_jax as pj
 from dipy.data import default_sphere
 
 ap = argparse.ArgumentParser(); ap.add_argument("--subject", default="105923"); ap.add_argument("--variant", default="noiso"); ap.add_argument("--n-iter", type=int, default=300); ap.add_argument("--lam-iso", type=float, default=0.0); ap.add_argument("--iso-target", type=float, default=0.1)

@@ -19,7 +19,7 @@ from typing import Dict
 
 import numpy as np
 
-from dmipy_jax.validation.force_stanford import CACHE_DIR
+from validation.lib.force_stanford import CACHE_DIR
 
 
 def fit_dti_baseline(

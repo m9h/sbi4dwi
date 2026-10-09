@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 
 
-force_matched = pytest.importorskip("dmipy_jax.validation.force_matched")
+force_matched = pytest.importorskip("validation.lib.force_matched")
 
 
 # --------------------------------------------------------------------------- #
@@ -90,7 +90,7 @@ class TestOdiToKappa:
 
 class TestDispersedTwoStickSignal:
     def setup_method(self):
-        from dmipy_jax.validation.two_fiber import make_multishell_acquisition
+        from validation.lib.two_fiber import make_multishell_acquisition
         # Use the v2 acquisition for cheap unit testing; production uses
         # Stanford HARDI but the helper is acquisition-agnostic.
         self.acq = make_multishell_acquisition()
@@ -122,7 +122,7 @@ class TestDispersedTwoStickSignal:
         """At very high concentration (sharp), the dispersed signal must
         approach the two_stick_signal output. Pins the asymptotic behaviour."""
         import jax.numpy as jnp
-        from dmipy_jax.validation.two_fiber import two_stick_signal
+        from validation.lib.two_fiber import two_stick_signal
 
         S_dispersed = force_matched.dispersed_two_stick_signal(
             self.acq, jnp.asarray(self.mu1), jnp.asarray(self.mu2),

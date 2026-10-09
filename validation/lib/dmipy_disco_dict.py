@@ -1,7 +1,7 @@
 """
 dmipy-JAX dictionary matcher on DiSCo — scalar microstructure recovery.
 
-Counterpart to `dmipy_jax/validation/force_disco.py` (which fits dipy's
+Counterpart to `validation/lib/force_disco.py` (which fits dipy's
 upstream `dipy.reconst.force.FORCEModel`) — this module uses sbi4dwi's
 own `dmipy_jax.library.matcher.DictionaryMatcher` for the same task.
 
@@ -345,7 +345,7 @@ def fit_dmipy_dict_on_disco(
     from dmipy_jax.library.matcher import DictionaryMatcher
     from dmipy_jax.library.storage import SimulationLibrary
 
-    from dmipy_jax.validation.force_disco import load_disco_subject
+    from validation.lib.force_disco import load_disco_subject
 
     out = load_disco_subject(subject=subject, snr=snr, single_shell_b=1900)
     data = out["data"]

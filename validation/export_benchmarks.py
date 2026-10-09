@@ -5,7 +5,7 @@ master, SBI_dMRI in Docker). Dataset 3 (substrates) is exported by
 ``validate_prism_substrate.py --save-signals``."""
 import numpy as np
 from pathlib import Path
-from dmipy_jax.validation.prism_synthetic import make_benchmark
+from validation.lib.prism_synthetic import make_benchmark
 
 out = Path("validation/external"); out.mkdir(exist_ok=True)
 for snr in (30, 10):

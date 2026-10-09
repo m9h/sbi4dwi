@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DIPY plug-in demo (doc 008 §9 item 3): refine MSMT-CSD and FORCE peaks with
-`dmipy_jax.validation.dipy_refine.refine_peaks` on DiSCo under the FORCE
+`dmipy_jax.prism.dipy_refine.refine_peaks` on DiSCo under the FORCE
 authors' protocol, and track everything with the same protocol tracker.
 
 Rows per SNR: peaks as produced (MSMT-CSD, FORCE with the authors' DiSCo
@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np, jax, nibabel as nib
 from scipy.stats import pearsonr
 from dipy.data import default_sphere
-from dmipy_jax.validation import dipy_refine as dr
-from dmipy_jax.validation.force_disco import disco_subject_path
+from dmipy_jax.prism import dipy_refine as dr
+from validation.lib.force_disco import disco_subject_path
 
 vdfp = importlib.util.module_from_spec(s := importlib.util.spec_from_file_location("vdfp", Path(__file__).with_name("validate_disco_force_protocol.py"))); s.loader.exec_module(vdfp)
 

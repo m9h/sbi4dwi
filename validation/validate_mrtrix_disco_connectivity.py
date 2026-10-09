@@ -35,7 +35,7 @@ from pathlib import Path
 import nibabel as nib
 import numpy as np
 
-from dmipy_jax.validation.force_disco_connectivity import (
+from validation.lib.force_disco_connectivity import (
     connectivity_pearson,
     load_gt_connectivity,
 )

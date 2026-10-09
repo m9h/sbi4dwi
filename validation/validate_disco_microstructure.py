@@ -21,8 +21,8 @@ from dataclasses import replace
 from pathlib import Path
 import numpy as np, nibabel as nib
 from scipy.stats import pearsonr
-from dmipy_jax.validation.force_disco import disco_subject_path
-from dmipy_jax.validation.prism_jax import PrismConfig, fit_prism
+from validation.lib.force_disco import disco_subject_path
+from dmipy_jax.prism.prism_jax import PrismConfig, fit_prism
 
 spec = importlib.util.spec_from_file_location("vdfp", Path(__file__).with_name("validate_disco_force_protocol.py"))
 vdfp = importlib.util.module_from_spec(spec); spec.loader.exec_module(vdfp)

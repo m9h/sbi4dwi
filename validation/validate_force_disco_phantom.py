@@ -27,8 +27,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dmipy_jax.validation.force_disco import load_disco_subject
-from dmipy_jax.validation.force_inter_method import (
+from validation.lib.force_disco import load_disco_subject
+from validation.lib.force_inter_method import (
     fit_dti_baseline,
     masked_pearson,
 )

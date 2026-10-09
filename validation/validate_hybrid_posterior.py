@@ -21,9 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from diagnose_flow_variants import param_spec, build_flow, dirs_from_params_np
 from diagnose_flow_rotated import rotated_benchmark
 from validate_flow_sbi import summarise
-from dmipy_jax.validation import prism_jax as pj, prism_uncertainty as pu
-from dmipy_jax.validation import prism_synthetic as ps
-
+from dmipy_jax.prism import prism_jax as pj, prism_uncertainty as pu
+from validation.lib import prism_synthetic as ps
 spec = importlib.util.spec_from_file_location("vpdc", Path(__file__).with_name("validate_prism_disco_connectivity.py"))
 vpdc = importlib.util.module_from_spec(spec); spec.loader.exec_module(vpdc)
 TWO_PI = 2 * np.pi

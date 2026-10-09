@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 
-disco = pytest.importorskip("dmipy_jax.validation.force_disco")
+disco = pytest.importorskip("validation.lib.force_disco")
 
 
 DISCO_ROOT = Path.home() / ".dipy" / "disco" / "disco_1"

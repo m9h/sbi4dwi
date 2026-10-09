@@ -18,9 +18,9 @@ from dipy.data import default_sphere
 sys.path.insert(0, str(Path(__file__).parent))
 from diagnose_flow_variants import build_flow
 from train_flow_k import dirs_fracs_from_samples
-from dmipy_jax.validation import prism_jax as pj, prism_uncertainty as pu
-from dmipy_jax.validation.force_disco import disco_subject_path
-from dmipy_jax.validation.disco_tracking import peaks_to_pam
+from dmipy_jax.prism import prism_jax as pj, prism_uncertainty as pu
+from validation.lib.force_disco import disco_subject_path
+from dmipy_jax.prism.tracking import peaks_to_pam
 
 vdfp = importlib.util.module_from_spec(s := importlib.util.spec_from_file_location("vdfp", Path(__file__).with_name("validate_disco_force_protocol.py"))); s.loader.exec_module(vdfp)
 vpdc = importlib.util.module_from_spec(s2 := importlib.util.spec_from_file_location("vpdc", Path(__file__).with_name("validate_prism_disco_connectivity.py"))); s2.loader.exec_module(vpdc)

@@ -4,9 +4,8 @@
 the angular uncertainty tracks the actual error."""
 import argparse, time
 import numpy as np
-from dmipy_jax.validation import prism_jax as pj, prism_synthetic as ps, prism_uncertainty as pu
-
-
+from dmipy_jax.prism import prism_jax as pj, prism_uncertainty as pu
+from validation.lib import prism_synthetic as ps
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--snrs", type=float, nargs="+", default=[10, 30, 50])

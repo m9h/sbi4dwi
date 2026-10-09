@@ -53,7 +53,7 @@ class RefinePeaksFlow(Workflow):
         from dipy.io.gradients import read_bvals_bvecs
         from dipy.io.image import load_nifti, save_nifti
         from dipy.io.peaks import load_pam, save_pam
-        from dmipy_jax.validation import dipy_refine as dr
+        from dmipy_jax.prism import dipy_refine as dr
         from dmipy_jax.io.fixel import write_fixel_directory, fixels_from_posterior
         io_it = self.get_io_iterator()
         for dwi_f, bval_f, bvec_f, mask_f, pam_f in io_it:

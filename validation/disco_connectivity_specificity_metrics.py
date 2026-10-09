@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from dmipy_jax.validation.connectivity_metrics import summarize_method
+from validation.lib.connectivity_metrics import summarize_method
 
 
 METHODS = {
@@ -83,7 +83,7 @@ def main():
     percentiles = [0, 25, 50, 70, 80, 90, 95]
     thresholds = [float(np.percentile(upper[upper > 0], p)) if p > 0 else 0.0
                   for p in percentiles]
-    from dmipy_jax.validation.connectivity_metrics import connectivity_dice_f1
+    from validation.lib.connectivity_metrics import connectivity_dice_f1
     print(f"  {'pctile':>6s} {'thr':>8s}  {'Dice':>6s} {'prec':>6s} "
           f"{'rec':>6s}  {'TP':>4s}/{'FP':>4s}/{'FN':>3s}")
     for p, t in zip(percentiles, thresholds):

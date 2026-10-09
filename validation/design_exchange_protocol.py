@@ -21,8 +21,7 @@ and 50, over a grid of true τ_ex (10 / 25 / 50 / 100 ms).
 """
 import argparse, json
 import numpy as np, jax, jax.numpy as jnp, optax
-from dmipy_jax.validation import prism_exchange as px
-
+from validation.lib import prism_exchange as px
 jax.config.update("jax_enable_x64", True)
 T2 = 70e-3; T_RO = 10e-3
 

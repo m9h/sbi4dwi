@@ -7,7 +7,7 @@ import argparse, json, sys, time
 from pathlib import Path
 import numpy as np, jax
 sys.path.insert(0, "validation"); import validate_hcp_retest as V
-from dmipy_jax.validation import prism_uncertainty as pu
+from dmipy_jax.prism import prism_uncertainty as pu
 from dipy.data import default_sphere
 ap = argparse.ArgumentParser(); ap.add_argument("--subjects", default=""); ap.add_argument("--n", type=int, default=10); ap.add_argument("--sigma-deg", type=float, default=3.3)
 a = ap.parse_args(); ROOT = V.ROOT / "b1"

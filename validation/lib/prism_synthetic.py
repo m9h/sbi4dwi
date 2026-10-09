@@ -22,7 +22,7 @@ from __future__ import annotations
 import numpy as np
 import jax.numpy as jnp
 
-from dmipy_jax.validation.prism_jax import PrismConfig, forward
+from dmipy_jax.prism.prism_jax import PrismConfig, forward
 
 ANGLES = tuple(range(15, 91, 5))          # 16 conditions
 SLICE = (10, 20)                          # 200 voxels each
@@ -98,7 +98,7 @@ def make_benchmark(snr: float | None = 30.0, fintra: float = 0.5,
 
 def score_by_angle(pred_dirs, pred_fracs, bench, frac_min: float = 0.05):
     """Per-condition (angle → mean error, recall) plus overall, PRISM-style."""
-    from dmipy_jax.validation.prism_jax import angular_error_best_match
+    from dmipy_jax.prism.prism_jax import angular_error_best_match
     out = {}
     for a in list(ANGLES) + [0]:
         m = bench["angle"] == a
@@ -117,7 +117,7 @@ def msmt_peaks_on_benchmark(bench, sh_order_max: int = 8):
     in the same (N,5,3)/(N,5) layout for scoring."""
     from dipy.core.gradients import gradient_table
     from dipy.data import default_sphere
-    from dmipy_jax.validation.msmt_baseline import msmt_csd_pam
+    from validation.lib.msmt_baseline import msmt_csd_pam
     gtab = gradient_table(bench["bvals"] / 1e6, bvecs=bench["bvecs"])
     wm = np.zeros(bench["mask"].shape, bool)
     wm[bench["mask"]] = bench["angle"] == 0          # GT single-fibre voxels

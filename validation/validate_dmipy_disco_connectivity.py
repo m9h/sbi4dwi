@@ -31,14 +31,14 @@ from dmipy_jax.acquisition import JaxAcquisition
 from dmipy_jax.library.generator import LibraryGenerator
 from dmipy_jax.library.matcher import DictionaryMatcher
 from dmipy_jax.library.storage import SimulationLibrary
-from dmipy_jax.validation.dmipy_disco_dict import (
+from validation.lib.dmipy_disco_dict import (
     build_disco_tuned_3d_two_stick_simulator,
     dmipy_params_to_pam_single,
 )
-from dmipy_jax.validation.force_disco import (
+from validation.lib.force_disco import (
     disco_subject_path, load_disco_subject,
 )
-from dmipy_jax.validation.force_disco_connectivity import (
+from validation.lib.force_disco_connectivity import (
     connectivity_pearson, load_gt_connectivity,
 )
 

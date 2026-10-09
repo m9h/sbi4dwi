@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 
-two_fiber = pytest.importorskip("dmipy_jax.validation.two_fiber")
+two_fiber = pytest.importorskip("validation.lib.two_fiber")
 
 
 # --------------------------------------------------------------------------- #

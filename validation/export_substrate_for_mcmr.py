@@ -3,8 +3,8 @@
 signals (S_intra, S_extra on the PRISM scheme, δ = 6 ms, Δ = 12 ms, D = 2 µm²/ms)
 for the MCMRSimulator.jl parity run (doc 006 Phase 3 / doc 007 §8.5)."""
 import json, numpy as np, pandas as pd
-from dmipy_jax.validation import substrate_benchmark as sb
-from dmipy_jax.validation.prism_synthetic import prism_scheme
+from validation.lib import substrate_benchmark as sb
+from validation.lib.prism_synthetic import prism_scheme
 bvals, bvecs = prism_scheme()
 df = sb.caterpillar_bundle(icvf=0.5, box_um=10.0)
 out = {}

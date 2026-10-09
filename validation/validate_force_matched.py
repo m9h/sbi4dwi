@@ -45,18 +45,18 @@ from dmipy_jax.library.matcher import DictionaryMatcher
 from dmipy_jax.library.storage import SimulationLibrary
 from dmipy_jax.pipeline.simulator import ModelSimulator
 from dmipy_jax.signal_models.bingham import BinghamNODDI
-from dmipy_jax.validation.force_baselines import (
+from validation.lib.force_baselines import (
     csd_peaks_from_signal,
     dipy_force_peaks_from_signal,
     gqi_peaks_from_signal,
 )
-from dmipy_jax.validation.force_helpers import best_two_peaks, check_both_detected
-from dmipy_jax.validation.force_matched import (
+from validation.lib.force_helpers import best_two_peaks, check_both_detected
+from validation.lib.force_matched import (
     dispersed_two_stick_signal,
     make_stanford_hardi_acquisition,
     odi_to_kappa,
 )
-from dmipy_jax.validation.three_fiber import acq_to_gtab_si
+from validation.lib.three_fiber import acq_to_gtab_si
 
 
 DIPY_FORCE_CACHE = Path(os.environ.get(

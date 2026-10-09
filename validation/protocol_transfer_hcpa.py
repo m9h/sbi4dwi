@@ -22,8 +22,7 @@ from pathlib import Path
 import numpy as np, jax, jax.numpy as jnp, nibabel as nib
 from dipy.core.sphere import disperse_charges, HemiSphere
 sys.path.insert(0, "validation"); import validate_hcp_retest as V
-from dmipy_jax.validation import dipy_refine as dr, prism_jax as pj
-
+from dmipy_jax.prism import dipy_refine as dr, prism_jax as pj
 SCAN_MIN = {"hcp_ya": 59.0, "hcp_a": 21.4}          # dMRI scan time per protocol (YA: 6 × 9:50; A: 2 runs × 2 PE ≈ 21 min)
 
 

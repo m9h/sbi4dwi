@@ -6,7 +6,7 @@ jax = pytest.importorskip("jax")
 import jax.numpy as jnp  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from dmipy_jax.validation import substrate_benchmark as sb  # noqa: E402
+from validation.lib import substrate_benchmark as sb  # noqa: E402
 
 
 def _straight_bundle(n_axons=6, box=10.0, r=0.8, seed=0):

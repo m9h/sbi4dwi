@@ -29,8 +29,8 @@ import numpy as np
 import pytest
 
 
-three_fiber = pytest.importorskip("dmipy_jax.validation.three_fiber")
-force_baselines = pytest.importorskip("dmipy_jax.validation.force_baselines")
+three_fiber = pytest.importorskip("validation.lib.three_fiber")
+force_baselines = pytest.importorskip("validation.lib.force_baselines")
 
 
 # --------------------------------------------------------------------------- #

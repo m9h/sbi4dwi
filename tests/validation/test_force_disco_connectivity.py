@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 
-conn = pytest.importorskip("dmipy_jax.validation.force_disco_connectivity")
+conn = pytest.importorskip("validation.lib.force_disco_connectivity")
 
 
 DISCO_ROOT = Path.home() / ".dipy" / "disco" / "disco_1"

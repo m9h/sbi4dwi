@@ -13,9 +13,7 @@ from pathlib import Path
 import numpy as np, jax, jax.numpy as jnp, equinox as eqx
 sys.path.insert(0, str(Path(__file__).parent))
 from diagnose_flow_variants import param_spec, make_forward, build_flow, evaluate, VARIANTS
-from dmipy_jax.validation import prism_synthetic as ps
-
-
+from validation.lib import prism_synthetic as ps
 def rotated_benchmark(tilt_deg, snr, seed=0):
     b = ps.make_benchmark(snr=None)
     a = np.radians(tilt_deg)

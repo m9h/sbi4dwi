@@ -20,9 +20,8 @@ from dmipy_jax.acquisition import JaxAcquisition
 from dmipy_jax.pipeline.config import SBIPipelineConfig
 from dmipy_jax.pipeline.simulator import ModelSimulator
 from dmipy_jax.pipeline.train import train_sbi
-from dmipy_jax.validation.prism_jax import PrismConfig, forward, angular_error_best_match
-from dmipy_jax.validation import prism_synthetic as ps
-
+from dmipy_jax.prism.prism_jax import PrismConfig, forward, angular_error_best_match
+from validation.lib import prism_synthetic as ps
 NAMES = ["theta1", "phi1", "theta2", "phi2", "f_wm1", "f_wm2", "f_i"]
 RANGES = {"theta1": (0, np.pi), "phi1": (0, 2 * np.pi), "theta2": (0, np.pi), "phi2": (0, 2 * np.pi),
           "f_wm1": (0.3, 1.0), "f_wm2": (0.0, 0.6), "f_i": (0.2, 0.8)}

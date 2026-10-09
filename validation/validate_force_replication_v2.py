@@ -111,8 +111,8 @@ def build_library_simulator(acq):
     )
 
 
-# Geometry helpers + acquisition adapter live in dmipy_jax.validation.force_helpers
-from dmipy_jax.validation.force_helpers import (
+# Geometry helpers + acquisition adapter live in validation.lib.force_helpers
+from validation.lib.force_helpers import (
     angular_error,
     params_to_orientations,
     check_both_detected,

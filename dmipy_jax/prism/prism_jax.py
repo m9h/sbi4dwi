@@ -588,7 +588,7 @@ def prism_fit_to_pam(fit: PrismFit, sphere, peak_frac_min: float = 0.05,
     Fibres with fraction < ``peak_frac_min`` are dropped (soft model
     selection in PRISM is via the sparsity prior; this is the hard cut
     the tracker needs)."""
-    from dmipy_jax.validation.disco_tracking import peaks_to_pam
+    from dmipy_jax.prism.tracking import peaks_to_pam
 
     shape = fit.mask.shape
     K = fit.cfg.n_fibres

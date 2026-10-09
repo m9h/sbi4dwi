@@ -273,12 +273,12 @@ def caterpillar_bundle(icvf=0.5, box_um=20.0, tortuous=0, beading=0.0, c2=0.98, 
     duplicated type-2 sphere rows are dropped."""
     if backend == "cli":
         # 2026-09 CMake/JSON build: un-severed axons, PascalCase config, space-delimited CSV
-        from dmipy_jax.validation.caterpillar import CATERPillarCLI
+        from dmipy_jax.simulation.substrates.caterpillar import CATERPillarCLI
         cli = CATERPillarCLI()
         cfg = cli.default_config(box_um=box_um, icvf=icvf, c2=c2, tortuous=bool(tortuous), beading=beading,
                                  beading_std=beading / 2 if beading > 0 else 0.0, threads=threads)
         return cli.generate(cfg)
-    from dmipy_jax.validation.caterpillar import CATERPillarOracle
+    from dmipy_jax.simulation.substrates.caterpillar import CATERPillarOracle
     o = CATERPillarOracle()
     cfg = o.get_default_config()
     cfg.update({"vox_sizes": [box_um], "axons_without_myelin_icvf": icvf,

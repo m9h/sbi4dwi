@@ -17,8 +17,8 @@ on, since the request ≠ realisation for this generator.
 import argparse, time, json
 import numpy as np, jax, jax.numpy as jnp
 from pathlib import Path
-from dmipy_jax.validation import substrate_benchmark as sb
-from dmipy_jax.validation.prism_synthetic import prism_scheme
+from validation.lib import substrate_benchmark as sb
+from validation.lib.prism_synthetic import prism_scheme
 
 
 def segment_c2(sub):

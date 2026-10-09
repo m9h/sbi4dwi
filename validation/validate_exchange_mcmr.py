@@ -9,8 +9,7 @@ empirical scatter of τ_ex vs the CRLB of design_exchange_protocol.py.
 import argparse, glob, json, re
 import numpy as np, pandas as pd, jax, jax.numpy as jnp
 from scipy.optimize import least_squares
-from dmipy_jax.validation import prism_exchange as px
-
+from validation.lib import prism_exchange as px
 jax.config.update("jax_enable_x64", True)
 
 

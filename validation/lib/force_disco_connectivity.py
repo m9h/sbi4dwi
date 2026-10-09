@@ -152,7 +152,7 @@ def run_force_connectivity(
     from dipy.tracking.streamline import Streamlines
     from dipy.tracking.utils import connectivity_matrix, seeds_from_mask
 
-    from dmipy_jax.validation.force_disco import load_disco_subject
+    from validation.lib.force_disco import load_disco_subject
 
     out = load_disco_subject(subject=subject, snr=snr, single_shell_b=1900)
     data = out["data"]
@@ -172,7 +172,7 @@ def run_force_connectivity(
         )
     sims = load_force_simulations(str(lib_cache))
     if rebalance_fibres is not None:
-        from dmipy_jax.validation.force_library_rebalance import (
+        from validation.lib.force_library_rebalance import (
             rebalance_force_library,
         )
         sims = rebalance_force_library(sims, target_fractions=rebalance_fibres, seed=0)

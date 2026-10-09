@@ -5,9 +5,9 @@ import pytest
 jax = pytest.importorskip("jax")
 import jax.numpy as jnp  # noqa: E402
 
-from dmipy_jax.validation import prism_jax as pj  # noqa: E402
-from dmipy_jax.validation import prism_uncertainty as pu  # noqa: E402
-from dmipy_jax.validation import prism_synthetic as ps  # noqa: E402
+from dmipy_jax.prism import prism_jax as pj  # noqa: E402
+from dmipy_jax.prism import prism_uncertainty as pu  # noqa: E402
+from validation.lib import prism_synthetic as ps  # noqa: E402
 
 
 @pytest.fixture(scope="module")

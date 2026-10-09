@@ -10,12 +10,11 @@ from typing import Tuple, List
 # Imports from BENCH (assuming installed in environment)
 # Imports from local patch (avoids Numba dependency)
 try:
-    from dmipy_jax.validation import bench_diffusion_models_patch as bench_models
+    from validation.lib import bench_diffusion_models_patch as bench_models
 except ImportError:
     import sys
     sys.path.append(".") # Ensure dmipy root is in path
-    from dmipy_jax.validation import bench_diffusion_models_patch as bench_models
-
+    from validation.lib import bench_diffusion_models_patch as bench_models
 # Imports from dmipy_jax
 from dmipy_jax.simulation.sde_models import CurvedTractSDE, solve_restricted_sde_batch
 from dmipy_jax.simulation.simulator import accumulate_phase, trapezoidal_gradient_waveform

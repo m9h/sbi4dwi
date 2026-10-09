@@ -5,7 +5,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import pandas as pd
-from dmipy_jax.validation.caterpillar import CATERPillarOracle
+from dmipy_jax.simulation.substrates.caterpillar import CATERPillarOracle
 from dmipy_jax.simulation.monte_carlo import simulate_ground_truth
 
 try:

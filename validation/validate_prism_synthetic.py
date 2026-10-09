@@ -9,8 +9,8 @@ from dataclasses import replace
 from pathlib import Path
 import numpy as np
 
-from dmipy_jax.validation.prism_jax import PrismConfig, fit_prism
-from dmipy_jax.validation.prism_synthetic import (
+from dmipy_jax.prism.prism_jax import PrismConfig, fit_prism
+from validation.lib.prism_synthetic import (
     ANGLES, make_benchmark, msmt_peaks_on_benchmark, score_by_angle,
 )
 
@@ -49,7 +49,7 @@ def main():
                         init = b["gt_dirs"] + rng.normal(0, sd, b["gt_dirs"].shape)
                         init[b["angle"] == 0, 1] = rng.normal(size=3)
                     else:
-                        from dmipy_jax.validation.prism_synthetic import dictionary_warm_start
+                        from validation.lib.prism_synthetic import dictionary_warm_start
                         init, _ = dictionary_warm_start(b, args.library_size)
                 fit = fit_prism(b["data"], b["mask"], b["bvals"], b["bvecs"], cfg, init_dirs=init)
                 dirs, fracs = fit.dirs, fit.wm_fracs

@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from dmipy_jax.validation.caterpillar import CATERPillarOracle
+from dmipy_jax.simulation.substrates.caterpillar import CATERPillarOracle
 from dmipy_jax.simulation.monte_carlo import simulate_ground_truth
 from dmipy_jax.acquisition import JaxAcquisition
 from dmipy_jax.cylinder import C1Stick

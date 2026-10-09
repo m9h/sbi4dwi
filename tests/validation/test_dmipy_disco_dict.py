@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 
-_helper = pytest.importorskip("dmipy_jax.validation.dmipy_disco_dict")
+_helper = pytest.importorskip("validation.lib.dmipy_disco_dict")
 DISCO_ROOT = Path.home() / ".dipy" / "disco" / "disco_1"
 
 

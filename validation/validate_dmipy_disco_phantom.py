@@ -25,10 +25,10 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
-from dmipy_jax.validation.dmipy_disco_dict import fit_dmipy_dict_on_disco
-from dmipy_jax.validation.force_disco import load_disco_subject
-from dmipy_jax.validation.force_disco_connectivity import lin_ccc
-from dmipy_jax.validation.force_inter_method import (
+from validation.lib.dmipy_disco_dict import fit_dmipy_dict_on_disco
+from validation.lib.force_disco import load_disco_subject
+from validation.lib.force_disco_connectivity import lin_ccc
+from validation.lib.force_inter_method import (
     fit_dti_baseline, masked_pearson,
 )
 

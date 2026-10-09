@@ -15,7 +15,7 @@ import pytest
 
 # Import target — drives the red→green refactor of the v2 script's helpers
 # into a real module.
-force_helpers = pytest.importorskip("dmipy_jax.validation.force_helpers")
+force_helpers = pytest.importorskip("validation.lib.force_helpers")
 
 
 # --------------------------------------------------------------------------- #

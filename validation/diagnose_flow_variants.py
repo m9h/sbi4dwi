@@ -25,8 +25,8 @@ import argparse, time, sys
 from pathlib import Path
 import numpy as np, jax, jax.numpy as jnp, equinox as eqx, optax
 import flowjax.bijections as bij, flowjax.distributions as dist, flowjax.flows as flows
-from dmipy_jax.validation.prism_jax import PrismConfig, forward, angular_error_best_match
-from dmipy_jax.validation import prism_synthetic as ps
+from dmipy_jax.prism.prism_jax import PrismConfig, forward, angular_error_best_match
+from validation.lib import prism_synthetic as ps
 sys.path.insert(0, str(Path(__file__).parent))
 from validate_flow_sbi import summarise, sph                      # mode clustering of doc 008 §6.3
 

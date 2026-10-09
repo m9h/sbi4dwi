@@ -7,11 +7,11 @@ import argparse, time
 from dataclasses import replace
 import numpy as np, jax, nibabel as nib
 from dipy.data import default_sphere
-from dmipy_jax.validation.connectivity_metrics import summarize_method
-from dmipy_jax.validation.force_disco import disco_subject_path, load_disco_subject
-from dmipy_jax.validation.force_disco_connectivity import connectivity_pearson, load_gt_connectivity
-from dmipy_jax.validation.prism_jax import PrismConfig, fit_prism
-from dmipy_jax.validation import prism_uncertainty as pu
+from validation.lib.connectivity_metrics import summarize_method
+from validation.lib.force_disco import disco_subject_path, load_disco_subject
+from validation.lib.force_disco_connectivity import connectivity_pearson, load_gt_connectivity
+from dmipy_jax.prism.prism_jax import PrismConfig, fit_prism
+from dmipy_jax.prism import prism_uncertainty as pu
 import importlib
 drv = importlib.import_module("validate_prism_disco_connectivity")
 
@@ -59,7 +59,7 @@ def main():
     print(f"GT-zero edges (n={gt_zero.sum()}): {np.mean(lo[gt_zero] == 0)*100:.0f}% have CI lower bound 0; "
           f"mean posterior-mean count {mean[gt_zero].mean():.1f} vs {mean[gt_pos].mean():.1f} on GT-positive")
     # uncertainty-thresholded connectomes (fixed rules, doc 007 §6.17)
-    from dmipy_jax.validation.connectivity_metrics import connectivity_dice_f1
+    from validation.lib.connectivity_metrics import connectivity_dice_f1
     for label, c in (("MAP", res["map"]), ("posterior mean", res["mean"]),
                      ("CV<0.3", pu.threshold_connectome(res, "cv", cv_max=0.3)),
                      ("CI lo>0.5·mean", pu.threshold_connectome(res, "ci", lo_frac=0.5))):

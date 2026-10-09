@@ -21,12 +21,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dmipy_jax.validation.force_inter_method import (
+from validation.lib.force_inter_method import (
     fit_dti_baseline,
     load_force_maps,
     masked_pearson,
 )
-from dmipy_jax.validation.force_stanford import load_stanford_hardi
+from validation.lib.force_stanford import load_stanford_hardi
 
 
 def render_inter_method_figure(

@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 
-rebalance = pytest.importorskip("dmipy_jax.validation.force_library_rebalance")
+rebalance = pytest.importorskip("validation.lib.force_library_rebalance")
 
 
 def _make_fake_sims(n_per_fibres: dict) -> dict:

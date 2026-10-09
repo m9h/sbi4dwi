@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 
-inter = pytest.importorskip("dmipy_jax.validation.force_inter_method")
+inter = pytest.importorskip("validation.lib.force_inter_method")
 
 
 # --------------------------------------------------------------------------- #
@@ -23,7 +23,7 @@ inter = pytest.importorskip("dmipy_jax.validation.force_inter_method")
 class TestDtiBaselineFit:
     def test_returns_fa_md_rd_ad_with_correct_shape(self):
         """Fit DTI on a small in-mask ROI and verify output shapes + ranges."""
-        from dmipy_jax.validation.force_stanford import load_stanford_hardi
+        from validation.lib.force_stanford import load_stanford_hardi
 
         data, _, mask, gtab = load_stanford_hardi()
 

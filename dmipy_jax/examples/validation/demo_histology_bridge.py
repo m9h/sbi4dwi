@@ -3,7 +3,7 @@ import os
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from dmipy_jax.validation.histology import HistoDataset, HistologySimulator, histology_loss
+from validation.lib.histology import HistoDataset, HistologySimulator, histology_loss
 from dmipy_jax.signal_models import cylinder_models, gaussian_models
 from dmipy_jax.core.acquisition import SimpleAcquisitionScheme
 

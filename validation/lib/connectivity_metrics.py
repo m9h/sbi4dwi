@@ -116,7 +116,7 @@ def summarize_method(
     threshold: float = 0.0,
 ) -> dict[int, dict[str, float]]:
     """Roll up Pearson r + CCC + Dice/F1 across a {snr: cmat} dict."""
-    from dmipy_jax.validation.force_disco_connectivity import (
+    from validation.lib.force_disco_connectivity import (
         connectivity_pearson,
     )
     out: dict[int, dict[str, float]] = {}

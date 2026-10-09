@@ -27,7 +27,7 @@ Removed during repo cleanup (2026-03-25) to reduce tracked size.
   Neto Henriques (DIPY), a name collision with author Jonathan Rafael-Patiño.
 - **Was located at**: `vendor/CATERPillar/` (this repo — placeholder only).
 - **Live checkout**: `/home/mhough/dev/dmipy/vendor/CATERPillar`, cloned and
-  compiled. `dmipy_jax/validation/caterpillar.py` (`CATERPillarOracle`)
+  compiled. `dmipy_jax/simulation/substrates/caterpillar.py` (`CATERPillarOracle`)
   defaults to that binary path.
 - **Purpose**: C++ tool for generating realistic axon + glial numerical
   substrates (**Computational Axonal Threading Engine for Realistic

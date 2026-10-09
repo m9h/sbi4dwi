@@ -17,8 +17,7 @@ Tier C3 (doc 008 §10): emulator-in-the-loop inversion against Monte Carlo.
 """
 import argparse, json, time
 import numpy as np, jax, jax.numpy as jnp, equinox as eqx, optax, h5py
-from dmipy_jax.validation import prism_jax as pj
-
+from dmipy_jax.prism import prism_jax as pj
 THETA_NAMES = ["f_intra", "angle_deg", "c2_1", "c2_2", "tortuous"]
 LO = np.array([0.05, 0.0, 0.2, 0.2, 0.0]); HI = np.array([0.85, 90.0, 1.0, 1.0, 1.0])
 

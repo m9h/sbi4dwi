@@ -29,9 +29,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from dmipy_jax.validation import prism_jax as pj
-
-
+from dmipy_jax.prism import prism_jax as pj
 def _tangent_basis(n):
     """Two unit vectors orthogonal to n (n: (...,3))."""
     a = jnp.where(jnp.abs(n[..., 0:1]) < 0.9,
@@ -196,7 +194,7 @@ def posterior_connectivity(post: FixelPosterior, mask, rois, affine, sphere, key
                            max_angle: float = 45.0, include_map: bool = True) -> dict:
     """Track once per posterior direction sample → distribution over the
     16×16 connectome. Returns mean, sd, 5/95 % per edge and all samples."""
-    from dmipy_jax.validation.disco_tracking import peaks_to_pam, track_connectivity
+    from dmipy_jax.prism.tracking import peaks_to_pam, track_connectivity
     S = post.sample_dirs(key, n_samples)
     if include_map:
         S = np.concatenate([post.dirs[None], S], axis=0)

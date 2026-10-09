@@ -30,8 +30,8 @@ voxels show how much noise adds. Scheme: PRISM 3 shells × 64 (b ≤ 3000).
 import argparse, json, time
 import numpy as np, jax
 from scipy.optimize import least_squares
-from dmipy_jax.validation import substrate_benchmark as sb
-from dmipy_jax.validation.prism_synthetic import prism_scheme
+from validation.lib import substrate_benchmark as sb
+from validation.lib.prism_synthetic import prism_scheme
 
 
 def segment_dirs(sub):
@@ -147,7 +147,7 @@ def full_fit_ablation(data, b, g, n_iter):
     knob turned at a time. Reports the WM-internal f_i (what doc 008 tabulates),
     the WM / isotropic fractions and the voxel-level intra fraction f_i·f_wm."""
     from dataclasses import replace
-    from dmipy_jax.validation import prism_jax as pj
+    from dmipy_jax.prism import prism_jax as pj
     base = replace(pj.PrismConfig(n_fibres=2, n_iter=n_iter, loss="nll"), learn_diffusivities=True,
                    tortuosity=True, use_restricted=False, separate_extra_dpar=True,
                    lam_diffusivity_prior=1.0, diffusivity_prior_centre=2.0e-9, diffusivity_prior_sd=0.2, d_par=2.0e-9)

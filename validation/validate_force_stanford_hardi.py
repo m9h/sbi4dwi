@@ -24,7 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dmipy_jax.validation.force_stanford import (
+from validation.lib.force_stanford import (
     fit_force_or_load_cached_maps,
     load_stanford_hardi,
 )

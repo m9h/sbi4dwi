@@ -153,7 +153,7 @@ def track_connectome(pam, track_mask, seed_mask, rois, affine, n_rois, step=0.62
 # --------------------------------------------------------------------------- #
 def run_session(session, a):
     from dipy.data import default_sphere
-    from dmipy_jax.validation import dipy_refine as dr
+    from dmipy_jax.prism import dipy_refine as dr
     out = OUT / session; out.mkdir(parents=True, exist_ok=True)
     data, affine, gtab, mask, aparc = load_session(session, a.slices)
     N = int(mask.sum()); log(f"{session}: {data.shape}, {N:,} mask voxels")
@@ -175,7 +175,7 @@ def run_session(session, a):
         pam_in = build_pam(msmt_d, msmt_v, mask, affine, default_sphere)
         t0 = time.time(); pam_ref, post, fit = dr.refine_peaks(data, gtab, mask, pam_in, n_fibres=3, cfg=dr.default_config(3, n_iter=a.n_iter), affine=affine, laplace=False)
         jax.block_until_ready(fit.fintra); res["t_refine"] = time.time() - t0
-        from dmipy_jax.validation import prism_uncertainty as pu
+        from dmipy_jax.prism import prism_uncertainty as pu
         t0 = time.time(); post = pu.laplace_fixel_posterior(fit, data, np.asarray(gtab.bvals) * 1e6, np.asarray(gtab.bvecs)); res["t_laplace"] = time.time() - t0
         np.savez_compressed(out / "refine.npz", dirs=fit.dirs.astype(np.float32), wm_fracs=fit.wm_fracs.astype(np.float32), fracs=fit.fracs.astype(np.float32),
                             fintra=fit.fintra.astype(np.float32), d_par=fit.d_par, d_par_extra=fit.d_par_extra or fit.d_par, d_perp=fit.d_perp,
@@ -198,7 +198,7 @@ def run_session(session, a):
     del data
     # 5. connectomes
     if not (out / "connectomes.npz").exists() or a.redo or a.redo_connectomes:
-        from dmipy_jax.validation import prism_uncertainty as pu
+        from dmipy_jax.prism import prism_uncertainty as pu
         import jax
         R = np.load(out / "refine.npz"); cms = {}; counts = {}
         keep = R["wm_fracs"] >= 0.10
