@@ -1718,3 +1718,19 @@ A one-sided quadratic prior `lam_iso · mean(max(f_csf + f_gm − iso_target, 0)
 - vs NODDI tissue fraction: CCC +0.009 (33/42, p = 7e-4); |Δ| −0.003 (lower in 37/42, p = 8e-6); wsCV +0.4 points (worse in 35/42, p = 4e-6).
 
 **Reading.** The prior collapses the two-model workaround: one fit with the isotropic compartments kept now matches the WM-only model on |Δ| and beats it on CCC, and against NODDI it is ahead on two of three f_i metrics and behind by 0.4 points of CoV on the third. That is the same "on par with NODDI" verdict as §10.6, reached with a single model and with the CSF/GM fractions still estimated (WM f_iso 0.11–0.13 instead of 0.30). The remaining cost is orientation: 10.2° vs 8.8° default and 8.0° MSMT, because the prior pushes signal out of the isotropic pool into a third fixel (mean count 2.8). The iso-prior model should become the B1 default for f_i; for tractography the default model's peaks (or MSMT's) remain the better initialisation, which the DIPY workflow already allows by running the two configurations from the same MSMT peaks.
+
+### 13.5 Protocol transfer with the iso-prior model (2026-10-08)
+
+§12 rerun with the `fi_config` model (λ_iso = 1e3), same five subjects, each model against its own fitted truth (`validation/protocol_transfer_hcpa.py --arms isoprior`; `protocol_transfer_hcpa_isoprior.json`, `protocol_transfer_summary.json`).
+
+| model | scheme | f_i sd | f_i bias | r | main angle | count agree | f_iso (WM) |
+|---|---|---|---|---|---|---|---|
+| default | HCP-YA | 0.054 | +0.029 | 0.877 | 3.27° | 81 % | 0.338 |
+| default | HCP-A | 0.031 | +0.013 | 0.964 | 1.39° | 90 % | 0.333 |
+| no-iso | HCP-YA | 0.010 | +0.002 | 0.993 | 1.63° | 98 % | 0 |
+| no-iso | HCP-A | 0.005 | +0.000 | 0.999 | 0.72° | 99 % | 0 |
+| **iso prior** | HCP-YA | **0.018** | −0.004 | 0.983 | 2.46° | 93 % | 0.098 |
+| **iso prior** | HCP-A | **0.013** | −0.006 | 0.991 | 1.06° | 97 % | 0.108 |
+| iso prior | HCP-A dirs at YA SNR | 0.017 | −0.006 | 0.984 | 1.90° | 94 % | 0.097 |
+
+The prior removes two-thirds of the default model's f_i noise on HCP-YA (0.054 → 0.018) and the +0.03 bias, while still estimating a 10 % isotropic fraction. It sits between the two §12 arms, as expected: the no-iso model's 0.010 was reached by deleting the degenerate parameters, this one keeps them under a prior. The HCP-A gain shrinks from 1.7× (default) to 1.4× because less of the error is the f_i/f_iso degeneracy that extra SNR resolves; the SNR-vs-design split is the same (HCP-A directions at YA SNR recover only a little). For the UCSF planning claim this is the configuration to quote: f_i precision 0.013 on HCP-A in 21 min, against 0.018 on HCP-YA in 59 min.

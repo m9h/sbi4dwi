@@ -17,11 +17,21 @@ import numpy as np
 from dmipy_jax.validation import prism_jax as pj, prism_uncertainty as pu
 
 
-def default_config(n_fibres: int, n_iter: int = 300, d_par_init: float = 1.7e-9, wm_only: bool = False) -> pj.PrismConfig:
+def default_config(n_fibres: int, n_iter: int = 300, d_par_init: float = 1.7e-9, wm_only: bool = False, lam_iso: float = 0.0) -> pj.PrismConfig:
     """The plus-x model: learned diffusivities, decoupled extra-cellular D∥,
-    tortuosity, no restricted pool; isotropic compartments off for WM-only tissue."""
+    tortuosity, no restricted pool; isotropic compartments off for WM-only tissue.
+    ``lam_iso`` > 0 adds the one-sided f_iso prior (doc 008 §13.4); see fi_config()."""
     return replace(pj.PrismConfig(n_fibres=n_fibres, n_iter=n_iter, loss="nll"), learn_diffusivities=True, d_par=d_par_init,
-                   tortuosity=True, use_restricted=False, separate_extra_dpar=True, use_isotropic=not wm_only)
+                   tortuosity=True, use_restricted=False, separate_extra_dpar=True, use_isotropic=not wm_only, lam_iso=lam_iso)
+
+
+def fi_config(n_fibres: int = 3, **kw) -> pj.PrismConfig:
+    """Recommended configuration for intra-neurite fraction maps: default_config with the
+    f_iso prior λ=1e3 / target 0.1. On 42 HCP retest subjects (doc 008 §13.4) it matches the
+    WM-only model's f_i reproducibility with the CSF/GM balls kept and is on par with NODDI;
+    main-fixel orientation is ~1.3° worse than default_config, so keep default_config (or the
+    MSMT peaks) for tractography."""
+    return default_config(n_fibres, lam_iso=1e3, **kw)
 
 
 def init_from_pam(pam, mask: np.ndarray, n_fibres: int, frac_min: float = 0.05) -> Tuple[np.ndarray, np.ndarray]:

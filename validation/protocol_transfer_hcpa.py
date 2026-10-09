@@ -100,10 +100,10 @@ def crlb_table(schemes, snr, cfg):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--subjects", nargs="+", default=["105923"]); ap.add_argument("--n-iter", type=int, default=300)
-    ap.add_argument("--out", default="validation/hcp_retest/protocol_transfer_hcpa.json"); ap.add_argument("--slab", type=int, default=0)
+    ap.add_argument("--out", default="validation/hcp_retest/protocol_transfer_hcpa.json"); ap.add_argument("--slab", type=int, default=0); ap.add_argument("--arms", default="default,noiso,isoprior")
     a = ap.parse_args()
     bA, gA = hcpa_scheme(); res = {"hcpa_scheme": {"n_vol": int(len(bA)), "shells": {str(int(b)): int((bA == b).sum()) for b in np.unique(bA)}}, "subjects": {}}
-    cfg_iso = dr.default_config(3, n_iter=a.n_iter); cfg_wm = dr.default_config(3, n_iter=a.n_iter, wm_only=True)
+    cfg_iso = dr.default_config(3, n_iter=a.n_iter); cfg_wm = dr.default_config(3, n_iter=a.n_iter, wm_only=True); cfg_ip = dr.fi_config(3, n_iter=a.n_iter)
     for subj in a.subjects:
         t_sub = time.time(); base = V.ROOT / "b1" / subj / "test"; G = np.load(base / "grid.npz"); R = np.load(base / "refine.npz")
         mask = G["mask"]; wm = G["wm"] & mask
@@ -116,15 +116,18 @@ def main():
         schemes = {"hcp_ya": (bY, gY, snr_ya), "hcp_a": (bA, gA, snr_a), "hcp_a_at_ya_snr": (bA, gA, snr_ya)}
         V.log(f"{subj}: {sel.sum():,} WM voxels, HCP-YA WM b0 SNR {snr_ya:.1f} → HCP-A {snr_a:.1f}")
         # each model is tested against its own fitted tissue (a self-consistent digital twin per model)
-        Rn = np.load(base / "refine_noiso.npz"); Rnw = {k: (Rn[k][sel] if Rn[k].ndim >= 1 and Rn[k].shape[0] == sel.shape[0] else Rn[k]) for k in Rn.files}
+        def load_sel(name):
+            Z = np.load(base / name); return {k: (Z[k][sel] if Z[k].ndim >= 1 and Z[k].shape[0] == sel.shape[0] else Z[k]) for k in Z.files}
+        arms = {"default": (cfg_iso, Rw), "noiso": (cfg_wm, "refine_noiso.npz"), "isoprior": (cfg_ip, "refine_iso1e3.npz")}
         res["subjects"][subj] = {"n_wm": int(sel.sum()), "snr_ya": snr_ya, "snr_a": snr_a, "arms": {}}
-        for cname, cfg, Rt in [("default", cfg_iso, Rw), ("noiso", cfg_wm, Rnw)]:
+        for cname in a.arms.split(","):
+            cfg, Rt = arms[cname]; Rt = load_sel(Rt) if isinstance(Rt, str) else Rt
             phys = truth_phys(Rt, cfg); rng = np.random.default_rng(0)
             init_dirs = Rt["dirs"] + rng.normal(0, 0.1, Rt["dirs"].shape); init_dirs /= np.linalg.norm(init_dirs, axis=-1, keepdims=True)
             init_fracs = np.clip(Rt["fracs"] + rng.normal(0, 0.02, Rt["fracs"].shape), 0.01, None); init_fracs /= init_fracs.sum(1, keepdims=True)
             for sname, (bv, gv, snr) in schemes.items():
                 bvals = jnp.asarray(bv * 1e6, jnp.float32); bvecs = jnp.asarray(gv, jnp.float32)
-                y = np.asarray(rician(jax.random.key({"hcp_ya": 1, "hcp_a": 2, "hcp_a_at_ya_snr": 3}[sname] + (0 if cname == "default" else 10)), pj.forward(phys, bvals, bvecs, cfg), 1.0 / snr))
+                y = np.asarray(rician(jax.random.key({"hcp_ya": 1, "hcp_a": 2, "hcp_a_at_ya_snr": 3}[sname] + {"default": 0, "noiso": 10, "isoprior": 20}[cname]), pj.forward(phys, bvals, bvecs, cfg), 1.0 / snr))
                 vol = np.zeros(mask.shape + (len(bv),), np.float32); vol[wm] = y
                 t0 = time.time(); fit = pj.fit_prism(vol, wm, np.asarray(bvals), np.asarray(bvecs), cfg, init_dirs, init_fracs); jax.block_until_ready(fit.fintra)
                 m = metrics(fit, Rt); m["t_fit"] = time.time() - t0; res["subjects"][subj]["arms"][f"{sname}/{cname}"] = m
