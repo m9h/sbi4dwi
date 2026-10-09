@@ -21,56 +21,46 @@ classifiers = [
   "Topic :: Scientific/Engineering",
 ]
 dependencies = [
+  # core numerics
   "jax[cuda13]",
-  "numpy",
   "jaxlib",
-  "jaxopt",
-  "blackjax",
-  "furo",
+  "numpy",
+  "scipy",
   "equinox",
+  "jaxtyping",
   "optimistix",
   "lineax",
   "diffrax",
-  "jaxtyping",
+  "optax>=0.2.6",
+  "jaxopt",
+  "chex>=0.1.92",
+  # inference
+  "blackjax",
+  "flowjax>=17.2.1",
+  "numpyro>=0.19.0",
+  # models / physics helpers
+  "sympy>=1.14.0",
+  "e3nn-jax>=0.20.8",
+  "healpy>=1.19.0",
   "jax-md",
-  "ipython",
-  "pypulseq",
+  "ttax",
   "scico>=0.0.6",
-  "datalad",
+  "annotated-types>=0.7.0",
+  # IO
   "nibabel",
   "h5py",
   "dipy>=1.12.1",
-  "boto3>=1.42.30",
-  "optax>=0.2.6",
-  "scikit-image>=0.26.0",
-  "matplotlib>=3.10.8",
-  "cvxpy>=1.7.5",
-  "tqdm>=4.67.1",
-  "corner>=2.2.3",
-  "flowjax>=17.2.1",
-  "healpy>=1.19.0",
-  "scikit-learn>=1.8.0",
-  "torch>=2.1.0",
-  "torchvision>=0.16.0",
-  "timm>=1.0.24",
-  "opencv-python>=4.13.0.90",
-  "uguide",
-  "e3nn-jax>=0.20.8",
-  "numpyro>=0.19.0",
-  "vbjax>=0.0.18",
-  "ttax",
-  "sympy>=1.14.0",
-  "pandas>=3.0.0",
-  "tabulate>=0.9.0",
-  "annotated-types>=0.7.0",
-  "gpjax>=0.13.4",
+  "cvxpy>=1.7.5",   # dipy MSMT-CSD (the PRISM init path) needs it
   "simpleitk>=2.5.3",
-  "chex>=0.1.92",
-  "dmri-amico>=2.1.1",
+  "pandas>=3.0.0",
+  # plotting / UX
+  "matplotlib>=3.10.8",
+  "tqdm>=4.67.1",
 ]
 
 [project.urls]
-Homepage = "https://github.com/m9h/dmipy"
+Homepage = "https://github.com/m9h/sbi4dwi"
+Repository = "https://github.com/m9h/sbi4dwi"
 
 [tool.hatch.build.targets.wheel]
 packages = ["dmipy_jax"]
@@ -80,9 +70,12 @@ dipy_refine_peaks = "dmipy_jax.workflows.refine_peaks_flow:main"
 dmipy-report = "dmipy_jax.cli.bids_report:main"
 
 [project.optional-dependencies]
+# Remote data access (HCP S3, OpenNeuro via datalad): dmipy_jax.io.hcp / lowfield / connectome2, data.openneuro
+data = ["boto3>=1.42.30", "datalad"]
+# Reference implementations used only by validation scripts and benchmarks
+baselines = ["dmri-amico>=2.1.1", "torch>=2.1.0"]
 test = [
     "pytest",
-    "pyjulia",
     "sybil",
     "pytest-cov",
 ]
@@ -115,7 +108,6 @@ markers = [
 ]
 
 [tool.uv.sources]
-uguide = { git = "https://github.com/mjallais/uGUIDE" }
 # scico's last PyPI release (0.0.7, 2025-12) pins jax<=0.8.1; main lifted the
 # cap to 0.11.1 in lanl/scico#677 (2026-08-20). Track that commit until they
 # release; drop this line once a scico > 0.0.7 lands on PyPI.
@@ -125,5 +117,7 @@ scico = { git = "https://github.com/lanl/scico", rev = "b5ddfb34e9774344ece5a76b
 dev = [
     "mdt>=1.2.7",
     "pytest>=9.0.2",
+    "ipython",
+    "corner>=2.2.3",
 ]
 

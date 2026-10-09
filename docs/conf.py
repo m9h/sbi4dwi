@@ -4,9 +4,9 @@ import os
 import sys
 
 # -- Project information -----------------------------------------------------
-project = 'dmipy-jax'
+project = 'SBI4DWI'
 copyright = '2026, Rutger Fick, Demian Wassermann, and Contributors'
-author = 'Rutger Fick, Demian Wassermann'
+author = 'Morgan Hough; dmipy lineage: Rutger Fick, Demian Wassermann'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------
@@ -121,7 +121,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'furo'
 html_static_path = ['_static']
-html_title = "Dmipy-JAX Documentation"
+html_title = "SBI4DWI Documentation"
 
 # -- Path setup --------------------------------------------------------------
 # If extensions (or modules to document with autodoc) are in another directory,

@@ -80,56 +80,40 @@ These **must match** or the network sees different distributions at train vs dep
 ## Directory map
 
 ```
-dmipy_jax/
-├── acquisition.py           # JaxAcquisition (b-values, gradient dirs, delta/Delta)
-├── signal_models/           # Analytical forward models (Ball, Stick, Sphere, etc.)
-├── core/
-│   ├── modeling_framework.py  # Model composition (compose_models)
-│   ├── solvers.py             # Optimistix-based voxelwise fitting
-│   └── surrogate.py           # Polynomial Chaos Expansion
-├── simulation/
-│   ├── mesh_sim.py            # FEM MatrixFormalismSimulator (spectral ROM)
-│   ├── monte_carlo.py         # Ground-truth MC with SDF geometry
-│   ├── differentiable_walker.py  # Differentiable confined Brownian walker
-│   ├── simulator.py           # End-to-end SDE simulator (Diffrax)
-│   ├── oracle.py              # [PLANNED — not yet written] OracleSimulator protocol (ABC)
-│   └── oracles/               # [PLANNED — not yet written] registry + implementations
-│       ├── __init__.py         #   get_oracle("dipy"|"remidi"|"mcmr")
-│       ├── dipy_sim.py         #   DIPYMultiTensorOracle
-│       ├── remidi.py           #   ReMiDiOracle (Python API + Docker)
-│       └── mcmr.py             #   MCMROracle (Julia subprocess)
-├── pipeline/
-│   ├── simulator.py           # ModelSimulator (forward_fn + prior + noise)
-│   ├── train.py               # train_sbi() → _NormalisedMDN / _NormalisedFlow
-│   ├── config.py              # SBIPipelineConfig
-│   ├── checkpoint.py          # save/load checkpoint (.eqx + .config.json)
-│   ├── deploy.py              # SBIPredictor for NIfTI volume inference
-│   ├── oracle_adapter.py      # [PLANNED — not yet written] OracleModelSimulator
-│   ├── multi_fidelity.py      # [PLANNED — not yet written] train_multi_fidelity_sbi()
-│   ├── comparison.py          # ComparisonRunner + SimulationComparisonRunner
-│   ├── ensemble.py            # Multi-model ensemble inference
-│   ├── conformal.py           # Conformal prediction intervals
-│   ├── ood.py                 # Out-of-distribution detection
-│   ├── ppc.py                 # Posterior predictive checks
-│   ├── sbc.py                 # Simulation-based calibration
-│   └── metrics.py             # Derived metrics (FA, MD, AD, RD)
-├── library/
-│   ├── storage.py             # SimulationLibrary (HDF5 + multi-contrast)
-│   ├── generator.py           # LibraryGenerator (batch vmap generation)
-│   ├── hybrid_generator.py    # HybridLibraryGenerator (multi-fidelity mixing)
-│   ├── matcher.py             # DictionaryMatcher (cosine similarity)
-│   └── derived_metrics.py     # tensor_to_fa_md, eigenvalues_to_ad_rd
-├── inference/
-│   ├── mdn.py                 # MixtureDensityNetwork
-│   ├── flows.py               # Normalizing flow posterior
-│   ├── mcmc.py                # BlackJAX NUTS sampler
-│   ├── score_posterior.py     # Score-based diffusion posterior (NEW)
-│   └── trainer.py             # Generic training utilities
-├── fitting/                   # Classical parameter fitting
-├── io/                        # Data loaders (BIDS, HCP, mesh, multi-TE; no SWC loader yet)
-├── inverse/                   # AMICO-style linear inversions
-└── viz/                       # Surface mapping, visualisation
+dmipy_jax/                   # the installable package (wheel = this directory only)
+├── acquisition.py           # JaxAcquisition (b-values SI, gradient dirs, delta/Delta)
+├── constants.py             # SPHERE_ROOTS (100-root dmipy table), Bessel-root finders, gamma
+├── signal_models/           # Analytical forward models (Ball, Stick, Zeppelin, cylinders,
+│                            #   spheres incl. Callaghan, NODDI, SANDI); closed-form tested
+├── prism/                   # PRISM-JAX: multi-fixel refine (prism_jax), Laplace fixel
+│   │                        #   posterior (prism_uncertainty), DIPY plug-in (dipy_refine,
+│   │                        #   default_config / fi_config), tracking helpers
+├── workflows/refine_peaks_flow.py   # `dipy_refine_peaks` CLI
+├── core/                    # modeling_framework (compose), solvers, surrogate
+├── simulation/              # mesh_sim (FEM), monte_carlo, differentiable_walker, simulator,
+│   └── substrates/          #   caterpillar.py (CATERPillarOracle, oracle boundary)
+├── pipeline/                # ModelSimulator → train_sbi → checkpoint → deploy; UQ (sbc, ppc,
+│                            #   conformal, ood, ensemble), comparison runner, metrics
+├── library/                 # SimulationLibrary (HDF5), generator, matcher
+├── inference/               # mdn, flows, mcmc (MCMCInference), score_posterior, trainer
+├── fitting/                 # VoxelFitter, GlobalBruteInitializer, algebraic initialisers
+├── biophysics/              # neural_exchange, velocity, conductivity (dMRI-side only)
+├── io/ inverse/ viz/ ...    # loaders (BIDS, HCP, mesh, multi-TE), AMICO-style inversions, viz
+└── tests/                   # package tests (qmri/, scanner/ hold the moved model tests)
+
+validation/                  # paper scripts (validate_*.py, hcp_*.py, design_*.py) …
+└── lib/                     # … and their shared code (FORCE/DiSCo loaders, baselines,
+                             #   connectivity metrics, synthetic benchmarks). Importable in a
+                             #   dev checkout (`from validation.lib import force_disco`), NOT in the wheel
+tests/                       # top-level tests, incl. tests/validation for prism + validation/lib
+archive/                     # transcranial ultrasound / EIT / pulseq code, kept but not imported
+docs/decisions/              # ADRs and result logs (008 = PRISM/HCP results, 009 = orbit design,
+                             #   010 = package review + clean-up plan and its execution log)
+docs/artifacts.md            # where the untracked checkpoints/binaries live
 ```
+
+Optional dependency extras: `data` (boto3, datalad for HCP/OpenNeuro loaders),
+`baselines` (dmri-amico, torch for validation scripts), `test`, `doc`.
 
 ## Key data flow
 

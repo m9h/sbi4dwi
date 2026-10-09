@@ -1,7 +1,7 @@
 
 # SBI4DWI: Simulation-Based Inference for Diffusion-Weighted Imaging
 
-[![CI](https://github.com/m9h/dmipy/actions/workflows/ci.yml/badge.svg)](https://github.com/m9h/dmipy/actions/workflows/ci.yml)
+[![CI](https://github.com/m9h/sbi4dwi/actions/workflows/ci.yml/badge.svg)](https://github.com/m9h/sbi4dwi/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![JAX](https://img.shields.io/badge/JAX-Accelerated-9cf)](https://github.com/google/jax)

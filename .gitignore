@@ -68,3 +68,10 @@ temp_*.seq
 !validation/*.png
 !validation/*.npz
 
+
+# Model checkpoints and binaries live in /data/datasets/sbi4dwi-artifacts (see docs/artifacts.md)
+*.eqx
+*.eqx.meta.npz
+*.pt
+*.pth
+*.bin

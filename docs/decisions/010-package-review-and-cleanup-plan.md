@@ -109,3 +109,30 @@ The validated path (MSMT init → PRISM-JAX refine → Laplace posterior → DIP
 | `tests/test_multi_compartment` ×3 | `lambda_iso` not recovered; which case fails varies between runs |
 
 These belong to P1 item 4 (dead/decayed modules): each is either in a module slated for removal or a genuine bug worth a ticket. Suite on CPU after P0: 509 passed, 5 skipped, 11 deselected (`gpu`), remaining failures all marked above, 5 min 47 s.
+
+## 8. P1 execution log (2026-10-09)
+
+### 8.1 `dmipy_jax/validation` out of the wheel (item 3) — commit 9c1ea15
+- `dmipy_jax.prism` is the new home of the validated product: `prism_jax`, `prism_uncertainty`, `dipy_refine` (with `default_config`/`fi_config`) and `tracking` (ex `disco_tracking`). `dipy_refine_peaks` CLI unchanged.
+- `caterpillar.py` → `dmipy_jax.simulation.substrates`.
+- The other 22 modules → `validation/lib/` (a package importable from a dev checkout because the editable install puts the repo root on `sys.path`; hatch still ships only `dmipy_jax`). 74 files rewritten; all 155 validation tests pass.
+- Four files carried committed merge-conflict markers (`<<<<<<< HEAD … >>>>>>> recovery_work_v2`); resolved by keeping the cleaned-up side.
+
+### 8.2 Dead code and remnants (item 4)
+- Deleted 17 fully dead modules (no importer, test or script): `biophysics/{multimodal_tus,neural_signal}`, `design/sbi_oed`, `experiments/bigmac_bas`, `inference/bedpost`, `io/babelbrain`, `models/deepfcd`, `optimization/oed`, `pulseq/debug_*` ×3, `reconstruction/csa_odf`, `reconstruction/csd/deep/{diffusion,generative}`, `symbolic/derive_master`, `utils/math_helpers`, plus `algebra/test_script.py` and the stale `simulation/scanner/test_bloch.py`. `geometry/curvature.py` was on the audit list but has a test; kept.
+- Nine test scripts that lived inside `signal_models/qmri/` and `simulation/scanner/` moved to `dmipy_jax/tests/{qmri,scanner}/` (96 pass; 3 pre-existing failures xfail).
+- `archive/` (outside the wheel, not collected): transcranial ultrasound + EIT (14 `biophysics` modules, `network/`, their 9 test files, 5 examples, `io/uclh_eit`) and pulseq (`pulseq/`, `external/pulseq.py`, the JEMRIS comparison test, the manual bridge script). `biophysics/` keeps `neural_exchange`, `velocity`, `conductivity`, `buckling_layer`, `neural_cde`, which the dMRI side imports. `archive/README.md` records the last known test state.
+- Not done from item 4: collapsing the parallel namespaces (`pipeline/` vs `pipelines/`, `models/` vs `signal_models/`, three `acquisition.py`, five fitting stacks). Each needs an API decision and deprecation shims; left as the P1 remainder.
+
+### 8.3 Dependencies (item 5)
+- Core list cut from 48 to 29 entries, grouped by role. Removed (zero importers in the package): `torch`, `torchvision`, `timm`, `opencv-python`, `gpjax`, `cvxpy`, `uguide`, `tabulate`, `scikit-image`, `scikit-learn`, `vbjax`, `pypulseq` (`cvxpy` stays: dipy MSMT-CSD, the PRISM init, needs it); `furo`/`ipython`/`corner` moved to the `doc` extra / `dev` group. New extras: `data` (`boto3`, `datalad`), `baselines` (`dmri-amico`, `torch`). `pyjulia` dropped from `test`. Lock 264 → 239 packages (CUDA JAX dominates what remains).
+- CI installs `--extra test --extra data`.
+
+### 8.4 Binary hygiene (item 6)
+- 57 tracked checkpoints/logs/volumes (`*.eqx`, `*.pt`, `*.log`, `*.nii.gz`, 70 MB) untracked and mirrored at `/data/datasets/sbi4dwi-artifacts/` with their paths; `docs/artifacts.md` is the manifest. Extensions ignored. Vendored AMICO (44 `.bin`) deleted in favour of the `dmri-amico` wheel. `validation/*.npz` and `*.png` stay tracked (cited by docs 008–009).
+- History rewrite for the 181 MB `.git` not done: it rewrites shared history and needs an explicit go-ahead.
+
+### 8.5 Naming (item 7)
+- Sphinx project → `SBI4DWI`; README CI badge and pyproject Homepage/Repository → `m9h/sbi4dwi`.
+- The import-package rename `dmipy_jax` → `sbi4dwi` (with a one-release shim) is not done. It touches ~400 modules, every doc and every validation script; worth doing, but as its own commit after the README/tutorial pass so the docs are rewritten once.
+
