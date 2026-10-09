@@ -2,9 +2,9 @@
 
 This tutorial walks through the complete SBI4DWI workflow -- from defining a
 biophysical forward model and simulating training data, through training a
-neural posterior estimator, to deploying the trained model on real NIfTI
-diffusion-weighted images. Along the way we cover validation diagnostics,
-uncertainty quantification, and advanced multi-fidelity strategies.
+neural posterior estimator, to deploying the trained model on NIfTI
+diffusion-weighted images. Along the way we cover validation diagnostics and
+uncertainty quantification.
 
 ```{contents}
 :depth: 3
@@ -24,6 +24,14 @@ git clone https://github.com/m9h/sbi4dwi.git
 cd sbi4dwi
 uv sync
 ```
+
+:::{note}
+Every code block on this page is executed as a test, on CPU, so the network
+sizes and step counts are deliberately tiny (hundreds of steps, 64-wide
+layers). Production values are given alongside each setting. With the
+tutorial budget the posterior is *not* well calibrated -- the diagnostics in
+Section 5 will say so -- which is exactly what they are for.
+:::
 
 ---
 
@@ -77,16 +85,19 @@ directions, and pulse timings. In SBI4DWI, this is represented by
 registered as a pytree node.
 
 ```python
+import os
+import tempfile
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from dmipy_jax.acquisition import JaxAcquisition
 
-# Multi-shell acquisition: 6 b=0 + 30 directions at b=1000 + 60 at b=2000
+# Multi-shell acquisition: 6 b=0 + 30 directions at b=1000 + 30 at b=2000
 # b-values in SI units: s/m^2 (FSL uses s/mm^2 -- multiply by 1e6)
 b0 = np.zeros(6)
 b1000 = np.ones(30) * 1000e6      # 1000 s/mm^2 -> 1e9 s/m^2
-b2000 = np.ones(60) * 2000e6      # 2000 s/mm^2 -> 2e9 s/m^2
+b2000 = np.ones(30) * 2000e6      # 2000 s/mm^2 -> 2e9 s/m^2
 bvals = np.concatenate([b0, b1000, b2000])
 
 # Random gradient directions on the unit sphere
@@ -106,13 +117,16 @@ acq = JaxAcquisition(
 )
 print(f"Acquisition: {acq.bvalues.shape[0]} measurements, "
       f"shells at b = {np.unique(np.round(bvals / 1e6, -1))} s/mm^2")
+
+# A scratch directory for everything this tutorial writes to disk
+WORK = tempfile.mkdtemp(prefix="sbi4dwi_tutorial_")
 ```
 
 :::{note}
 **Unit convention**: SBI4DWI stores b-values in SI (s/m$^2$) internally.
 When loading FSL-format `.bval` files (which use s/mm$^2$), remember to
-multiply by $10^6$. The `JaxAcquisition.from_bids_data()` class method
-handles this automatically for BIDS-formatted data.
+multiply by $10^6$. `dmipy_jax.data.io.load_bvals_bvecs` (used by
+`SBIPredictor`) does this automatically when the values look like s/mm$^2$.
 :::
 
 ### 2.2 Composing a Signal Model
@@ -132,18 +146,24 @@ $$
 
 ```python
 from dmipy_jax.signal_models.cylinder_models import C1Stick
-from dmipy_jax.signal_models.gaussian_models import G1Ball
+from dmipy_jax.signal_models.gaussian_models import Ball
 from dmipy_jax.core.modeling_framework import compose_models
 
-# Compose the model
-model = compose_models([C1Stick(), G1Ball()])
+# Compose the model: a callable (flat_params, acquisition) -> signal whose
+# flat parameter vector is [mu(2), lambda_par, lambda_iso, f_stick, f_ball]
+composed = compose_models([C1Stick(), Ball()])
+
+flat = jnp.array([jnp.pi / 2, 0.0, 1.7e-9, 3.0e-9, 0.6, 0.4])
+print(composed(flat, acq).shape)   # (66,)
 ```
 
 ### 2.3 Defining the Forward Function and Prior
 
 The SBI pipeline needs a callable `forward_fn(params_flat, acquisition)`
 that maps a flat parameter vector to a signal vector, plus parameter ranges
-for the prior:
+for the prior. You can use `compose_models` output directly, but writing the
+forward function by hand keeps the parameterisation explicit (here we use a
+single volume fraction `f` rather than two that must sum to one):
 
 ```python
 # Parameter layout for Ball+Stick:
@@ -156,8 +176,8 @@ for the prior:
 parameter_names = ["f", "mu_theta", "mu_phi", "d_par", "d_iso"]
 parameter_ranges = {
     "f":        (0.05, 0.95),
-    "mu_theta": (0.0, jnp.pi),
-    "mu_phi":   (0.0, 2 * jnp.pi),
+    "mu_theta": (0.0, float(jnp.pi)),
+    "mu_phi":   (0.0, float(2 * jnp.pi)),
     "d_par":    (0.5e-9, 3.0e-9),
     "d_iso":    (1.0e-9, 3.5e-9),
 }
@@ -184,6 +204,10 @@ def forward_fn(params, acquisition):
     ball_signal = jnp.exp(-acquisition.bvalues * d_iso)
 
     return f * stick_signal + (1.0 - f) * ball_signal
+
+# The hand-written function agrees with compose_models for the same tissue
+hand = forward_fn(jnp.array([0.6, jnp.pi / 2, 0.0, 1.7e-9, 3.0e-9]), acq)
+assert jnp.allclose(hand, composed(flat, acq), atol=1e-6)
 ```
 
 ---
@@ -224,7 +248,7 @@ key = jax.random.key(0)
 theta, signals = simulator.sample_and_simulate(key, n=5)
 
 print(f"theta shape: {theta.shape}")    # (5, 5)
-print(f"signals shape: {signals.shape}")  # (5, 96)
+print(f"signals shape: {signals.shape}")  # (5, 66)
 print(f"Signal range: [{float(signals.min()):.3f}, {float(signals.max()):.3f}]")
 ```
 
@@ -246,23 +270,26 @@ HDF5-backed persistence:
 from dmipy_jax.library.generator import LibraryGenerator
 from dmipy_jax.library.storage import SimulationLibrary
 
-# Generate 200,000 entries in GPU-friendly chunks
-gen = LibraryGenerator(simulator, chunk_size=50_000)
-params, signals = gen.generate(n_entries=200_000, key=jax.random.key(1))
+# Generate entries in GPU-friendly chunks (production: 200_000 entries,
+# chunk_size=50_000)
+gen = LibraryGenerator(simulator, chunk_size=1_000)
+params, lib_signals = gen.generate(n_entries=2_000, key=jax.random.key(1))
 
 # Wrap in a SimulationLibrary and save
 library = SimulationLibrary(
     params=params,
-    signals=signals,
+    signals=lib_signals,
     parameter_names=parameter_names,
     metadata={"model": "BallStick", "snr": 30.0},
 )
-library.save_hdf5("data/ballstick_library.h5")
+library_path = os.path.join(WORK, "ballstick_library.h5")
+library.save_hdf5(library_path)
 print(f"Library saved: {library.n_entries} entries, "
       f"{library.theta_dim}D params, {library.signal_dim}D signals")
 
 # Reload later
-library = SimulationLibrary.load_hdf5("data/ballstick_library.h5")
+library = SimulationLibrary.load_hdf5(library_path)
+assert library.n_entries == 2_000
 ```
 
 The HDF5 schema stores:
@@ -279,9 +306,9 @@ clinically. SBI4DWI supports:
 - **Fixed SNR**: `snr=30.0` adds noise with $\sigma = 1/\text{SNR}$.
 - **Variable SNR**: `snr_range=(10, 50)` samples a random SNR for each
   training example uniformly from the given range.
-- **Curriculum noise**: `curriculum_noise=True` starts training with high
-  SNR (easy examples) and gradually introduces low-SNR samples. This
-  stabilises early training.
+- **Curriculum noise**: `curriculum_noise=True` (a config option, Section
+  4.1) starts training with high SNR (easy examples) and gradually
+  introduces low-SNR samples. This stabilises early training.
 
 ```python
 # Variable-SNR simulator for robust training
@@ -303,23 +330,31 @@ simulator_robust = ModelSimulator(
 ### 4.1 Configuring the Pipeline
 
 All training hyperparameters live in a single
-{class}`~dmipy_jax.pipeline.config.SBIPipelineConfig` dataclass:
+{class}`~dmipy_jax.pipeline.config.SBIPipelineConfig` dataclass. The
+`acquisition` dict is stored with the checkpoint so that a model can be
+reloaded without the original Python objects:
 
 ```python
 from dmipy_jax.pipeline.config import SBIPipelineConfig
+
+acquisition_spec = {
+    "bvalues": acq.bvalues.tolist(),
+    "gradient_directions": acq.gradient_directions.tolist(),
+}
 
 config = SBIPipelineConfig(
     # Model identity
     model_name="BallStick",
     parameter_names=parameter_names,
     parameter_ranges=parameter_ranges,
+    acquisition=acquisition_spec,
 
-    # Architecture
+    # Architecture  (production: hidden_dim=256, depth=4, n_components=8)
     inference_mode="mdn",        # "mdn", "flow", or "score"
     architecture="residual",     # "mlp" or "residual" (with skip connections)
-    n_components=8,              # Gaussian mixture components (MDN only)
-    hidden_dim=256,              # Width of hidden layers
-    depth=4,                     # Number of layers / residual blocks
+    n_components=4,              # Gaussian mixture components (MDN only)
+    hidden_dim=64,               # Width of hidden layers
+    depth=2,                     # Number of layers / residual blocks
     activation="gelu",           # "relu", "gelu", or "silu"
 
     # Noise (must match simulator)
@@ -328,22 +363,22 @@ config = SBIPipelineConfig(
     snr_range=(10, 50),
     curriculum_noise=True,
 
-    # Training
+    # Training  (production: batch_size=512, n_steps=10_000, warmup_steps=500)
     learning_rate=1e-3,
     lr_schedule="warmup_cosine",  # "constant", "cosine", "warmup_cosine"
-    warmup_steps=500,
-    batch_size=512,
-    n_steps=10_000,
+    warmup_steps=50,
+    batch_size=128,
+    n_steps=400,
 
     # Regularisation
     use_ema=True,                # Exponential moving average of weights
     ema_decay=0.999,
     val_fraction=0.1,            # Fraction of each batch for validation
-    patience=2000,               # Early stopping (0 = disabled)
+    patience=0,                  # Early stopping (0 = disabled; production: 2000)
 
     # Reproducibility
     seed=42,
-    checkpoint_path="checkpoints/ballstick_mdn",
+    checkpoint_path=os.path.join(WORK, "checkpoints", "ballstick_mdn"),
 )
 ```
 
@@ -359,12 +394,13 @@ from dmipy_jax.pipeline.train import train_sbi
 model, losses = train_sbi(
     config,
     simulator,
-    print_every=1000,
+    print_every=100,
 )
-# [MDN] step 0/10000  train=12.3456  val=12.4321  lr=0.00e+00
-# [MDN] step 1000/10000  train=2.1543  val=2.2104  lr=9.75e-04
-# ...
-# [MDN] Training done. 10000 steps in 45.2s (221 steps/s)
+# [MDN] step 0/400  train=...  val=...  lr=0.00e+00
+# [MDN] step 100/400  ...
+# [MDN] Training done. 400 steps in ...s
+
+assert len(losses) == config.n_steps
 ```
 
 The returned `model` is a `_NormalisedMDN` (or `_NormalisedFlow`) wrapper
@@ -382,24 +418,23 @@ flow_config = SBIPipelineConfig(
     model_name="BallStick",
     parameter_names=parameter_names,
     parameter_ranges=parameter_ranges,
+    acquisition=acquisition_spec,
     inference_mode="flow",
     flow_type="spline",          # "affine" or "spline"
-    knots=8,                     # Knots for rational-quadratic spline
-    hidden_dim=128,
-    depth=6,                     # Number of flow layers
+    knots=4,                     # Knots for rational-quadratic spline (production: 8)
+    hidden_dim=32,               # production: 128
+    depth=2,                     # Number of flow layers (production: 6)
     learning_rate=5e-4,
-    lr_schedule="warmup_cosine",
-    warmup_steps=1000,
-    batch_size=512,
-    n_steps=50_000,
+    lr_schedule="constant",      # production: "warmup_cosine", warmup_steps=1000
+    batch_size=128,              # production: 512
+    n_steps=100,                 # production: 50_000
     noise_type="rician",
     snr=30.0,
     snr_range=(10, 50),
     seed=42,
-    checkpoint_path="checkpoints/ballstick_flow",
 )
 
-flow_model, flow_losses = train_sbi(flow_config, simulator, print_every=5000)
+flow_model, flow_losses = train_sbi(flow_config, simulator, print_every=50)
 ```
 
 Under the hood, `train_sbi` dispatches to either `_train_mdn()` or
@@ -412,12 +447,14 @@ trained via conditional maximum likelihood.
 Plot the training loss to check for convergence:
 
 ```python
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(figsize=(8, 3))
 ax.plot(losses, alpha=0.3, label="Raw")
 # Smoothed loss (rolling mean)
-window = 100
+window = 50
 smoothed = np.convolve(losses, np.ones(window) / window, mode="valid")
 ax.plot(range(window - 1, len(losses)), smoothed, label=f"Smoothed ({window})")
 ax.set_xlabel("Training step")
@@ -425,6 +462,8 @@ ax.set_ylabel("Negative log-likelihood")
 ax.set_title("MDN Training Loss")
 ax.legend()
 plt.tight_layout()
+fig.savefig(os.path.join(WORK, "mdn_loss.png"))
+plt.close(fig)
 ```
 
 Good convergence indicators:
@@ -441,27 +480,30 @@ SBI4DWI uses Equinox's tree serialisation with a JSON config sidecar:
 from dmipy_jax.pipeline.checkpoint import save_checkpoint, load_checkpoint
 
 # Save
-save_checkpoint(model, config, "checkpoints/ballstick_mdn")
-# Creates: checkpoints/ballstick_mdn.eqx
-#          checkpoints/ballstick_mdn.config.json
+save_checkpoint(model, config, config.checkpoint_path)
+# Creates: .../checkpoints/ballstick_mdn.eqx
+#          .../checkpoints/ballstick_mdn.config.json
+assert os.path.exists(config.checkpoint_path + ".eqx")
+assert os.path.exists(config.checkpoint_path + ".config.json")
 
 # Load
-model_loaded, config_loaded = load_checkpoint("checkpoints/ballstick_mdn")
+model_loaded, config_loaded = load_checkpoint(config.checkpoint_path)
+assert config_loaded.parameter_names == parameter_names
+
+# The reloaded network reproduces the original's outputs
+logits_a, mu_a, _ = model(signals[0])
+logits_b, mu_b, _ = model_loaded(signals[0])
+assert jnp.allclose(mu_a, mu_b)
 ```
 
-For sharing models, push to the Hugging Face Hub:
+For sharing models, push to the Hugging Face Hub (needs network access and a
+token, so this is not executed here):
 
-```python
+```text
 from dmipy_jax.pipeline.checkpoint import push_to_hub, pull_from_hub
 
-# Upload
-push_to_hub(
-    model, config,
-    repo_id="your-username/ballstick-mdn-v1",
-    metrics={"final_loss": losses[-1]},
-)
-
-# Download and load
+push_to_hub(model, config, repo_id="your-username/ballstick-mdn-v1",
+            metrics={"final_loss": losses[-1]})
 model_hub, config_hub = pull_from_hub("your-username/ballstick-mdn-v1")
 ```
 
@@ -471,7 +513,8 @@ model_hub, config_hub = pull_from_hub("your-username/ballstick-mdn-v1")
 
 Before deploying a trained model on real data, it is essential to verify
 that the posterior is well-calibrated. SBI4DWI provides two complementary
-diagnostics.
+diagnostics. Both loop over independent test cases in Python, so the counts
+below are small; use `n_sbc_samples=1000` and `n_checks=500` in practice.
 
 ### 5.1 Simulation-Based Calibration (SBC)
 
@@ -489,26 +532,25 @@ from dmipy_jax.pipeline.sbc import SBCDiagnostic
 sbc = SBCDiagnostic(
     model=model,
     simulator=simulator,
-    n_posterior_samples=200,      # L posterior draws per check
+    n_posterior_samples=100,      # L posterior draws per check
 )
 
 sbc_result = sbc.run(
     key=jax.random.key(99),
-    n_sbc_samples=1000,           # Number of SBC repetitions
+    n_sbc_samples=50,             # Number of SBC repetitions
 )
-#   SBC progress: 100/1000
-#   SBC progress: 200/1000
-#   ...
 
 sbc_result.print_summary()
-# Parameter           Cov@50%  Cov@90%  KS stat    KS p  Pass?
-# -----------------------------------------------------------
-# f                    0.512    0.903   0.0234   0.6521    yes
-# mu_theta             0.498    0.897   0.0312   0.3214    yes
-# ...
+# Parameter             Cov@50%  Cov@90%  KS stat     KS p  Pass?
+# ---------------------------------------------------------------
+# f                       ...
+# mu_theta                ...
+
+assert sbc_result.ranks.shape == (50, 5)
+coverage_90 = sbc_result.coverage_at(0.9)   # one value per parameter
 
 # Visual diagnostic: rank histograms should look uniform
-sbc_result.plot_rank_histograms(save_path="figures/sbc_ranks.png")
+sbc_result.plot_rank_histograms(save_path=os.path.join(WORK, "sbc_ranks.png"))
 ```
 
 **Interpreting SBC results:**
@@ -518,6 +560,9 @@ sbc_result.plot_rank_histograms(save_path="figures/sbc_ranks.png")
 - A U-shaped rank histogram indicates the posterior is **overconfident**
   (too narrow).
 - An inverted-U shape indicates the posterior is **underconfident** (too wide).
+
+After only 400 training steps expect most parameters to fail the KS test;
+this is the diagnostic doing its job.
 
 ### 5.2 Posterior Predictive Checks (PPC)
 
@@ -531,17 +576,19 @@ from dmipy_jax.pipeline.ppc import PPCDiagnostic
 ppc = PPCDiagnostic(
     model=model,
     simulator=simulator,
-    n_posterior_samples=200,
+    n_posterior_samples=100,
 )
 
-ppc_result = ppc.run(key=jax.random.key(123), n_checks=500)
+ppc_result = ppc.run(key=jax.random.key(123), n_checks=30)
 ppc_result.print_summary()
 # Posterior Predictive Check Results
 # ==================================================
-#   Mean RMSE:             0.0231
-#   Median RMSE:           0.0198
-#   Mean coverage (90%):   91.2%
-#   Reduced chi-squared:   1.03  (target: ~1.0)
+#   Mean RMSE:             ...
+#   Median RMSE:           ...
+#   Mean coverage (90%):   ...
+#   Reduced chi-squared:   ...  (target: ~1.0)
+
+assert ppc_result.rmse_per_obs.shape == (30,)
 ```
 
 **Interpreting PPC results:**
@@ -550,15 +597,44 @@ ppc_result.print_summary()
 - **Reduced chi-squared** should be close to 1.0. Values >> 1 indicate
   model misspecification (the forward model does not adequately explain the
   data). Values << 1 indicate the posterior is too wide.
+- An MDN posterior is unbounded: with an under-trained network a few
+  posterior draws can land at negative diffusivities and produce exploding
+  re-simulated signals, which shows up as a huge *mean* RMSE next to a sane
+  *median*. Compare both.
 
 ---
 
-## 6. Deployment on Real NIfTI Volumes
+## 6. Deployment on NIfTI Volumes
 
 ### 6.1 Using SBIPredictor
 
 The {class}`~dmipy_jax.pipeline.deploy.SBIPredictor` class handles the full
-NIfTI-in / NIfTI-out inference pipeline:
+NIfTI-in / NIfTI-out inference pipeline. To exercise it here we first write
+a small synthetic DWI volume to disk from the simulator (in practice these
+are your scanner files):
+
+```python
+import nibabel as nib
+
+vol_shape = (8, 8, 4)
+n_vox = int(np.prod(vol_shape))
+theta_vol, sig_vol = simulator.sample_and_simulate(jax.random.key(7), n_vox)
+
+# un-normalised intensities, FSL-style bval (s/mm^2) and bvec (3, N) files
+dwi = np.asarray(sig_vol).reshape(vol_shape + (len(bvals),)) * 1000.0
+affine = np.diag([2.0, 2.0, 2.0, 1.0])
+dwi_path = os.path.join(WORK, "sub-01_dwi.nii.gz")
+bval_path = os.path.join(WORK, "sub-01_dwi.bval")
+bvec_path = os.path.join(WORK, "sub-01_dwi.bvec")
+mask_path = os.path.join(WORK, "sub-01_brain_mask.nii.gz")
+
+nib.save(nib.Nifti1Image(dwi.astype(np.float32), affine), dwi_path)
+np.savetxt(bval_path, (bvals / 1e6)[None], fmt="%.1f")
+np.savetxt(bvec_path, bvecs.T, fmt="%.6f")
+mask = np.ones(vol_shape, dtype=np.uint8)
+mask[0, :, :] = 0            # pretend the first slab is outside the brain
+nib.save(nib.Nifti1Image(mask, affine), mask_path)
+```
 
 ```python
 from dmipy_jax.pipeline.deploy import SBIPredictor
@@ -566,21 +642,28 @@ from dmipy_jax.pipeline.deploy import SBIPredictor
 predictor = SBIPredictor(model, config)
 
 # Or load from a saved checkpoint:
-# predictor = SBIPredictor.from_checkpoint("checkpoints/ballstick_mdn")
+# predictor = SBIPredictor.from_checkpoint(config.checkpoint_path)
 
 results = predictor.predict_volume(
-    dwi_path="sub-01/dwi/sub-01_dwi.nii.gz",
-    bval_path="sub-01/dwi/sub-01_dwi.bval",
-    bvec_path="sub-01/dwi/sub-01_dwi.bvec",
-    mask_path="sub-01/dwi/sub-01_brain_mask.nii.gz",
-    output_dir="output/sub-01/ballstick_sbi",
-    batch_size=4096,            # Voxels per GPU batch
-    extract_metrics=True,       # Also compute FA, MD, etc.
+    dwi_path=dwi_path,
+    bval_path=bval_path,
+    bvec_path=bvec_path,
+    mask_path=mask_path,
+    output_dir=os.path.join(WORK, "output", "sub-01", "ballstick_sbi"),
+    batch_size=64,              # Voxels per GPU batch (production: 4096)
+    extract_metrics=True,       # Also compute derived metrics where applicable
 )
 
 # results is a dict: {param_name: np.ndarray} with 3D volumes
 print(f"Output parameters: {list(results.keys())}")
-# ['f', 'mu_theta', 'mu_phi', 'd_par', 'd_iso', 'FA', 'MD']
+assert results["f"].shape == vol_shape
+assert np.all(results["f"][0] == 0)                 # masked-out slab
+assert os.path.exists(os.path.join(WORK, "output", "sub-01", "ballstick_sbi", "f.nii.gz"))
+
+# Compare against the ground truth we simulated
+f_true = np.asarray(theta_vol[:, 0]).reshape(vol_shape)
+err = np.abs(results["f"] - f_true)[mask.astype(bool)]
+print(f"mean |f_pred - f_true| = {err.mean():.3f}")
 ```
 
 Under the hood, `predict_volume` performs:
@@ -609,19 +692,25 @@ GPU call. For a whole-brain mask (~200,000 voxels), typical values:
 ### 6.3 Derived Metrics
 
 When `extract_metrics=True`, the `MultiMetricExtractor` computes standard
-diffusion metrics from the fitted parameters:
+diffusion metrics from the fitted parameters when it recognises the
+parameter names:
 
 - **FA** (Fractional Anisotropy), **MD** (Mean Diffusivity) from tensor
-  parameters
+  eigenvalue parameters
 - **NDI** (Neurite Density Index), **ODI** (Orientation Dispersion Index)
   for NODDI-type models
 - **AD** (Axial Diffusivity), **RD** (Radial Diffusivity)
 
+Our Ball-and-Stick parameter names (`f`, `d_par`, ...) do not match any of
+these patterns, so `results` holds only the five fitted maps.
+
 ### 6.4 Loading Acquisitions from BIDS
 
-For BIDS-formatted datasets, use the class method:
+For BIDS-formatted datasets, `JaxAcquisition.from_bids_data` builds the
+acquisition from the sidecar metadata (not executed here -- it needs real
+files):
 
-```python
+```text
 acq = JaxAcquisition.from_bids_data({
     "bval_file": "sub-01/dwi/sub-01_dwi.bval",
     "bvec_file": "sub-01/dwi/sub-01_dwi.bvec",
@@ -637,7 +726,8 @@ acq = JaxAcquisition.from_bids_data({
 
 A key advantage of SBI over point-estimation methods is access to the full
 posterior distribution. SBI4DWI provides several tools for characterising and
-calibrating uncertainty.
+calibrating uncertainty; {doc}`uncertainty_quantification` covers them in
+depth.
 
 ### 7.1 Posterior Sampling
 
@@ -648,15 +738,16 @@ conditioned on an observed signal:
 from dmipy_jax.inference.mdn import sample_posterior
 
 # For a single voxel signal
-signal_obs = signals[0]  # (96,)
+signal_obs = signals[0]  # (66,)
 
 # MDN: sample from the Gaussian mixture
 key = jax.random.key(0)
 samples = sample_posterior(model, signal_obs, key, n_samples=1000)
-# samples shape: (1000, 5) -- 1000 draws in 5D parameter space
+assert samples.shape == (1000, 5)   # 1000 draws in 5D parameter space
 
-# Flow: use the .sample() method
-# samples = flow_model.sample(key, (1000,), condition=signal_obs)
+# Flow: use the .sample() method (FlowJAX needs typed keys: jax.random.key)
+flow_samples = flow_model.sample(key, (1000,), condition=signal_obs)
+assert flow_samples.shape == (1000, 5)
 ```
 
 Visualise the posterior with corner plots:
@@ -671,7 +762,8 @@ fig = corner.corner(
     quantiles=[0.16, 0.5, 0.84],
     show_titles=True,
 )
-fig.savefig("figures/posterior_corner.png", dpi=150)
+fig.savefig(os.path.join(WORK, "posterior_corner.png"), dpi=72)
+plt.close(fig)
 ```
 
 ### 7.2 Conformal Prediction Intervals
@@ -688,15 +780,15 @@ methods:
 ```python
 from dmipy_jax.pipeline.conformal import ConformalCalibrator
 
-# 1. Generate calibration data
+# 1. Generate calibration data (production: n=5000)
 key_cal = jax.random.key(77)
-theta_cal, signals_cal = simulator.sample_and_simulate(key_cal, n=5000)
+theta_cal, signals_cal = simulator.sample_and_simulate(key_cal, n=300)
 
 # 2. Calibrate
 calibrator = ConformalCalibrator(
     model=model,
     parameter_names=parameter_names,
-    n_posterior_samples=500,
+    n_posterior_samples=100,      # production: 500
 )
 conf_result = calibrator.calibrate(
     theta_cal=np.asarray(theta_cal),
@@ -709,15 +801,18 @@ conf_result.print_summary()
 #   Method:              cqr
 #   Alpha:               0.1
 #   Target coverage:     90.0%
-#   Empirical coverage:  90.3%
-#   Calibration samples: 5000
+#   Empirical coverage:  ...
+#   Calibration samples: 300
+assert conf_result.empirical_coverage >= 0.85
 
 # 3. Predict intervals for new data
-intervals = calibrator.predict_intervals(signals_cal[:10])
+intervals = calibrator.predict_intervals(np.asarray(signals_cal[:10]))
 # intervals["mean"]  -- point estimates (N, D)
 # intervals["lower"] -- lower bounds   (N, D)
 # intervals["upper"] -- upper bounds   (N, D)
 # intervals["width"] -- interval width (N, D)
+assert intervals["lower"].shape == (10, 5)
+assert np.all(intervals["lower"] <= intervals["upper"])
 ```
 
 ### 7.3 Out-of-Distribution Detection
@@ -738,8 +833,8 @@ from dmipy_jax.pipeline.ood import OODDetector
 
 ood = OODDetector(model=model, simulator=simulator)
 
-# Fit reference distribution from in-distribution samples
-ood.fit(key=jax.random.key(55), n_reference=5000)
+# Fit reference distribution from in-distribution samples (production: 5000)
+ood.fit(key=jax.random.key(55), n_reference=500)
 
 # Flag OOD voxels in a volume
 ood_result = ood.flag_volume(
@@ -749,10 +844,11 @@ ood_result = ood.flag_volume(
 ood_result.print_summary()
 # Out-of-Distribution Detection Results
 # ==================================================
-#   Total voxels:          5000
-#   OOD voxels:            243 (4.9%)
-#   Reconstruction RMSE:   mean=0.0312  median=0.0245
+#   Total voxels:          300
+#   OOD voxels:            ...
+#   Reconstruction RMSE:   mean=...  median=...
 #   ...
+assert ood_result.is_ood.shape == (300,)
 ```
 
 In practice, OOD-flagged voxels should be excluded or marked as unreliable
@@ -767,17 +863,20 @@ disagreement:
 ```python
 from dmipy_jax.pipeline.ensemble import train_ensemble, EnsemblePredictor
 
-# Train 5 ensemble members
+# Train ensemble members (production: n_members=5)
 members = train_ensemble(
     config,
     simulator,
-    n_members=5,
-    print_every=2000,
+    n_members=2,
+    print_every=0,
 )
 
 # Combine for inference
 models = [m for m, _ in members]
 ensemble = EnsemblePredictor(models, config)
+
+ens_mean, ens_std = ensemble.predict_mean(signals_cal[:20])
+assert ens_mean.shape == (20, 5)
 ```
 
 The ensemble prediction averages point estimates across members and
@@ -785,83 +884,45 @@ quantifies uncertainty via inter-member disagreement.
 
 ---
 
-## 8. Advanced: Multi-Fidelity SBI
+## 8. Advanced: Multi-Fidelity SBI (planned)
 
 For models where the analytical forward model is an approximation of the
 true physics (e.g. simplified cylinder models vs. full Monte Carlo
-diffusion simulation), SBI4DWI supports multi-fidelity training data
-generation.
+diffusion simulation), the intended design is to generate part of the
+training data with an external high-fidelity simulator behind an *oracle*
+boundary: the oracle writes a `SimulationLibrary` (HDF5), and an adapter
+exposes that library through the `ModelSimulator` interface so that
+`train_sbi` can consume a mixture of analytical and oracle-generated data.
 
-### 8.1 Oracle Simulators
+:::{warning}
+The oracle protocol (`dmipy_jax.simulation.oracle`,
+`dmipy_jax.simulation.oracles`, `dmipy_jax.pipeline.oracle_adapter`,
+`dmipy_jax.pipeline.multi_fidelity`, `dmipy_jax.library.hybrid_generator`)
+is **not yet implemented** -- see
+`docs/decisions/006-octopus-differentiable-substrate-landscape.md` and the
+project `CLAUDE.md` for status. What exists today is the HDF5
+`SimulationLibrary` boundary (Section 3.2), the in-tree simulators
+(`dmipy_jax.simulation.monte_carlo`, `mesh_sim`) and a Julia MCMRSimulator
+environment under `julia/mcmr/`.
+:::
 
-Non-differentiable external simulators are wrapped behind the oracle
-protocol:
-
-```python
-from dmipy_jax.simulation.oracles import get_oracle
-
-# DIPY multi-tensor oracle (fast, Python-native)
-dipy_oracle = get_oracle("dipy")
-
-# ReMiDi oracle (high-fidelity mesh-based MC simulation)
-# Requires Docker: docker build -f docker/Dockerfile.remidi -t remidi .
-# remidi_oracle = get_oracle("remidi")
-
-# MCMRSimulator.jl oracle (Julia-based MC simulation)
-# Requires Docker: docker build -f docker/Dockerfile.mcmr -t mcmr .
-# mcmr_oracle = get_oracle("mcmr")
-```
-
-### 8.2 Generating Oracle Libraries
-
-Oracle simulators produce `SimulationLibrary` datasets:
+What you can already do is build a library from any signal source and train
+from it. For example, the library we saved in Section 3.2 can be loaded back
+and its `(params, signals)` pairs used as a fixed training set:
 
 ```python
-# Generate a library from the DIPY oracle
-if dipy_oracle.check_available():
-    oracle_library = dipy_oracle.generate_library(
-        n=10_000,
-        acquisition=acq,
-        parameter_ranges=parameter_ranges,
-    )
-    oracle_library.save_hdf5("data/dipy_oracle_library.h5")
+lib = SimulationLibrary.load_hdf5(library_path)
+assert lib.parameter_names == parameter_names
+print(f"{lib.n_entries} oracle-style entries ready for training")
 ```
-
-### 8.3 Hybrid Training
-
-The `HybridLibraryGenerator` (referenced in the README) mixes analytical
-and oracle-generated data to balance speed and accuracy:
-
-```python
-# Conceptual example -- the exact API depends on the oracle adapter
-from dmipy_jax.pipeline.oracle_adapter import OracleModelSimulator
-
-# Wrap the oracle library as a ModelSimulator-compatible object
-oracle_sim = OracleModelSimulator(
-    library=oracle_library,
-    parameter_names=parameter_names,
-    parameter_ranges=parameter_ranges,
-    acquisition=acq,
-)
-
-# The oracle simulator uses k-NN inverse-distance interpolation
-# to generate signals for arbitrary parameter queries
-theta_test, signals_test = oracle_sim.sample_and_simulate(
-    jax.random.key(0), n=100
-)
-```
-
-The multi-fidelity strategy is particularly valuable when the analytical
-model is fast but approximate, and the oracle is slow but accurate. By
-training on a mixture (e.g. 70% analytical, 30% oracle), the neural
-posterior learns to correct for the systematic biases of the analytical
-model while keeping the bulk of training data cheap to generate.
 
 ---
 
 ## 9. Putting It All Together
 
-Here is the complete end-to-end pipeline in a single script:
+Here is the complete end-to-end pipeline in a single script (tutorial-sized;
+scale `n_steps`, `hidden_dim`, `n_sbc_samples` up for real use). It reuses
+the synthetic NIfTI files written in Section 6.
 
 ```python
 """Complete SBI4DWI pipeline: simulate -> train -> validate -> deploy."""
@@ -877,13 +938,8 @@ from dmipy_jax.pipeline.train import train_sbi
 from dmipy_jax.pipeline.checkpoint import save_checkpoint
 from dmipy_jax.pipeline.deploy import SBIPredictor
 from dmipy_jax.pipeline.sbc import SBCDiagnostic
-from dmipy_jax.pipeline.conformal import ConformalCalibrator
 
-# --- 1. Acquisition ---
-bvals = np.concatenate([np.zeros(6), np.ones(30) * 1e9, np.ones(60) * 2e9])
-bvecs = np.random.default_rng(0).standard_normal((96, 3))
-bvecs[:6] = 0
-bvecs /= np.maximum(np.linalg.norm(bvecs, axis=1, keepdims=True), 1e-8)
+# --- 1. Acquisition --- (the same scheme as the bval/bvec files on disk)
 acq = JaxAcquisition(bvalues=bvals, gradient_directions=bvecs,
                      delta=10.3e-3, Delta=43.1e-3)
 
@@ -912,29 +968,29 @@ simulator = ModelSimulator(forward_fn, parameter_names, parameter_ranges,
 config = SBIPipelineConfig(
     model_name="BallStick", parameter_names=parameter_names,
     parameter_ranges=parameter_ranges,
+    acquisition={"bvalues": acq.bvalues.tolist(),
+                 "gradient_directions": acq.gradient_directions.tolist()},
     inference_mode="mdn", architecture="residual",
-    n_components=8, hidden_dim=256, depth=4,
+    n_components=4, hidden_dim=64, depth=2,
     noise_type="rician", snr=30.0, snr_range=(10, 50),
     curriculum_noise=True, learning_rate=1e-3,
-    lr_schedule="warmup_cosine", warmup_steps=500,
-    batch_size=512, n_steps=10_000, use_ema=True, seed=42,
+    lr_schedule="warmup_cosine", warmup_steps=50,
+    batch_size=128, n_steps=300, use_ema=True, seed=42,
 )
-model, losses = train_sbi(config, simulator, print_every=2000)
-save_checkpoint(model, config, "checkpoints/ballstick_mdn")
+model, losses = train_sbi(config, simulator, print_every=100)
+save_checkpoint(model, config, os.path.join(WORK, "checkpoints", "ballstick_mdn_full"))
 
 # --- 4. Validate ---
-sbc = SBCDiagnostic(model, simulator, n_posterior_samples=200)
-sbc_result = sbc.run(jax.random.key(99), n_sbc_samples=500)
+sbc = SBCDiagnostic(model, simulator, n_posterior_samples=100)
+sbc_result = sbc.run(jax.random.key(99), n_sbc_samples=20)
 sbc_result.print_summary()
 
 # --- 5. Deploy ---
 predictor = SBIPredictor(model, config)
 results = predictor.predict_volume(
-    "sub-01/dwi/sub-01_dwi.nii.gz",
-    "sub-01/dwi/sub-01_dwi.bval",
-    "sub-01/dwi/sub-01_dwi.bvec",
-    mask_path="sub-01/dwi/sub-01_brain_mask.nii.gz",
-    output_dir="output/sub-01",
+    dwi_path, bval_path, bvec_path,
+    mask_path=mask_path,
+    output_dir=os.path.join(WORK, "output", "sub-01-full"),
     extract_metrics=True,
 )
 print(f"Done. Output maps: {list(results.keys())}")
@@ -967,6 +1023,9 @@ print(f"Done. Output maps: {list(results.keys())}")
    `predict_volume`.
 5. **Noise matching**: Training and test noise distributions must match.
    Use `snr_range` to cover the range of SNR in your clinical data.
+6. **PRNG keys**: the flow backend (FlowJAX) requires new-style typed keys
+   from `jax.random.key(...)`; legacy `jax.random.PRNGKey(...)` keys raise
+   a `TypeError` at sampling time.
 
 ### References
 

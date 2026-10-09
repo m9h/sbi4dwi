@@ -26,3 +26,8 @@ jobs:
       env:
         JAX_PLATFORMS: cpu
       run: uv run pytest
+
+    - name: Run tutorials as doctests
+      env:
+        JAX_PLATFORMS: cpu
+      run: uv run pytest docs/tutorials -q

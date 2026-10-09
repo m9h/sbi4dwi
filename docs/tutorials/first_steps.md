@@ -1,6 +1,6 @@
-# First Steps with dmipy-jax
+# First Steps with SBI4DWI
 
-This tutorial demonstrates the core advantages of `dmipy-jax`: high-performance signal prediction using JAX's compilation and vectorization capabilities. We will compare a standard Python loop against JAX's `vmap` and `jit`.
+This tutorial demonstrates the core advantages of SBI4DWI (import name `dmipy_jax`): high-performance signal prediction using JAX's compilation and vectorization capabilities. We will compare a standard Python loop against JAX's `vmap` and `jit`.
 
 ## 1. Setup
 
@@ -17,15 +17,15 @@ from dmipy_jax.acquisition import JaxAcquisition
 
 ## 2. Defining the Acquisition
 
-In `dmipy-jax`, we use `JaxAcquisition` to handle the experimental scheme. It converts inputs to JAX arrays automatically.
+In SBI4DWI, we use `JaxAcquisition` to handle the experimental scheme. It converts inputs to JAX arrays automatically. b-values are stored in **SI units (s/m^2)**: a clinical shell at b = 1000 s/mm^2 is `1000e6`.
 
 ```python
 # Setup Parameters
 N_VOXELS = 50000
 N_GRADIENTS = 60
 
-# Shell at b=1000 with 60 gradient directions
-bvals = jnp.ones(N_GRADIENTS) * 1000.0
+# Shell at b=1000 s/mm^2 (= 1000e6 s/m^2 in SI) with 60 gradient directions
+bvals = jnp.ones(N_GRADIENTS) * 1000e6
 
 # Random gradients on sphere
 grads_np = np.random.randn(N_GRADIENTS, 3)
@@ -54,7 +54,7 @@ lambda_par = jax.random.uniform(k2, shape=(N_VOXELS,), minval=0.1e-9, maxval=3.0
 
 ## 4. The Model: Stick
 
-We instantiate the `C1Stick` model. JAX models in `dmipy-jax` are stateless configuration objects; the state (parameters) is passed at call time.
+We instantiate the `C1Stick` model. JAX models in SBI4DWI are stateless configuration objects; the state (parameters) is passed at call time.
 
 ```python
 model = C1Stick()
@@ -75,7 +75,7 @@ vmapped_predict = jax.vmap(predict_one, in_axes=(0, 0))
 ```
 
 ### Compilation with `jit`
-We use `jax.jit` (Just-In-Time compilation) to compile the magnetized function into XLA (Accelerated Linear Algebra) code, optimized for your CPU or GPU.
+We use `jax.jit` (Just-In-Time compilation) to compile the vectorised function into XLA (Accelerated Linear Algebra) code, optimized for your CPU or GPU.
 
 ```python
 jit_vmapped_predict = jax.jit(vmapped_predict)
@@ -83,7 +83,7 @@ jit_vmapped_predict = jax.jit(vmapped_predict)
 
 ### Why `block_until_ready()`?
 
-JAX operations are asynchronous. When you call a JAX function, it returns a "Need" (a future) immediately, while the computation happens in the background. To measure the *actual* computation time, we must call `.block_until_ready()` on the result.
+JAX operations are asynchronous. When you call a JAX function, it returns a placeholder (a future) immediately, while the computation happens in the background. To measure the *actual* computation time, we must call `.block_until_ready()` on the result.
 
 ```python
 # Warmup (compilation happens here)

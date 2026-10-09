@@ -2,7 +2,7 @@
 
 This tutorial walks through building multi-compartment diffusion MRI signal
 models from individual compartments and fitting them to data using the
-classical (optimisation-based) pipeline in `dmipy-jax`. By the end you will
+classical (optimisation-based) pipeline in SBI4DWI. By the end you will
 know how to:
 
 * Set up an acquisition scheme with correct SI units
@@ -31,7 +31,7 @@ $$
 where $f_i$ are the partial volume fractions ($\sum f_i = 1$) and each
 $S_i$ is an analytical signal model describing one tissue type.
 
-`dmipy-jax` lets you compose these models like building blocks: instantiate
+SBI4DWI lets you compose these models like building blocks: instantiate
 each compartment, pass them as a list to `JaxMultiCompartmentModel`, and the
 framework handles parameter bookkeeping, signal composition, and fitting.
 
@@ -41,7 +41,7 @@ framework handles parameter bookkeeping, signal composition, and fitting.
 
 The most common gotcha in diffusion MRI software is **b-value units**.
 Clinical scanners and tools like FSL and DIPY report b-values in
-**s/mm^2**, but `dmipy-jax` stores them internally in **SI units (s/m^2)**.
+**s/mm^2**, but SBI4DWI stores them internally in **SI units (s/m^2)**.
 The conversion factor is:
 
 $$
@@ -93,7 +93,7 @@ times too small.
 
 ## 3. Building compartment models
 
-`dmipy-jax` provides several analytical compartment models as Equinox
+SBI4DWI provides several analytical compartment models as Equinox
 modules. The three most common building blocks are:
 
 | Model | Class | Parameters | Tissue interpretation |
@@ -290,7 +290,7 @@ for i in range(2):
     print(f"Voxel {i} lambda_iso error: {err:.2e}")
 ```
 
-This vectorised fitting is the key to scaling `dmipy-jax` to whole-brain
+This vectorised fitting is the key to scaling SBI4DWI to whole-brain
 volumes with hundreds of thousands of voxels.
 
 ---
@@ -369,11 +369,15 @@ params_array = model.parameter_dictionary_to_array(true_params)
 print(f"Flat array length: {len(params_array)}")
 # mu(2) + lambda_par(1) + lambda_iso(1) + f0(1) + f1(1) = 6
 
-# The model.fit() method returns a dictionary directly
+# The model.fit() method returns a dictionary directly. With the default
+# compute_uncertainty=True it also carries a '<name>_std' entry per parameter
+# (Cramer-Rao lower-bound standard deviations).
 fitted = model.fit(acq, signal)
 print(type(fitted))  # dict
-print(fitted.keys()) # dict_keys(['mu', 'lambda_par', 'lambda_iso',
-                      #            'partial_volume_0', 'partial_volume_1'])
+print(sorted(fitted.keys()))
+# ['lambda_iso', 'lambda_iso_std', 'lambda_par', 'lambda_par_std', 'mu', 'mu_std',
+#  'partial_volume_0', 'partial_volume_0_std', 'partial_volume_1', 'partial_volume_1_std']
+assert set(model.parameter_names) <= set(fitted.keys())
 ```
 
 The parameter ordering in the flat array is determined by the order in which

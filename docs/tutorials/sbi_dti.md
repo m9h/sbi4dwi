@@ -9,7 +9,9 @@ simulated data and then amortise inference across all voxels in a single
 forward pass.
 
 The code patterns here are adapted from
-`dmipy_jax/examples/sbi/train_dti.py`.
+`dmipy_jax/examples/sbi/train_dti.py`. Network and training sizes have been
+shrunk so that the whole page runs in well under a minute on a CPU; the
+production settings are noted where they differ.
 
 ---
 
@@ -54,7 +56,7 @@ $$
 where $\mathbf{e}_1, \mathbf{e}_2, \mathbf{e}_3$ are the eigenvectors
 obtained from the Euler-angle rotation matrix.
 
-In `dmipy-jax`, this is implemented by the `Tensor` class in
+In SBI4DWI, this is implemented by the `Tensor` class in
 `dmipy_jax.signal_models.gaussian_models`:
 
 ```python
@@ -136,8 +138,6 @@ gives the desired noise level.
 ### Generating a single sample
 
 ```python
-from dmipy_jax.signal_models.gaussian_models import Tensor
-
 def forward_single(l1, l2, l3, alpha, beta, gamma):
     """Compute DTI signal for one set of parameters."""
     model = Tensor(
@@ -201,7 +201,10 @@ def get_batch(key, batch_size=128):
 
 A single call to `get_batch(key, batch_size=256)` produces 256 noisy
 signal vectors and their corresponding (FA, MD) targets in one compiled
-XLA kernel -- no Python-level loops involved.
+XLA kernel -- no Python-level loops involved. (`get_batch` refers to
+`compute_fa_md`, defined in the next section; because the function body is
+only traced when it is first *called*, the definition order does not
+matter.)
 
 ---
 
@@ -234,11 +237,19 @@ def compute_fa_md(lambda_1, lambda_2, lambda_3):
     num = (lambda_1 - md)**2 + (lambda_2 - md)**2 + (lambda_3 - md)**2
     denom = lambda_1**2 + lambda_2**2 + lambda_3**2
 
-    # Guard against division by zero for isotropic tensors
-    fa_sq = 1.5 * num / (denom + 1e-9)
+    # Guard against division by zero for isotropic tensors.  Eigenvalues
+    # are ~1e-9 m^2/s, so denom ~ 1e-18: the guard must be far smaller than
+    # that (an absolute 1e-9 here would silently drive FA to zero).
+    fa_sq = 1.5 * num / jnp.maximum(denom, 1e-30)
     fa = jnp.sqrt(jnp.clip(fa_sq, 0.0, 1.0))
 
     return fa, md
+
+# Sanity check the batch generator
+x_demo, y_demo = get_batch(jax.random.PRNGKey(1), batch_size=256)
+print(x_demo.shape, y_demo.shape)   # (256, 32) (256, 2)
+assert jnp.all((y_demo[:, 0] >= 0) & (y_demo[:, 0] <= 1))
+assert float(y_demo[:, 0].std()) > 0.1    # FA actually varies across the prior
 ```
 
 ---
@@ -330,7 +341,14 @@ def batch_loss(model, x_batch, y_batch):
 
 ### Training loop
 
+For a production run use `n_components=8, width=128, depth=3` and
+5000 iterations at batch size 256; here we use a small network and 1500
+iterations so the tutorial completes quickly on CPU.
+
 ```python
+N_ITERS = 1500
+BATCH = 128
+
 def train():
     key = jax.random.PRNGKey(0)
     key_net, key_data = jax.random.split(key)
@@ -338,7 +356,7 @@ def train():
     # Initialise network: 32 signal inputs -> 2 outputs (FA, MD)
     model = MixtureDensityNetwork(
         key_net, in_size=N_DIRS, out_size=2,
-        n_components=8, width=128, depth=3
+        n_components=4, width=64, depth=2
     )
 
     # Adam optimiser
@@ -352,17 +370,19 @@ def train():
         model = eqx.apply_updates(model, updates)
         return model, opt_state, loss
 
-    # Train for 5000 iterations with on-the-fly data generation
+    # Train with on-the-fly data generation
     key_iter = key_data
-    for i in range(5000):
+    for i in range(N_ITERS):
         key_iter, k = jax.random.split(key_iter)
-        x_batch, y_batch = get_batch(k, batch_size=256)
+        x_batch, y_batch = get_batch(k, batch_size=BATCH)
         model, opt_state, loss = step(model, opt_state, x_batch, y_batch)
 
-        if (i + 1) % 1000 == 0:
-            print(f"Iter {i+1}/5000  Loss: {loss:.4f}")
+        if (i + 1) % 500 == 0:
+            print(f"Iter {i+1}/{N_ITERS}  Loss: {loss:.4f}")
 
     return model
+
+model = train()
 ```
 
 ```{tip}
@@ -402,6 +422,13 @@ x_test, y_test = get_batch(key_test, batch_size=1000)
 
 # Vectorised prediction
 preds = jax.vmap(predict_mean, in_axes=(None, 0))(model, x_test)
+
+# Quantify recovery: correlation between true and predicted FA / MD
+corr_fa = float(jnp.corrcoef(y_test[:, 0], preds[:, 0])[0, 1])
+corr_md = float(jnp.corrcoef(y_test[:, 1], preds[:, 1])[0, 1])
+print(f"Correlation  FA: {corr_fa:.3f}   MD: {corr_md:.3f}")
+assert corr_md > 0.9     # MD is easy: it is set by the mean attenuation
+assert corr_fa > 0.4     # FA needs the directional pattern; improves with training
 ```
 
 ### Scatter plot validation
@@ -410,6 +437,9 @@ A good model should produce points clustered tightly along the identity
 line (predicted = true):
 
 ```python
+import os, tempfile
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -431,12 +461,17 @@ axes[1].set_title("Mean Diffusivity")
 axes[1].grid(True)
 
 plt.tight_layout()
-plt.savefig("dti_sbi_validation.png")
+plt.savefig(os.path.join(tempfile.mkdtemp(), "dti_sbi_validation.png"))
+plt.close(fig)
 ```
 
-At SNR = 30 with 5000 training iterations, you should see tight
-correlation for both FA and MD, with slightly more scatter at extreme
-values (very high FA near 1.0, or very low MD).
+With the short training run above MD is recovered almost perfectly
+(correlation ~0.99 -- it is set by the mean attenuation over directions),
+while FA reaches a correlation of roughly 0.6: it depends on the angular
+pattern across the 32 directions, which the small network is still learning.
+At SNR = 30 with the production settings (5000 iterations, width 128) you
+should see tight correlation for both FA and MD, with slightly more scatter
+at extreme values (very high FA near 1.0, or very low MD).
 
 ---
 

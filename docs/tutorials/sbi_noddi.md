@@ -13,6 +13,9 @@ the tortuosity constraint, and train a neural posterior estimator (NPE) that
 returns the complete posterior distribution over NODDI parameters in a single
 forward pass.
 
+Network and training sizes are kept small so the page runs in under a minute
+on CPU; production settings are noted where they differ.
+
 ```{contents}
 :depth: 3
 :local:
@@ -117,25 +120,36 @@ The three compartments are combined into a single forward model using
 from dmipy_jax.core.modeling_framework import JaxMultiCompartmentModel
 
 model = JaxMultiCompartmentModel([intra, extra, ball])
+print(model.parameter_names)
 ```
 
 The composite model collects all sub-model parameters into a single namespace.
 When parameter names collide across compartments, the framework appends a
-numeric suffix. For NODDI the resulting parameters are:
+numeric suffix (`_2` for the second compartment). For NODDI the resulting
+parameters are:
 
 | Parameter | Compartment | Description |
 |-----------|-------------|-------------|
+| `lambda_par` | Intra-cellular | Parallel diffusivity |
 | `mu` | Intra-cellular | Fibre orientation $(\theta, \phi)$ |
 | `kappa` | Intra-cellular | Watson concentration |
-| `lambda_par` | Intra-cellular | Parallel diffusivity |
-| `mu_2` | Extra-cellular | Fibre orientation (shared with intra) |
-| `kappa_2` | Extra-cellular | Watson concentration (shared with intra) |
 | `lambda_par_2` | Extra-cellular | Parallel diffusivity |
 | `lambda_perp` | Extra-cellular | Perpendicular diffusivity (tortuosity-constrained) |
+| `mu_2` | Extra-cellular | Fibre orientation (shared with intra) |
+| `kappa_2` | Extra-cellular | Watson concentration (shared with intra) |
 | `lambda_iso` | Ball | Isotropic diffusivity |
 | `partial_volume_0` | -- | Signal fraction for intra |
 | `partial_volume_1` | -- | Signal fraction for extra |
 | `partial_volume_2` | -- | Signal fraction for ball |
+
+```python
+assert set(model.parameter_names) == {
+    'lambda_par', 'mu', 'kappa',
+    'lambda_par_2', 'lambda_perp', 'mu_2', 'kappa_2',
+    'lambda_iso',
+    'partial_volume_0', 'partial_volume_1', 'partial_volume_2',
+}
+```
 
 ---
 
@@ -149,6 +163,7 @@ volumes:
 ```python
 import jax
 import jax.numpy as jnp
+from dmipy_jax.acquisition import JaxAcquisition
 
 def get_acquisition():
     """Create a standard two-shell NODDI acquisition."""
@@ -176,16 +191,11 @@ def get_acquisition():
 
     bvecs = jnp.concatenate([v0, v1, v2], axis=0)
 
-    class Acquisition:
-        bvalues = bvals
-        gradient_directions = bvecs
-        delta = None
-        Delta = None
-
-    return Acquisition()
+    return JaxAcquisition(bvalues=bvals, gradient_directions=bvecs)
 
 acquisition = get_acquisition()
 N_MEAS = len(acquisition.bvalues)  # 66 measurements
+assert N_MEAS == 66
 ```
 
 ```{note}
@@ -207,6 +217,14 @@ Choosing informative but broad priors is critical for SBI. The priors should
 cover the physiological range of each parameter while concentrating simulation
 effort where the parameters are most likely to occur in vivo.
 
+The snippets in this section draw a handful of samples from each prior to
+show the sampling calls; Section 8 assembles them into the batch simulator.
+
+```python
+key = jax.random.PRNGKey(0)
+batch_size = 8
+```
+
 ### 5.1 Neurite Density Index ($f_\text{ic}$)
 
 In healthy white matter $f_\text{ic}$ typically falls in the range 0.3--0.7. A
@@ -214,6 +232,7 @@ $\text{Beta}(5, 5)$ distribution captures this:
 
 ```python
 f_intra = jax.random.beta(key, 5.0, 5.0, shape=(batch_size,))
+assert f_intra.shape == (batch_size,)
 ```
 
 The Beta(5, 5) distribution has mean 0.5 and places 95% of its mass between
@@ -349,7 +368,9 @@ constraint, and noise model to generate training pairs
 $(\boldsymbol{\theta}, \mathbf{x})$ on the fly:
 
 ```python
-@jax.jit(static_argnames=('batch_size',))
+import functools
+
+@functools.partial(jax.jit, static_argnames=('batch_size',))
 def get_batch(key, batch_size=128):
     """Generate (noisy_signal, parameters) training pairs."""
     k_fi, k_fiso, k_kap, k_mu, k_noise = jax.random.split(key, 5)
@@ -402,6 +423,9 @@ def get_batch(key, batch_size=128):
     # --- Target parameters ---
     targets = jnp.stack([f_intra, f_iso, kappa], axis=-1)
     return signals_noisy, targets
+
+x_demo, y_demo = get_batch(jax.random.PRNGKey(1), batch_size=4)
+print(x_demo.shape, y_demo.shape)   # (4, 66) (4, 3)
 ```
 
 ```{important}
@@ -437,8 +461,8 @@ network = MixtureDensityNetwork(
     in_features=N_MEAS,       # 66 measurements
     out_features=3,            # f_intra, f_iso, kappa
     num_components=4,          # Gaussian mixture components
-    width_size=128,
-    depth=4,
+    width_size=64,             # production: 128
+    depth=2,                   # production: 4
     key=k_net,
     activation=jax.nn.gelu,
 )
@@ -470,20 +494,26 @@ def step(net, opt_state, x, y):
     new_net = eqx.apply_updates(net, updates)
     return new_net, new_opt_state, loss
 
-# Train for 500 iterations with batch size 256
+# Train for 300 iterations with batch size 128 (production: 500+ at 256)
+N_ITERS = 300
 k_iter = k_train
-for i in range(500):
+losses = []
+for i in range(N_ITERS):
     k_iter, k_batch = jax.random.split(k_iter)
-    x_batch, y_batch = get_batch(k_batch, batch_size=256)
+    x_batch, y_batch = get_batch(k_batch, batch_size=128)
     network, opt_state, loss = step(network, opt_state, x_batch, y_batch)
+    losses.append(float(loss))
 
     if i % 100 == 0:
         print(f"Iteration {i:4d} | Loss: {loss:.4f}")
+
+assert losses[-1] < losses[0]
 ```
 
 The loss is the negative log-likelihood of the true parameters under the
 predicted Gaussian mixture (see {func}`~dmipy_jax.inference.mdn.mdn_loss`).
-Training converges in 300--500 iterations on CPU; fewer on GPU.
+A few hundred iterations are enough to see the loss fall steadily; a
+production run continues until it plateaus.
 
 ---
 
@@ -493,6 +523,7 @@ After training, the MDN yields a full posterior distribution for any observed
 signal vector. Sampling is straightforward:
 
 ```python
+import numpy as np
 from dmipy_jax.inference.mdn import sample_posterior
 
 # Generate a test observation
@@ -503,15 +534,19 @@ x_test, y_test = get_batch(k_test, 5)
 signal = x_test[0]
 true_params = y_test[0]  # (f_intra, f_iso, kappa)
 
-# Draw 5000 posterior samples
-samples = sample_posterior(network, signal, k_test, n_samples=5000)
+# Draw 2000 posterior samples
+samples = sample_posterior(network, signal, k_test, n_samples=2000)
+assert samples.shape == (2000, 3)
+print("posterior mean:", np.round(np.asarray(samples.mean(0)), 3), " truth:", np.round(np.asarray(true_params), 3))
 ```
 
 A corner plot reveals the joint and marginal posteriors:
 
 ```python
+import os, tempfile
+import matplotlib
+matplotlib.use("Agg")
 import corner
-import numpy as np
 
 labels = [r"$f_\mathrm{ic}$", r"$f_\mathrm{iso}$", r"$\kappa$"]
 
@@ -522,7 +557,7 @@ fig = corner.corner(
     truth_color='red',
     show_titles=True,
 )
-fig.savefig("noddi_posterior.png", dpi=150)
+fig.savefig(os.path.join(tempfile.mkdtemp(), "noddi_posterior.png"), dpi=150)
 ```
 
 ---

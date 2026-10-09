@@ -389,44 +389,90 @@ the posterior and the computational budget.
 
 ## 8. Integration with the SBI Pipeline
 
-In the full SBI4DWI pipeline, the flow backend is selected at training time
-via the configuration. The
-{func}`~dmipy_jax.pipeline.train.train_sbi` function accepts an
-`inference_mode` parameter:
+The `FlowNetwork` above is a compact, self-contained implementation that is
+useful for understanding how coupling layers and RQS transforms fit together.
+In the full SBI4DWI pipeline the flow backend is instead built on
+[FlowJAX](https://github.com/danielward27/flowjax) (masked autoregressive
+flows with affine or rational-quadratic-spline transformers) and is selected
+at training time through the configuration: set
+`inference_mode="flow"` in {class}`~dmipy_jax.pipeline.config.SBIPipelineConfig`
+and call {func}`~dmipy_jax.pipeline.train.train_sbi`.
+
+The example below trains a deliberately tiny flow on a mono-exponential
+(ADC) forward model so that it runs in a few seconds on CPU; `depth` is the
+number of flow layers and `knots` the number of spline knots.
 
 ```python
-from dmipy_jax.pipeline.train import train_sbi
+import jax.numpy as jnp
+from dmipy_jax.acquisition import JaxAcquisition
+from dmipy_jax.pipeline.simulator import ModelSimulator
 from dmipy_jax.pipeline.config import SBIPipelineConfig
+from dmipy_jax.pipeline.train import train_sbi
+
+def forward_fn(params, acq):
+    # params = [D] in um^2/ms; b-values are SI (s/m^2), hence the 1e-9
+    return jnp.exp(-acq.bvalues * params[0] * 1e-9)
+
+acq = JaxAcquisition(
+    bvalues=jnp.r_[jnp.zeros(4), jnp.full(28, 1000e6)],
+    gradient_directions=jnp.zeros((32, 3)),
+)
+names, ranges = ["D"], {"D": (0.1, 3.0)}
+model_simulator = ModelSimulator(forward_fn, names, ranges, acq,
+                                 noise_type="rician", snr=30.0)
 
 config = SBIPipelineConfig(
-    inference_mode="flow",    # "mdn" or "flow"
-    n_flow_layers=4,
-    n_flow_bins=8,
-    # ... other config
+    model_name="ADC",
+    parameter_names=names,
+    parameter_ranges=ranges,
+    acquisition={"bvalues": acq.bvalues.tolist()},
+    inference_mode="flow",    # "mdn", "flow" or "score"
+    flow_type="spline",       # "affine" or "spline"
+    knots=4,                  # spline knots
+    depth=2,                  # number of flow layers
+    hidden_dim=32,
+    lr_schedule="constant",
+    batch_size=128,
+    n_steps=100,              # tutorial-sized; use thousands in practice
 )
 
-trained_model = train_sbi(model_simulator, config)
+trained_model, losses = train_sbi(config, model_simulator, print_every=50)
 ```
 
-The resulting `_NormalisedFlow` object wraps the `FlowNetwork` with the
-same normalisation statistics used during training, ensuring consistency at
-deployment time. It exposes the same `.log_prob()` and `.sample()` interface
-used throughout this tutorial.
-
-Checkpointing and deployment work identically for both backends:
+The resulting `_NormalisedFlow` object wraps the FlowJAX flow together with
+the parameter normalisation used during training, so that samples come back
+in physical units. It exposes `.log_prob(theta, condition=x)` and
+`.sample(key, (n,), condition=x)`:
 
 ```python
+# FlowJAX requires new-style typed keys (jax.random.key, not PRNGKey)
+_, signals = model_simulator.sample_and_simulate(jax.random.key(1), 1)
+samples = trained_model.sample(jax.random.key(2), (200,), condition=signals[0])
+assert samples.shape == (200, 1)
+print(f"posterior mean D = {float(samples.mean()):.2f} um^2/ms")
+```
+
+Checkpointing and deployment work identically for both backends. A
+checkpoint is a pair of files, `<path>.eqx` (weights) and
+`<path>.config.json` (the config), and `SBIPredictor` takes the model and
+config together:
+
+```python
+import os, tempfile
 from dmipy_jax.pipeline.checkpoint import save_checkpoint, load_checkpoint
-
-save_checkpoint(trained_model, "noddi_flow.eqx")
-loaded = load_checkpoint("noddi_flow.eqx")
-
-# Deploy to a NIfTI volume
 from dmipy_jax.pipeline.deploy import SBIPredictor
 
-predictor = SBIPredictor(loaded)
-result = predictor.predict_volume("dwi.nii.gz", "bvals", "bvecs")
+ckpt = os.path.join(tempfile.mkdtemp(), "adc_flow")
+save_checkpoint(trained_model, config, ckpt)
+loaded, loaded_config = load_checkpoint(ckpt)
+
+predictor = SBIPredictor(loaded, loaded_config)
+# predictor.predict_volume("dwi.nii.gz", "dwi.bval", "dwi.bvec",
+#                          mask_path="mask.nii.gz", output_dir="out/")
 ```
+
+See {doc}`training_to_deployment` for a complete run of `predict_volume` on
+a NIfTI volume.
 
 ---
 

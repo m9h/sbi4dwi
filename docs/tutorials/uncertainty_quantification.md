@@ -14,14 +14,17 @@ production-ready confidence intervals and anomaly detection.
 
 ## Prerequisites
 
-- A trained SBI model (MDN or normalising flow) -- see
+- Familiarity with the `ModelSimulator` and `train_sbi()` pipeline -- see
   {doc}`training_to_deployment`
-- Familiarity with the `ModelSimulator` and `train_sbi()` pipeline
 - Python 3.12+ with `uv sync` from the repository root
 
 ```bash
 uv sync
 ```
+
+Every code block on this page is executed as a test on CPU, so the model we
+train below is deliberately tiny and the diagnostic sample counts are small.
+Production values are noted alongside.
 
 ---
 
@@ -51,6 +54,73 @@ that reproduces observed signals (Level 2) can be wrapped in conformal
 intervals for finite-sample guarantees (Level 3), screened for anomalous
 inputs (Level 4), and decomposed into aleatoric and epistemic components
 via ensembles (Level 5).
+
+### Setup: a small trained model
+
+The model-based tools below all need a trained posterior estimator and the
+simulator it was trained on. We train a Ball-and-Stick MDN exactly as in
+{doc}`training_to_deployment`, but with a tiny budget:
+
+```python
+import os
+import tempfile
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+
+from dmipy_jax.acquisition import JaxAcquisition
+from dmipy_jax.pipeline.simulator import ModelSimulator
+from dmipy_jax.pipeline.config import SBIPipelineConfig
+from dmipy_jax.pipeline.train import train_sbi
+
+WORK = tempfile.mkdtemp(prefix="sbi4dwi_uq_")
+
+# 6 b=0 + 30 directions at b=1000 + 30 at b=2000 (SI units: s/m^2)
+bvals = np.concatenate([np.zeros(6), np.full(30, 1000e6), np.full(30, 2000e6)])
+rng = np.random.default_rng(42)
+bvecs = rng.standard_normal((len(bvals), 3))
+bvecs[:6] = 0.0
+bvecs /= np.maximum(np.linalg.norm(bvecs, axis=1, keepdims=True), 1e-8)
+acq = JaxAcquisition(bvalues=bvals, gradient_directions=bvecs)
+
+parameter_names = ["f", "mu_theta", "mu_phi", "d_par", "d_iso"]
+parameter_ranges = {
+    "f": (0.05, 0.95), "mu_theta": (0.0, float(jnp.pi)),
+    "mu_phi": (0.0, float(2 * jnp.pi)),
+    "d_par": (0.5e-9, 3.0e-9), "d_iso": (1.0e-9, 3.5e-9),
+}
+
+def forward_fn(params, acquisition):
+    f, th, ph, d_par, d_iso = params
+    n = jnp.array([jnp.sin(th) * jnp.cos(ph), jnp.sin(th) * jnp.sin(ph), jnp.cos(th)])
+    gn = acquisition.gradient_directions @ n
+    return f * jnp.exp(-acquisition.bvalues * d_par * gn**2) + \
+           (1 - f) * jnp.exp(-acquisition.bvalues * d_iso)
+
+simulator = ModelSimulator(forward_fn, parameter_names, parameter_ranges,
+                           acq, noise_type="rician", snr=30.0)
+
+config = SBIPipelineConfig(
+    model_name="BallStick",
+    parameter_names=parameter_names,
+    parameter_ranges=parameter_ranges,
+    acquisition={"bvalues": acq.bvalues.tolist(),
+                 "gradient_directions": acq.gradient_directions.tolist()},
+    inference_mode="mdn", n_components=4, hidden_dim=64, depth=2,
+    lr_schedule="constant", batch_size=128,
+    n_steps=200,                 # production: 5_000 - 10_000
+    seed=0,
+)
+trained_model, losses = train_sbi(config, simulator, print_every=0)
+
+# A batch of simulated "voxels" that we will treat as observations
+theta_dim = len(parameter_names)
+n_voxels = 1000
+theta_obs, signals = simulator.sample_and_simulate(jax.random.key(1), n_voxels)
+batch_size = signals.shape[0]
+print(signals.shape)   # (1000, 66)
+```
 
 ---
 
@@ -93,7 +163,6 @@ The `SBCResult` dataclass holds rank statistics and exposes diagnostics
 directly.
 
 ```python
-import numpy as np
 from dmipy_jax.pipeline.sbc import SBCResult, compute_ranks
 
 # After running SBC (n_sbc repetitions, L posterior samples each)
@@ -190,9 +259,6 @@ The `compute_ranks` utility counts how many posterior samples fall below
 the true value in each dimension:
 
 ```python
-import jax.numpy as jnp
-from dmipy_jax.pipeline.sbc import compute_ranks
-
 theta_true = jnp.array([0.5, 0.3])
 posterior = jnp.array([
     [0.1, 0.1],
@@ -209,27 +275,33 @@ np.testing.assert_array_equal(np.asarray(ranks), [2, 2])
 
 ### 2.7 Running SBC on a Trained Model
 
-For a complete end-to-end SBC run, use `SBCDiagnostic`:
+For a complete end-to-end SBC run, use `SBCDiagnostic`. It loops over
+repetitions in Python, so we use a small count here (production: 1000):
 
 ```python
-import jax
+import matplotlib
+matplotlib.use("Agg")
 from dmipy_jax.pipeline.sbc import SBCDiagnostic
 
 diagnostic = SBCDiagnostic(
     model=trained_model,        # _NormalisedMDN or _NormalisedFlow
     simulator=simulator,        # same ModelSimulator used for training
-    n_posterior_samples=200,    # L posterior draws per repetition
+    n_posterior_samples=100,    # L posterior draws per repetition
 )
 
 key = jax.random.PRNGKey(0)
-result = diagnostic.run(key, n_sbc_samples=1000)
+result = diagnostic.run(key, n_sbc_samples=40)
+assert result.ranks.shape == (40, theta_dim)
 
 # Print summary table with coverage and KS statistics
 result.print_summary()
 
 # Visualise rank histograms
-result.plot_rank_histograms(save_path="sbc_ranks.png")
+result.plot_rank_histograms(save_path=os.path.join(WORK, "sbc_ranks.png"))
 ```
+
+With only 200 training steps the summary will show failed KS tests for most
+parameters -- the posterior is not yet calibrated, and SBC tells you so.
 
 ---
 
@@ -278,7 +350,6 @@ underestimated uncertainty.
 ### 3.3 Using `PPCResult`
 
 ```python
-import numpy as np
 from dmipy_jax.pipeline.ppc import PPCResult
 
 # Construct from pre-computed diagnostics
@@ -337,20 +408,25 @@ assert abs(result_ideal.reduced_chi_squared - 1.0) < 1e-10
 ### 3.5 Running PPC on a Trained Model
 
 ```python
-import jax
 from dmipy_jax.pipeline.ppc import PPCDiagnostic
 
 diagnostic = PPCDiagnostic(
     model=trained_model,
     simulator=simulator,
-    n_posterior_samples=200,
+    n_posterior_samples=100,
 )
 
 key = jax.random.PRNGKey(1)
-result = diagnostic.run(key, n_checks=500)
+result = diagnostic.run(key, n_checks=20)     # production: 500
+assert result.rmse_per_obs.shape == (20,)
 
 result.print_summary()
 ```
+
+Because an MDN posterior is unbounded, an under-trained network can place a
+few posterior draws at negative diffusivities whose re-simulated signals
+explode; this shows up as a huge *mean* RMSE next to a sane *median*.
+Compare both, and re-run after longer training.
 
 ---
 
@@ -400,7 +476,6 @@ no model object required. This is the easiest way to get started.
 **Absolute conformal intervals:**
 
 ```python
-import numpy as np
 from dmipy_jax.pipeline.conformal import (
     calibrate_from_predictions,
     predict_intervals_from_predictions,
@@ -408,14 +483,14 @@ from dmipy_jax.pipeline.conformal import (
 
 # Synthetic calibration data: predictions = theta + noise
 rng = np.random.RandomState(42)
-n_cal, n_test, theta_dim = 1000, 500, 2
+n_cal, n_test, dim = 1000, 500, 2
 noise_scale = 0.1
 
-theta_cal = rng.uniform(0, 1, (n_cal, theta_dim))
-preds_cal = theta_cal + rng.randn(n_cal, theta_dim) * noise_scale
+theta_cal = rng.uniform(0, 1, (n_cal, dim))
+preds_cal = theta_cal + rng.randn(n_cal, dim) * noise_scale
 
-theta_test = rng.uniform(0, 1, (n_test, theta_dim))
-preds_test = theta_test + rng.randn(n_test, theta_dim) * noise_scale
+theta_test = rng.uniform(0, 1, (n_test, dim))
+preds_test = theta_test + rng.randn(n_test, dim) * noise_scale
 
 # Calibrate at alpha=0.1 (target 90% coverage)
 alpha = 0.1
@@ -435,10 +510,10 @@ assert result.empirical_coverage >= 1 - alpha - 0.01
 intervals = predict_intervals_from_predictions(preds_test, result)
 
 # Verify shapes
-assert intervals["mean"].shape == (n_test, theta_dim)
-assert intervals["lower"].shape == (n_test, theta_dim)
-assert intervals["upper"].shape == (n_test, theta_dim)
-assert intervals["width"].shape == (n_test, theta_dim)
+assert intervals["mean"].shape == (n_test, dim)
+assert intervals["lower"].shape == (n_test, dim)
+assert intervals["upper"].shape == (n_test, dim)
+assert intervals["width"].shape == (n_test, dim)
 
 # Sanity: lower <= upper, width >= 0
 assert np.all(intervals["lower"] <= intervals["upper"])
@@ -544,11 +619,11 @@ $\hat{q}$ values.
 
 ### 5.1 The Problem
 
-A model trained on simulated data from a Ball-Stick-Zeppelin model knows
-nothing about tumour tissue, motion artefacts, or susceptibility
-distortions. Predictions on such voxels will be confidently wrong.
-OOD detection flags voxels where the input signal departs from the
-training distribution, so clinicians know which predictions to trust.
+A model trained on simulated data from a Ball-Stick model knows nothing
+about tumour tissue, motion artefacts, or susceptibility distortions.
+Predictions on such voxels will be confidently wrong. OOD detection flags
+voxels where the input signal departs from the training distribution, so
+clinicians know which predictions to trust.
 
 ### 5.2 Three OOD Scores
 
@@ -581,15 +656,14 @@ in-distribution reference signals during the `fit()` step.
 `OODDetector` follows a scikit-learn-style fit/score pattern:
 
 ```python
-import jax
 from dmipy_jax.pipeline.ood import OODDetector
 
 # Create detector from a trained model and its simulator
 detector = OODDetector(model=trained_model, simulator=simulator)
 
-# Fit: generate reference distribution statistics
+# Fit: generate reference distribution statistics (production: 5000)
 key = jax.random.PRNGKey(42)
-detector.fit(key, n_reference=5000)
+detector.fit(key, n_reference=500)
 ```
 
 The `fit()` method:
@@ -633,8 +707,6 @@ In-distribution signals should have low reconstruction error and
 Mahalanobis distance, while random noise should score much higher:
 
 ```python
-import jax.numpy as jnp
-
 key = jax.random.PRNGKey(300)
 k1, k2 = jax.random.split(key)
 
@@ -649,7 +721,6 @@ signals_ood = jax.random.uniform(
 scores_ood = detector.score(signals_ood)
 
 # OOD signals should score higher on all metrics
-import numpy as np
 mean_recon_id = np.mean(scores_id["reconstruction_error"])
 mean_recon_ood = np.mean(scores_ood["reconstruction_error"])
 print(f"Recon RMSE -- in-dist: {mean_recon_id:.4f}, OOD: {mean_recon_ood:.4f}")
@@ -761,9 +832,12 @@ from dmipy_jax.pipeline.ensemble import (
     load_ensemble,
 )
 
-# After training
-members = train_ensemble(config, simulator, n_members=5)
+# Train the members (production: n_members=5 with a full training budget)
+n_members = 3
+members = train_ensemble(config, simulator, n_members=n_members, print_every=0)
 ens = EnsemblePredictor.from_training(members, config)
+models = ens.models
+assert len(models) == n_members
 ```
 
 ### 6.4 Basic Prediction
@@ -782,8 +856,8 @@ With a single member, the epistemic std is zero:
 
 ```python
 ens_single = EnsemblePredictor([models[0]], config)
-mean, std = ens_single.predict_mean(signals)
-assert jnp.allclose(std, 0.0, atol=1e-6)
+mean_single, std_single = ens_single.predict_mean(signals)
+assert jnp.allclose(std_single, 0.0, atol=1e-6)
 ```
 
 ### 6.5 Full Uncertainty Decomposition
@@ -825,8 +899,9 @@ member_spread = jnp.std(stacked, axis=0)    # (batch, theta_dim)
 # Members should disagree (different random seeds)
 assert jnp.mean(member_spread) > 1e-3
 
-# Ensemble mean is between the members
+# Ensemble mean is the average of the members
 ens_mean = jnp.mean(stacked, axis=0)
+assert jnp.allclose(ens_mean, mean, atol=1e-5)
 ```
 
 ### 6.7 Save and Load
@@ -835,15 +910,17 @@ Ensembles serialise as individual member checkpoints:
 
 ```python
 # Save
-save_ensemble(members, config, "checkpoints/my_ensemble")
+ens_path = os.path.join(WORK, "checkpoints", "my_ensemble")
+save_ensemble(members, config, ens_path)
 # Creates: my_ensemble_member_0.eqx, my_ensemble_member_1.eqx, ...
+assert os.path.exists(ens_path + "_member_0.eqx")
 
 # Load
 ens_loaded = load_ensemble(
-    "checkpoints/my_ensemble", n_members=5,
+    ens_path, n_members=n_members,
     key=jax.random.PRNGKey(0),
 )
-assert len(ens_loaded.models) == 5
+assert len(ens_loaded.models) == n_members
 assert ens_loaded.config.model_name == config.model_name
 
 # Verify predictions match after round-trip
@@ -854,9 +931,10 @@ assert jnp.allclose(mean, loaded_mean, atol=1e-4)
 ### 6.8 Volume-Level Ensemble Inference
 
 `predict_volume` mirrors `SBIPredictor.predict_volume` but produces
-additional uncertainty NIfTI maps:
+additional uncertainty NIfTI maps (not executed here; see
+{doc}`training_to_deployment` Section 6 for building the input files):
 
-```python
+```text
 results = ens.predict_volume(
     dwi_path="sub-01/dwi/sub-01_dwi.nii.gz",
     bval_path="sub-01/dwi/sub-01_dwi.bval",
@@ -866,8 +944,8 @@ results = ens.predict_volume(
     batch_size=4096,
 )
 
-# Produces: FA.nii.gz, FA_aleatoric.nii.gz, FA_epistemic.nii.gz,
-#           FA_total.nii.gz, MD.nii.gz, MD_aleatoric.nii.gz, ...
+# Produces: f.nii.gz, f_aleatoric.nii.gz, f_epistemic.nii.gz, f_total.nii.gz,
+#           d_par.nii.gz, d_par_aleatoric.nii.gz, ...
 ```
 
 ---
@@ -876,7 +954,8 @@ results = ens.predict_volume(
 
 For production deployment of SBI models on clinical diffusion MRI data,
 we recommend the following workflow. Each step builds confidence before
-the model's predictions reach a clinical audience.
+the model's predictions reach a clinical audience. The code reuses the
+ensemble trained in Section 6.
 
 ### Step 1: Train an Ensemble
 
@@ -884,9 +963,9 @@ Train 5 models with different random seeds. This provides both better
 calibration and the aleatoric/epistemic decomposition.
 
 ```python
-members = train_ensemble(config, simulator, n_members=5)
+# members = train_ensemble(config, simulator, n_members=5)   # production
 ens = EnsemblePredictor.from_training(members, config)
-save_ensemble(members, config, "production/ensemble")
+save_ensemble(members, config, os.path.join(WORK, "production", "ensemble"))
 ```
 
 ### Step 2: Run SBC on Each Member
@@ -896,10 +975,10 @@ fails the KS test, retrain or investigate the simulation pipeline.
 
 ```python
 for i, model in enumerate(ens.models):
-    diagnostic = SBCDiagnostic(model, simulator, n_posterior_samples=200)
-    result = diagnostic.run(jax.random.PRNGKey(i), n_sbc_samples=1000)
+    diagnostic = SBCDiagnostic(model, simulator, n_posterior_samples=100)
+    result = diagnostic.run(jax.random.PRNGKey(i), n_sbc_samples=20)   # production: 1000
     result.print_summary()
-    result.plot_rank_histograms(save_path=f"sbc_member_{i}.png")
+    result.plot_rank_histograms(save_path=os.path.join(WORK, f"sbc_member_{i}.png"))
 ```
 
 ### Step 3: Run PPC
@@ -909,8 +988,8 @@ simulated observations.
 
 ```python
 for i, model in enumerate(ens.models):
-    diagnostic = PPCDiagnostic(model, simulator, n_posterior_samples=200)
-    result = diagnostic.run(jax.random.PRNGKey(100 + i), n_checks=500)
+    diagnostic = PPCDiagnostic(model, simulator, n_posterior_samples=100)
+    result = diagnostic.run(jax.random.PRNGKey(100 + i), n_checks=10)   # production: 500
     result.print_summary()
 ```
 
@@ -923,19 +1002,14 @@ Use a held-out calibration set (not used in training) to compute
 distribution-free prediction intervals.
 
 ```python
-# Generate calibration data
+# Generate calibration data (production: 2000+)
 key_cal = jax.random.PRNGKey(999)
-theta_cal, signals_cal = simulator.sample_and_simulate(key_cal, 2000)
+theta_cal, signals_cal = simulator.sample_and_simulate(key_cal, 500)
 
 # Get ensemble predictions
 mean_cal, _ = ens.predict_mean(jnp.array(signals_cal))
 
 # Calibrate
-from dmipy_jax.pipeline.conformal import (
-    calibrate_from_predictions,
-    predict_intervals_from_predictions,
-)
-
 conformal_result = calibrate_from_predictions(
     np.asarray(theta_cal),
     np.asarray(mean_cal),
@@ -943,18 +1017,21 @@ conformal_result = calibrate_from_predictions(
     parameter_names=config.parameter_names,
 )
 conformal_result.print_summary()
+assert conformal_result.empirical_coverage >= 0.89
 ```
 
 ### Step 5: Fit the OOD Detector
 
 ```python
 detector = OODDetector(model=ens.models[0], simulator=simulator)
-detector.fit(jax.random.PRNGKey(42), n_reference=5000)
+detector.fit(jax.random.PRNGKey(42), n_reference=500)   # production: 5000
 ```
 
 ### Step 6: Deploy on Real Data
 
-```python
+Not executed here (needs scanner files):
+
+```text
 # Run ensemble inference
 results = ens.predict_volume(
     dwi_path, bval_path, bvec_path,
@@ -967,7 +1044,7 @@ import nibabel as nib
 dwi = nib.load(dwi_path)
 mask = nib.load(mask_path).get_fdata().astype(bool)
 signals_flat = dwi.get_fdata()[mask]
-# (b0-normalise signals_flat as needed)
+# (b0-normalise signals_flat exactly as the ModelSimulator does)
 
 ood_result = detector.flag_volume(
     jnp.array(signals_flat),
@@ -980,6 +1057,20 @@ mean_pred, _ = ens.predict_mean(jnp.array(signals_flat))
 intervals = predict_intervals_from_predictions(
     np.asarray(mean_pred), conformal_result
 )
+```
+
+On the simulated "volume" from the setup section the same three calls look
+like this:
+
+```python
+ood_result = detector.flag_volume(signals, threshold_percentile=95.0)
+mean_pred, _ = ens.predict_mean(signals)
+intervals = predict_intervals_from_predictions(np.asarray(mean_pred), conformal_result)
+
+print(f"OOD fraction on simulated data: {ood_result.ood_fraction:.1%}")
+covered = (np.asarray(theta_obs) >= intervals["lower"]) & (np.asarray(theta_obs) <= intervals["upper"])
+print(f"Conformal coverage per parameter: {np.round(covered.mean(0), 3)}")
+assert intervals["lower"].shape == (n_voxels, theta_dim)
 ```
 
 ### Step 7: Report with Confidence
@@ -1013,5 +1104,5 @@ training data or a better model architecture could improve the estimate.
   Introduction. *Foundations and Trends in Machine Learning*.
 - Lakshminarayanan, B., Pritzel, A., & Blundell, C. (2017). Simple and
   Scalable Predictive Uncertainty Estimation using Deep Ensembles. *NeurIPS*.
-- Vovk, V., Gammerman, A., & Shafer, G. (2005). *Algorithmic Learning in a
+- Vovk, V., Gammerman, G., & Shafer, G. (2005). *Algorithmic Learning in a
   Random World*. Springer.
