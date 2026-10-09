@@ -1,431 +1,188 @@
-
-# SBI4DWI: Simulation-Based Inference for Diffusion-Weighted Imaging
+# SBI4DWI
 
 [![CI](https://github.com/m9h/sbi4dwi/actions/workflows/ci.yml/badge.svg)](https://github.com/m9h/sbi4dwi/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![JAX](https://img.shields.io/badge/JAX-Accelerated-9cf)](https://github.com/google/jax)
 
-**SBI4DWI** is a JAX-accelerated platform for diffusion MRI microstructure
-estimation using simulation-based inference. It combines differentiable
-biophysical signal models, multi-fidelity physics simulation, and neural
-posterior estimation to recover tissue microstructure from diffusion-weighted
-images.
+Diffusion-MRI microstructure in JAX: differentiable compartment models, a
+multi-fixel refinement stage with a calibrated fixel posterior that plugs into
+DIPY, simulation-based inference (SBI) for amortised posteriors, and
+Fisher-information acquisition design. The import name is still `dmipy_jax`;
+the compartment models began as a JAX port of
+[dmipy](https://github.com/AthenaEPI/dmipy) and are tested against its closed
+forms.
 
-The project originated as a JAX port of the
-[dmipy](https://github.com/AthenaEPI/dmipy) signal model library but has
-grown into a full research platform spanning forward simulation, amortized
-inference, uncertainty quantification, and clinical deployment.
+## What it does
 
-## Architecture
+| | module | what you get |
+|---|---|---|
+| **PRISM-JAX refine** | `dmipy_jax.prism` | Takes any DIPY peaks (CSD, MSMT-CSD, FORCE), fits a K-fixel stick + zeppelin + CSF/GM model per voxel with a Rician likelihood, learned axial diffusivity and spatial priors, and returns refined peaks plus a **Laplace posterior per fixel** (orientation σ, intra-axonal fraction σ). CLI: `dipy_refine_peaks`. |
+| **Compartment models** | `dmipy_jax.signal_models` | Ball, Stick, Zeppelin, Tensor, Soderman and Callaghan cylinders, Stejskal–Tanner / GPD / Callaghan spheres, planes, Watson/Bingham dispersion, NODDI, SANDI. `eqx.Module` pytrees, SI units, `jit`/`vmap`/`grad`-ready. |
+| **SBI pipeline** | `dmipy_jax.pipeline` | `ModelSimulator` (prior → forward → Rician noise → b0-normalised signal) → `train_sbi` (MDN or FlowJAX flow) → checkpoint → `SBIPredictor` on NIfTI volumes. SBC, PPC, conformal, OOD and ensemble checks. |
+| **Simulation** | `dmipy_jax.simulation` | FEM matrix-formalism on meshes, Monte Carlo, differentiable SDE walkers, Karger exchange; CATERPillar and MCMRSimulator.jl substrates behind an oracle boundary. |
+| **Acquisition design** | `validation/design_*.py` | Fisher / Bayesian-CRLB protocol search (orbital RESOLVE, exchange protocols). |
 
-```
-                  ┌─────────────────────────────────┐
-                  │        Signal Models             │
-                  │  Ball, Stick, Zeppelin, Sphere,  │
-                  │  NODDI, SANDI, IVIM, EPG, QMT    │
-                  └───────────────┬─────────────────┘
-                                  │ forward_fn(params, acq) → signal
-          ┌───────────────────────┼───────────────────────┐
-          ▼                       ▼                       ▼
-   ┌──────────────┐     ┌─────────────────┐     ┌────────────────┐
-   │  Analytical   │     │  Differentiable  │     │    External     │
-   │  (closed-form)│     │  Simulation      │     │    Oracles      │
-   │               │     │  FEM, MC, SDE    │     │  DIPY, ReMiDi,  │
-   │               │     │  (Diffrax)       │     │  MCMRSimulator   │
-   └──────┬───────┘     └────────┬────────┘     └───────┬────────┘
-          │                      │                      │
-          ▼                      ▼                      ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │              ModelSimulator / SimulationLibrary           │
-   │        prior → forward → noise → (theta, signal) pairs   │
-   │                    HDF5 multi-contrast storage            │
-   └────────────────────────────┬─────────────────────────────┘
-                                │
-                                ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │                  Neural Posterior Estimation              │
-   │     MDN  ·  Normalizing Flows  ·  Score-Based Diffusion  │
-   │             MCMC (NUTS)  ·  Amortized Inference           │
-   └────────────────────────────┬─────────────────────────────┘
-                                │
-                                ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │              Uncertainty Quantification                   │
-   │  SBC  ·  PPC  ·  Conformal Prediction  ·  OOD Detection  │
-   │              Ensembles  ·  Calibration                    │
-   └────────────────────────────┬─────────────────────────────┘
-                                │
-                                ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │                  Clinical Deployment                      │
-   │       SBIPredictor  ·  NIfTI volume inference             │
-   │       ComparisonRunner  ·  Derived metrics (FA, MD)       │
-   └──────────────────────────────────────────────────────────┘
-```
+## Results that are actually in the repository
 
-## Results
+Everything below is reproducible from `validation/` and written up with the
+raw numbers in `docs/decisions/008-positioning-vs-force-prism-sbi.md` (PRISM,
+HCP) and `009-graves-orbit-resolve-design.md` (design).
 
-Validated on synthetic data and real **WAND** Siemens Connectom (300 mT/m) acquisitions.
+**Fixel precision at crossings, identical inputs** (doc 008 §6.4; Monte Carlo
+substrates with 30–90° crossings, mean angular error):
 
-### Normalizing Flow NPE — Ball+2Stick orientation estimation
+| method | crossings | single bundle |
+|---|---|---|
+| PRISM-JAX plus-x (ours) | **2.3–8.0°** | 6.7–6.9° |
+| FORCE (dipy master, seeded) | 9.7–16.6° | 6.7–8.7° |
+| SBI_dMRI amortised NPE | 4.6–13.1° | 1.2–2.8° |
+| MSMT-CSD | 5–23° | 4.5–5.5° |
 
-Neural spline flow posterior trained on simulated multi-shell dMRI.
-Achieves near-target orientation accuracy matching
-Manzano-Patron et al. (2025).
+**DiSCo connectome** (FORCE authors' protocol, SNR 10): posterior-averaged
+tractography r = 0.887 / Dice 0.73 vs FORCE 0.80–0.81 / 0.35 and MSMT-CSD
+0.75 / 0.37.
 
-| Config | Fiber 1 median | d_stick r | f1 r | Steps |
-|:-------|:---------------|:----------|:-----|:------|
-| Baseline affine flow | 10.7 deg | 0.95 | 0.85 | 30k |
-| + spline + noise fix + label-switching | 6.4 deg | 0.978 | 0.902 | 30k |
-| + 200k steps | 3.2 deg | 0.986 | 0.935 | 200k |
-| + 300k steps | **2.8 deg** | **0.987** | **0.943** | 300k |
+**HCP-YA scan–rescan, 42 clean subjects** (doc 008 §10.6, §13; intra-axonal
+fraction f_i vs AMICO-NODDI on the same data):
 
-Key: spline transformer, train/test noise matching (Rician + b0-norm),
-label-switching fix in prior (f1 >= f2), variable SNR augmentation (10-50).
+| estimator | CCC | mean \|Δ\| | within-subject CoV |
+|---|---|---|---|
+| PRISM-JAX with isotropic prior (`fi_config`) | **0.867** | **0.036** | 6.8 % |
+| NODDI NDI·(1−FWF) | 0.858 | 0.039 | 6.5 % |
+| DTI FA (reference) | 0.894 | 0.055 | 11.5 % |
 
-### Score-Based Posterior — denoising score matching + DDPM
+Edge-level connectome reliability (ICC) across the cohort: posterior-mean
+tractography 0.64 vs MSMT-CSD 0.47; the fixel σ ranks edge reliability
+(Spearman −0.67). The honest decomposition of that gain is in doc 008 §13.2.
 
-MLP with FiLM conditioning, trained via denoising score matching.
-Spherical coordinate parameterization eliminates unit-sphere constraint.
+## Install
 
-| Config | Fiber 1 median | Notes |
-|:-------|:---------------|:------|
-| MLP + SDE sampler | 29 deg | SDE diverges |
-| MLP + DDPM sampler | 15.5 deg | DDPM critical |
-| + v-prediction, 1024-wide, 100k | 14.9 deg | Scale up |
-| + spherical coords | **12.8 deg** | Best score-based |
-
-### Transcranial Focused Ultrasound — SCI Head Model (A100, April 2026)
-
-Differentiable skull-corrected acoustic simulation via j-Wave on the
-SCI Institute head model (208x256x256, 1mm, 8 tissue types). Full 7-experiment
-suite validated on Modal A100. [Proposal for Openwater Health](docs/openlifu/).
-
-| Experiment | Result |
-|-----------|--------|
-| Skull attenuation (400kHz) | **93%** through cortical bone |
-| 32-element array optimization | **1.4x** focal improvement (20 iters, 1.8s/iter) |
-| Multi-target (cortex→thalamus) | 53-55% depth-dependent attenuation |
-| Frequency (180kHz vs 1MHz) | **180kHz best penetration** (32% vs 55% loss) |
-| Sensitivity (dp/dc) | Skull region **232x** more sensitive than water |
-| Grid convergence | 3 resolutions verified (0.4/0.2/0.1mm) |
-| Helmholtz vs time-domain | **r=0.82** correlation, good solver agreement |
-| **3D volumetric (52x64x64)** | **94.3%** attenuation, 13s total on A100 |
-| **3D 16-element optimization** | **4.7x** focal improvement, 2.6s/iter |
-
-Covers the full device range from 4-element entry-level to 256-element
-Oxford-UCL MRI-TFUS helmet (Martin, Stagg, Treeby — Nature Comms 2025).
-Vision: multimodal MRI-TFUS-ARFI simulation connecting acoustic fields
-to MRI-visible tissue displacement via radiation force elastodynamics.
-
-Integration with [OpenLIFU](https://github.com/OpenwaterHealth/openlifu-python)
-via [`HeterogeneousSkullSegmentation`](https://github.com/m9h/openlifu-python/tree/feature/heterogeneous-skull-segmentation).
-
-Run all experiments: `modal run scripts/modal_experiments.py` |
-3D validation: `modal run scripts/modal_3d_validation.py`
-
-### Experiment tracking
-
-All results tracked via [Trackio](https://huggingface.co/docs/trackio)
-and logged to HuggingFace Hub. Full leaderboard in the companion Julia
-package [DMI.jl](https://github.com/m9h/dmijl).
-
----
-
-## Core Capabilities
-
-### Differentiable Signal Models
-
-Analytical biophysical models implemented as `eqx.Module` pytrees, fully
-compatible with `jax.grad`, `jax.vmap`, and `jax.jit`:
-
-| Model | Description |
-|-------|-------------|
-| Ball, Stick, Zeppelin, Tensor | Standard Gaussian compartments |
-| Sphere (GPD, Callaghan, Stejskal-Tanner) | Restricted diffusion in spheres |
-| Cylinder (Soderman, Callaghan) | Restricted diffusion in cylinders |
-| Plane (Callaghan, Stejskal-Tanner) | Restricted diffusion between planes |
-| NODDI / Multi-TE NODDI | Neurite orientation dispersion |
-| SANDI | Soma and neurite density |
-| IVIM | Intravoxel incoherent motion |
-| Free-Water DTI | Free water elimination |
-| mcDESPOT | Multi-component relaxometry |
-| EPG | Extended phase graphs |
-| QMT | Quantitative magnetisation transfer |
-| Stimulated-Echo Karger | Exchange-weighted imaging |
-| Neural CSD | Neural constrained spherical deconvolution |
-
-Models compose via `compose_models()` with volume fractions, orientation
-distributions (Watson, Bingham), and tortuosity constraints.
-
-### Differentiable Physics Simulation
-
-| Simulator | Method | Differentiable |
-|-----------|--------|:-:|
-| `MatrixFormalismSimulator` | FEM spectral ROM on surface meshes | Yes |
-| `MonteCarloSimulator` | Random walk with SDF geometry | No (ground truth) |
-| `DifferentiableWalker` | Confined Brownian motion | Yes |
-| `SDESimulator` | Diffrax-based SDE integration | Yes |
-| `jwave_adapter` | j-Wave pseudospectral acoustic simulation | Yes |
-| `tus_optimizer` | Gradient-based TUS delay optimization | Yes |
-| `radiation_force` | F=2αI/c + spectral displacement solver (Kuhl CANN) | Yes |
-| `fwi_us` | Full waveform inversion for ultrasound (acoustic EIT) | Yes |
-| `mr_arfi` | MR-ARFI sequence design + phase prediction (Butts Pauly) | Yes |
-| `multimodal_tus` | End-to-end acoustic → force → displacement → MRI phase | Yes |
-
-The FEM simulator constructs stiffness/mass matrices from triangular meshes,
-solves a generalised eigendecomposition, and simulates PGSE sequences via
-matrix exponentials. Supports arbitrary gradient directions and full
-`JaxAcquisition` protocols.
-
-### External Oracle Integration
-
-Non-differentiable simulators wrapped behind a common protocol for
-multi-fidelity training data generation:
-
-| Oracle | Backend | Interface |
-|--------|---------|-----------|
-| `DIPYMultiTensorOracle` | DIPY | Python API |
-| `ReMiDiOracle` | ReMiDi | Docker / Python API |
-| `MCMROracle` | MCMRSimulator.jl | Julia subprocess |
-
-Oracles produce `SimulationLibrary` (HDF5) datasets. The
-`OracleModelSimulator` adapter bridges any library into the SBI training
-pipeline via k-NN inverse-distance interpolation or an optional neural
-emulator.
-
-### SBI Training Pipeline
-
-```python
-from dmipy_jax.pipeline.simulator import ModelSimulator
-from dmipy_jax.pipeline.train import train_sbi
-from dmipy_jax.pipeline.deploy import SBIPredictor
-
-# 1. Define forward model + prior
-sim = ModelSimulator(forward_fn, prior_sampler, noise_model)
-
-# 2. Train neural posterior
-posterior = train_sbi(sim, n_simulations=100_000, method="flow")
-
-# 3. Deploy on NIfTI volumes
-predictor = SBIPredictor.from_checkpoint("model.eqx")
-results = predictor.predict_volume(dwi_img, bvals, bvecs, mask)
-```
-
-Supported posterior estimators:
-
-- **Mixture Density Networks** (MDN) with Gaussian mixtures
-- **Normalizing Flows** via FlowJAX (spline coupling, neural spline)
-- **Score-Based Diffusion** with E(3)-equivariant orientation heads
-- **MCMC** via BlackJAX NUTS for full Bayesian posteriors
-- **Amortized Variational Inference**
-
-### Multi-Fidelity Training
-
-Mix analytical and oracle-generated data to balance speed and accuracy:
-
-```python
-from dmipy_jax.library.hybrid_generator import HybridLibraryGenerator
-
-hybrid = HybridLibraryGenerator(
-    analytical_sim,     # fast, differentiable (70%)
-    oracle_library,     # slow, high-fidelity  (30%)
-)
-```
-
-The `train_multi_fidelity_sbi()` function validates against oracle ground
-truth and reports fidelity-stratified metrics.
-
-### Uncertainty Quantification
-
-| Method | Module | Purpose |
-|--------|--------|---------|
-| Simulation-Based Calibration | `pipeline/sbc.py` | Posterior coverage diagnostics |
-| Posterior Predictive Checks | `pipeline/ppc.py` | Model adequacy |
-| Conformal Prediction | `pipeline/conformal.py` | Distribution-free intervals |
-| OOD Detection | `pipeline/ood.py` | Flag out-of-support inputs |
-| Ensembles | `pipeline/ensemble.py` | Multi-model uncertainty |
-
-### Comparison Framework
-
-Benchmark methods and simulators against each other:
-
-- `ComparisonRunner` — compare DIPY DTI vs SBI vs dictionary matching
-- `SimulationComparisonRunner` — compare analytical vs FEM vs Monte Carlo vs oracle
-
-Both produce structured results with RMSE, correlation, SSIM, and
-per-b-value error breakdowns.
-
-### Additional Modules
-
-| Module | Description |
-|--------|-------------|
-| `biophysics/` | Axon conduction delays, neural dynamics (VBJ integration), conductivity mapping |
-| `design/` | Optimal experimental design via Fisher information and expected information gain |
-| `bayesian/` | Variational inference (NumPyro), Bayesian model discovery |
-| `nn/` | E(3)-equivariant score networks, constitutive relation networks |
-| `pulseq/` | Bloch equation simulation from PyPulseq sequences |
-| `core/surrogate.py` | Polynomial Chaos Expansion for fast surrogate models |
-| `core/pinns.py` | Physics-informed neural networks for diffusion PDEs |
-| `core/tensor_train.py` | Tensor-train decomposition (ttax) |
-| `fitting/` | Neural exchange fitting, algebraic initialisation, AMICO inversion |
-| `io/` | BIDS, HCP, IXI, BigMac, WAND, multi-TE, mesh, SWC loaders |
-| `viz/` | Surface mapping and visualisation |
-| `cli/` | BIDS reporting tool (`dmipy-report`) |
-
-## Companion Project
-
-**[DMI.jl](https://github.com/m9h/dmijl)** — Julia implementation using
-the SciML stack (Lux.jl, DifferentialEquations.jl). Features:
-
-- AxCaliber PINN recovering **axon radius R = 3.15 um** from real WAND
-  Connectom data via Van Gelderen restricted diffusion
-- Neural diffusion tensor field fitting (**MD = 0.74 um^2/ms, FA = 0.42** on CHARMED)
-- Native SDE/ODE samplers via DifferentialEquations.jl
-- Cross-validated against Microstructure.jl (Ting Gong, MGH/Martinos) at machine precision
-
-## Installation
-
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Python 3.12+, [uv](https://docs.astral.sh/uv/). The default install pulls
+CUDA-13 JAX; CPU works too (`JAX_PLATFORMS=cpu`).
 
 ```bash
-git clone https://github.com/m9h/sbi4dwi.git
-cd sbi4dwi
-uv sync
+git clone https://github.com/m9h/sbi4dwi.git && cd sbi4dwi
+uv sync                       # core
+uv sync --extra data          # + HCP/OpenNeuro loaders (boto3, datalad)
+uv sync --extra baselines     # + dmri-amico, torch for the validation scripts
 ```
 
-For GPU support, ensure CUDA 13+ drivers are installed. JAX will
-automatically detect the GPU.
+## Quickstart
 
-### Optional: Oracle simulators
+### 1. Forward model, vectorised over voxels
+
+```python
+import jax, jax.numpy as jnp, numpy as np
+from dmipy_jax.acquisition import JaxAcquisition
+from dmipy_jax.cylinder import C1Stick
+
+rng = np.random.default_rng(0)
+g = rng.normal(size=(60, 3)); g /= np.linalg.norm(g, axis=1, keepdims=True)
+acq = JaxAcquisition(bvalues=jnp.full(60, 1000e6), gradient_directions=jnp.asarray(g))  # SI: s/m^2
+
+stick = C1Stick()
+predict = jax.jit(jax.vmap(lambda mu, lpar: stick(acq.bvalues, acq.gradient_directions, mu=mu, lambda_par=lpar)))
+mu = jnp.stack([jnp.full(1000, jnp.pi / 2), jnp.linspace(0, jnp.pi, 1000)], axis=1)  # [theta, phi]
+signal = predict(mu, jnp.full(1000, 1.7e-9))          # (1000, 60)
+```
+
+Units are SI throughout: b in s/m², diffusivity in m²/s, lengths in m.
+
+### 2. Refine DIPY peaks and get a fixel posterior
 
 ```bash
-# ReMiDi (Docker)
-docker build -f docker/Dockerfile.remidi -t remidi .
-
-# MCMRSimulator.jl (Julia)
-docker build -f docker/Dockerfile.mcmr -t mcmr .
+dipy_refine_peaks dwi.nii.gz dwi.bval dwi.bvec mask.nii.gz msmt_peaks.pam5 \
+    --n_fibres 3 --out_dir refined/
 ```
 
-## Usage
-
-### Fit a multi-compartment model to a voxel
+or in Python, after any DIPY reconstruction that gives a `PeaksAndMetrics`:
 
 ```python
-from dmipy_jax.core.acquisition import JaxAcquisition
-from dmipy_jax.signal_models.cylinder_models import C1Stick
-from dmipy_jax.signal_models.gaussian_models import G1Ball
-from dmipy_jax.core.modeling_framework import compose_models
-from dmipy_jax.core.solvers import fit_voxel
+from dmipy_jax.prism import dipy_refine as dr
 
-model = compose_models([C1Stick(), G1Ball()])
-params = fit_voxel(model, acquisition, signal)
+cfg = dr.fi_config(n_fibres=3)       # recommended for f_i maps (isotropic-fraction prior)
+pam_refined, posterior, fit = dr.refine_peaks(data, gtab, mask, pam, n_fibres=3, cfg=cfg, affine=affine)
+# posterior.sigma_deg (N,K) orientation sd, posterior.wm_fracs, posterior.sample_dirs(key, n)
+# pam_refined drops into dipy tracking unchanged
 ```
 
-### Train an SBI posterior and deploy on a NIfTI volume
+`default_config` reproduces the orientation-optimal setting (about 1.3° better
+than `fi_config`, which trades that for an f_i map on par with NODDI).
+
+### 3. Train an amortised posterior and deploy it
 
 ```python
+import jax.numpy as jnp
+from dmipy_jax.acquisition import JaxAcquisition
 from dmipy_jax.pipeline.simulator import ModelSimulator
+from dmipy_jax.pipeline.config import SBIPipelineConfig
 from dmipy_jax.pipeline.train import train_sbi
+from dmipy_jax.pipeline.checkpoint import save_checkpoint, load_checkpoint
 from dmipy_jax.pipeline.deploy import SBIPredictor
 
-sim = ModelSimulator(forward_fn, prior_sampler, noise_model)
-posterior = train_sbi(sim, n_simulations=200_000, method="flow")
-predictor = SBIPredictor(posterior, acquisition)
-results = predictor.predict_volume(dwi_nifti, mask=brain_mask)
+def forward_fn(params, acq):                     # mono-exponential: params = [D in um^2/ms]
+    return jnp.exp(-acq.bvalues * params[0] * 1e-9)
+
+acq = JaxAcquisition(bvalues=jnp.r_[jnp.zeros(4), jnp.full(28, 1000e6)], gradient_directions=jnp.zeros((32, 3)))
+names, ranges = ["D"], {"D": (0.1, 3.0)}
+sim = ModelSimulator(forward_fn, names, ranges, acq, noise_type="rician", snr=30.0)
+cfg = SBIPipelineConfig(model_name="ADC", parameter_names=names, parameter_ranges=ranges,
+                        acquisition={"bvalues": acq.bvalues.tolist()},
+                        inference_mode="mdn", n_components=4, hidden_dim=64, depth=2,
+                        batch_size=256, n_steps=200)
+model, losses = train_sbi(cfg, sim, print_every=100)
+save_checkpoint(model, cfg, "adc_mdn")
+model, cfg = load_checkpoint("adc_mdn")
+# SBIPredictor(model, cfg).predict_volume("dwi.nii.gz", "dwi.bval", "dwi.bvec", mask_path="mask.nii.gz", output_dir="out/")
 ```
 
-### Run a FEM simulation on a mesh
-
-```python
-from dmipy_jax.simulation.mesh_sim import MatrixFormalismSimulator
-
-fem = MatrixFormalismSimulator.from_mesh(vertices, triangles, D=2e-9)
-signal = fem.simulate_acquisition(acquisition)
-```
+Training and deployment b0-normalise identically inside `ModelSimulator` and
+`SBIPredictor`; do not normalise by hand in between.
 
 ## Testing
 
 ```bash
-# Full suite (dmipy_jax/tests + tests); add JAX_PLATFORMS=cpu to stay off the GPU
-uv run pytest
-
-# Single file
-uv run pytest tests/test_oracle.py -v
-
-# Markdown tutorials as doctests (needs sybil)
-uv run pytest docs/tutorials
+uv run pytest                      # dmipy_jax/tests + tests (about 6 min on CPU)
+JAX_PLATFORMS=cpu uv run pytest    # what CI runs
+uv run pytest docs/tutorials       # markdown tutorials as doctests (sybil)
 ```
 
-## Tech Stack
+Compartment models are checked against closed forms transcribed from the
+original dmipy code (`dmipy_jax/tests/test_callaghan_reference.py`), not
+against a dmipy install.
 
-| Layer | Library | Role |
-|-------|---------|------|
-| Arrays & autodiff | JAX | GPU acceleration, automatic differentiation |
-| Neural modules | Equinox | Pytree-compatible `eqx.Module` models |
-| Optimisation | Optimistix / Optax | Deterministic fitting / stochastic training |
-| ODE/SDE solvers | Diffrax | Differentiable Bloch and diffusion simulation |
-| MCMC | BlackJAX | Bayesian inference (NUTS) |
-| Normalizing flows | FlowJAX | Neural posterior estimation |
-| Equivariance | e3nn-jax | E(3)-equivariant score networks |
-| Tensor decomposition | ttax | Tensor-train approximation |
-| MRI I/O | nibabel, DIPY | NIfTI images, gradient tables |
-| Data storage | h5py | HDF5 simulation libraries |
-| Package management | uv | Dependency resolution and virtual environments |
-
-## Project Structure
+## Layout
 
 ```
-dmipy_jax/
-├── signal_models/      Analytical forward models (Ball, Stick, Sphere, ...)
-├── core/               Model composition, solvers, acquisition, PINNs, surrogates
-├── simulation/         FEM, Monte Carlo, SDE walkers, oracle protocol
-│   └── oracles/        DIPY, ReMiDi, MCMRSimulator.jl wrappers
-├── pipeline/           SBI training, checkpointing, deployment, UQ, comparison
-├── inference/          MDN, flows, score posterior, MCMC, amortized
-├── library/            HDF5 storage, hybrid generation, dictionary matching
-├── models/             Pre-composed models (NODDI, SANDI, mcDESPOT, EPG, ...)
-├── biophysics/         Neural dynamics, conduction delays, conductivity
-├── fitting/            Neural exchange fitting, algebraic initialisation
-├── bayesian/           Variational inference, model discovery
-├── nn/                 Equivariant networks, constitutive relations
-├── design/             Optimal experimental design
-├── io/                 BIDS, HCP, mesh, SWC, multi-TE loaders
-├── pulseq/             Bloch simulation from pulse sequences
-├── viz/                Surface mapping, visualisation
-├── tests/              Module-level test suite
-└── examples/           Worked examples by domain
+dmipy_jax/        the package: signal_models, prism, pipeline, simulation, inference, fitting, io
+validation/       paper scripts (validate_*.py, hcp_*.py, design_*.py) and validation/lib (not shipped)
+tests/            top-level tests, incl. tests/validation for the PRISM stack
+docs/decisions/   ADRs and result logs; 008 = PRISM/HCP results, 009 = orbit design, 010 = package review
+archive/          transcranial-ultrasound / EIT / pulseq code kept for reference, not imported
 ```
 
-## Relationship to dmipy
+`CLAUDE.md` has the conventions (uv only, SI units, Equinox pytrees, b0
+normalisation) and the full directory map; `docs/artifacts.md` says where the
+untracked checkpoints live.
 
-SBI4DWI builds on the signal model foundations of
-[dmipy](https://github.com/AthenaEPI/dmipy) (Fick, Wassermann & Deriche,
-2019). The analytical compartment models (Ball, Stick, Zeppelin, Sphere,
-Cylinder) are JAX reimplementations of dmipy's NumPy originals using Equinox
-modules. Everything else — the SBI pipeline, differentiable simulation,
-neural posteriors, oracle integration, UQ framework, and clinical deployment
-tools — is new.
+## Relationship to dmipy and to SBI_dMRI
 
-If you use the signal models, please cite the original dmipy paper:
+The compartment models follow dmipy (Fick, Wassermann & Deriche, 2019); the
+Callaghan cylinder is verified to 1e-9 against the dmipy code at commit
+`7b254f4`. The SBI pipeline follows the design of Manzano-Patrón et al. (2025),
+whose SBI_dMRI networks we also run as a baseline in `validation/`. If you use
+the models, cite dmipy:
 
-> Rutger Fick, Demian Wassermann and Rachid Deriche, "The Dmipy Toolbox:
-> Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made
-> Easy", *Frontiers in Neuroinformatics* 13 (2019): 64.
+> Fick, Wassermann & Deriche, "The Dmipy Toolbox: Diffusion MRI
+> Multi-Compartment Modeling and Microstructure Recovery Made Easy",
+> *Frontiers in Neuroinformatics* 13 (2019): 64.
 
-The SBI pipeline and orientation estimation targets follow:
-
-> Jose P. Manzano-Patron, Michael Deistler, Cornelius Schroder, Theodore
-> Kypraios, Pedro J. Goncalves, Jakob H. Macke and Stamatios N.
-> Sotiropoulos, "Uncertainty mapping and probabilistic tractography using
-> Simulation-Based Inference in diffusion MRI", *Medical Image Analysis*
-> 103 (2025): 103580. DOI:
-> [10.1016/j.media.2025.103580](https://doi.org/10.1016/j.media.2025.103580)
+> Manzano-Patrón et al., "Uncertainty mapping and probabilistic tractography
+> using Simulation-Based Inference in diffusion MRI", *Medical Image Analysis*
+> 103 (2025): 103580. [10.1016/j.media.2025.103580](https://doi.org/10.1016/j.media.2025.103580)
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
-
-Copyright (c) 2017 Rutger Fick & Demian Wassermann (original dmipy signal models)
-Copyright (c) 2024-2026 Morgan Hough (SBI4DWI platform)
+MIT. Copyright (c) 2017 Rutger Fick & Demian Wassermann (dmipy signal models);
+Copyright (c) 2024–2026 Morgan Hough (SBI4DWI).

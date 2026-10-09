@@ -1,4 +1,4 @@
-# 2. Equinox Architecture Strategy
+# 2b. Equinox Architecture Strategy
 
 Date: 2026-01-20
 

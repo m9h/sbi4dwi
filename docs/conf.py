@@ -20,6 +20,17 @@ extensions = [
     'myst_parser',          # Markdown support
     'sphinx_copybutton',
     'sphinxcontrib.bibtex',
+    'sphinx.ext.apidoc',    # generates reference/ from the package at build time (Sphinx >= 8.2)
+]
+
+apidoc_modules = [
+    {
+        'path': '../dmipy_jax',
+        'destination': 'reference',
+        'exclude_patterns': ['**/tests/**', '**/examples/**', '**/benchmarks/**', '**/experiments/**'],
+        'separate_modules': False,
+        'max_depth': 3,
+    },
 ]
 
 # -- Mock imports for ReadTheDocs ------------------------------------------------
@@ -116,7 +127,11 @@ always_use_bars_union = True
 bibtex_bibfiles = ['references.bib']
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store',
+                    # working notes, prompts and drafts that are not part of the site
+                    'agent_prompts', 'notes', 'openlifu', 'outreach', 'prompts', 'theory', 'theory.rst',
+                    'tools', 'visuals', 'workshop', 'sphinxext', 'buckling_layer_research.md', 'remidi_education.md',
+                    'decisions/00[1-5]*', 'decisions/007*', 'decisions/002*']
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'furo'

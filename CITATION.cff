@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: "If you use SBI4DWI, please cite it together with dmipy (the compartment models) and Manzano-Patrón et al. (the SBI design it follows)."
+title: "SBI4DWI: differentiable diffusion-MRI microstructure, PRISM-JAX fixel refinement and simulation-based inference in JAX"
+type: software
+version: 0.1.0
+date-released: 2026-10-09
+license: MIT
+repository-code: https://github.com/m9h/sbi4dwi
+authors:
+  - family-names: Hough
+    given-names: Morgan
+references:
+  - type: article
+    title: "The Dmipy Toolbox: Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made Easy"
+    authors:
+      - family-names: Fick
+        given-names: Rutger H. J.
+      - family-names: Wassermann
+        given-names: Demian
+      - family-names: Deriche
+        given-names: Rachid
+    journal: Frontiers in Neuroinformatics
+    volume: 13
+    year: 2019
+    doi: 10.3389/fninf.2019.00064
+  - type: article
+    title: "Uncertainty mapping and probabilistic tractography using Simulation-Based Inference in diffusion MRI"
+    authors:
+      - family-names: Manzano-Patrón
+        given-names: Jose P.
+      - family-names: Deistler
+        given-names: Michael
+      - family-names: Schröder
+        given-names: Cornelius
+      - family-names: Kypraios
+        given-names: Theodore
+      - family-names: Gonçalves
+        given-names: Pedro J.
+      - family-names: Macke
+        given-names: Jakob H.
+      - family-names: Sotiropoulos
+        given-names: Stamatios N.
+    journal: Medical Image Analysis
+    volume: 103
+    year: 2025
+    doi: 10.1016/j.media.2025.103580

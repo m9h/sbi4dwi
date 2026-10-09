@@ -1,4 +1,4 @@
-# RFC 002: Integration of `unxt` for Physical Unit Safety
+# 2c. RFC: Integration of `unxt` for Physical Unit Safety
 
 ## 1. Motivation
 Current implementations of `dmipy-jax` rely on implicit units (e.g., $s/mm^2$, $\mu m$, $ms$). This leads to:
