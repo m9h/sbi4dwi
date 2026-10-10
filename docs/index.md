@@ -38,6 +38,7 @@ decisions/README
 decisions/008-positioning-vs-force-prism-sbi
 decisions/009-graves-orbit-resolve-design
 decisions/010-package-review-and-cleanup-plan
+decisions/011-dmipy-v2-dmrai-lab-comparison
 decisions/006-octopus-differentiable-substrate-landscape
 ```
 
