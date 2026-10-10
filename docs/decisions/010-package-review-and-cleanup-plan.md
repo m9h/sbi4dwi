@@ -103,7 +103,7 @@ The validated path (MSMT init → PRISM-JAX refine → Laplace posterior → DIP
 | `test_jemris_comparison::test_fid_signal_match` | Bloch `simulate_acquisition` raises inside JIT |
 | `tests/test_neural_fitting` | activation passed as JAX leaf (equinox drift) |
 | `tests/io/test_multi_te_loader` | loader return arity |
-| `tests/test_karger_exchange` | Karger signal 1.49 at b = 0 — a real model bug |
+| `tests/test_karger_exchange` | Karger signal 1.49 at b = 0 — a real model bug. **Fixed 2026-10-09**: `_construct_exchange_matrix` wrote the off-diagonal rates with `.set` and then added them again, doubling transfer relative to the diagonals; xfail removed |
 | `tests/test_solvers::test_diffusion_sde_msd` | Diffrax 0.7 `ControlTerm` structure |
 | `tests/test_mcmc::test_mcmc_multi_voxel` | vmapped NUTS chain diverges for one voxel |
 | `tests/test_multi_compartment` ×3 | `lambda_iso` not recovered; which case fails varies between runs |

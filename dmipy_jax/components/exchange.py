@@ -264,72 +264,15 @@ class KargerExchange:
         """
         N = self.n_models
         K = jnp.zeros((N, N))
-        
-        for (i, j), tau in exchange_times.items():
-            # i < j
-            k_ij = 1.0 / (tau + 1e-9) # Avoid div 0
-            
-            # Balance: f_i * k_ij = f_j * k_ji => k_ji = k_ij * (f_i / f_j)
-            # handle f_j = 0 ?
-            ratio = jnp.where(f[j] > 1e-9, f[i] / f[j], 0.0)
-            k_ji = k_ij * ratio
-            
-            K = K.at[i, j].set(k_ij)
-            K = K.at[j, i].set(k_ji)
-            
-        # Set diagonals
-        # Row sums must be 0? 
-        # dM/dt = K M.
-        # If M_sum = sum M_i, dM_sum/dt = sum_i sum_j K_ij M_j = sum_j M_j (sum_i K_ij).
-        # For conservation of magnetization (relaxation handled by R), sum_i K_ij must be 0 (Column sum?)
-        # Standard Karger: dM/dt = K M.
-        # Let's check definition.
-        # usually M is column vector. K_ij is rate j -> i ? Or i -> j?
-        # Prompt: dM/dt = (D + K)M.
-        # If M = [M1, M2]^T.
-        # dM1/dt = -k_12 M1 + k_21 M2 ...
-        # So row 1: K_11=-k_12, K_12=k_21.
-        # So K matrix element (i, j) is contribution of M_j to change in M_i.
-        # So K_ij is rate j->i.
-        # Diagonal K_ii must be - sum_{j!=i} (rate i->j).
-        # Conservation: d(sum M)/dt = 0 => sum_i K_ij = 0 per column j.
-        # So COLUMN sums must be zero.
-        
-        # My Params: `tau_ij` as "residence time of i exchanging to j". 
-        # Implies rate i->j is `1/tau`. 
-        # So this rate leaves i and enters j.
-        # So it appears in:
-        #   dM_i/dt term:  - (1/tau) * M_i
-        #   dM_j/dt term:  + (1/tau) * M_i
-        # So K_ii gets -rate.
-        # K_ji gets +rate. (Row j, Col i).
-        
-        # So in my matrix K:
-        # K_ji (j, i) = rate i->j.
-        
-        # Let's re-verify Step B in Prompt: "f_a * k_{ab} = f_b * k_{ba}".
-        # Usually k_{ab} denotes rate a->b.
-        # If so, detailed balance is Flux(a->b) = Flux(b->a). Correct.
-        
-        # So:
-        # For pair (i, j) with i < j.
-        # We have parameter tau_ij -> rate i->j denoted k_ij_rate = 1/tau_ij.
-        # We derived k_ji_rate (rate j->i) via balance:
-        #   f_i * k_ij_rate = f_j * k_ji_rate  => k_ji_rate = k_ij_rate * (f_i/f_j).
-        
-        # Matrix Population:
-        # Rate i->j (k_ij_rate) contributes to:
-        #   Loss from i: K_ii -= k_ij_rate
-        #   Gain to j:   K_ji += k_ij_rate  (Row j, Col i) !!!
-        
-        # Rate j->i (k_ji_rate) contributes to:
-        #   Loss from j: K_jj -= k_ji_rate
-        #   Gain to i:   K_ij += k_ji_rate  (Row i, Col j) !!!
-        
-        # So strictly:
-        # element (row j, col i) is transfer i->j.
-        
-        # Loop revisit:
+
+        # dM/dt = K M with M a column vector, so K[j, i] is the rate i -> j and
+        # K[i, i] = -sum_j rate(i -> j). Column sums are then zero and total
+        # magnetisation is conserved (E(b=0) = 1). Detailed balance fixes the
+        # reverse rate: f_i k_ij = f_j k_ji.
+        #
+        # An earlier version also wrote the off-diagonals with ``.set`` before
+        # this loop added them again, doubling the transfer terms relative to
+        # the diagonals; the resulting matrix pumped magnetisation (1.49 at b=0).
         rows = []
         cols = []
         vals = []
