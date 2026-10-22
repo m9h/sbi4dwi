@@ -1734,3 +1734,149 @@ A one-sided quadratic prior `lam_iso · mean(max(f_csf + f_gm − iso_target, 0)
 | iso prior | HCP-A dirs at YA SNR | 0.017 | −0.006 | 0.984 | 1.90° | 94 % | 0.097 |
 
 The prior removes two-thirds of the default model's f_i noise on HCP-YA (0.054 → 0.018) and the +0.03 bias, while still estimating a 10 % isotropic fraction. It sits between the two §12 arms, as expected: the no-iso model's 0.010 was reached by deleting the degenerate parameters, this one keeps them under a prior. The HCP-A gain shrinks from 1.7× (default) to 1.4× because less of the error is the f_i/f_iso degeneracy that extra SNR resolves; the SNR-vs-design split is the same (HCP-A directions at YA SNR recover only a little). For the UCSF planning claim this is the configuration to quote: f_i precision 0.013 on HCP-A in 21 min, against 0.018 on HCP-YA in 59 min.
+
+## 14. The CHUV realism ladder: does the posterior know when the model is wrong? (2026-10-22)
+
+Nguyen-Duc, Uhl, Veiga-De-Oliveira, Rafael-Patiño & Jelescu, *Validating the
+Standard Model of diffusion MRI in white matter with Numerical Substrates*,
+Imaging Neuroscience 2026 (10.1162/IMAG.a.1385; bioRxiv
+10.64898/2026.01.28.702302) ran the Standard Model (SMI, cubic polynomial
+regression) over a ladder of CATERPillar substrates. Their noise-free
+numbers: f within 1 % (undulation) and 0.6 % (packing) of the geometry, but
++20 % with beading (CV 0 → 0.3), +35 % with impermeable astrocytes
+(1 % soma + 6 % processes), +39 % across the myelin range (13 % error at
+MVF 0.26), −75 % with axonal permeability 4·10⁻⁵ m/s; D_a over by 6–42 %.
+Their ground truth is f = AV / (AV + ECV): myelin carries no water and
+glial water is *not* in the denominator.
+
+The same ladder through PRISM-JAX asks a question a point estimator
+cannot: when the forward model is wrong, does the Laplace posterior width
+grow with the bias? `validation/validate_substrate_ladder.py` (Slurm 1828):
+20 µm CATERPillar voxels, their protocol (b 0/500/1000/2000/3000/5000,
+60 directions per shell, δ 16.5 ms, Δ 55.5 ms, D_in 2.5 / D_ex 1.5 µm²/ms,
+Rician SNR 50 on b0), our JAX walker with intra, extra and glial
+compartments (myelin without water), 10⁴ walkers per compartment, step
+0.14 µm (0.1 µm in glia), 8×8 voxels with independent noise, single bundle
+and a 60° sheet crossing. Fits: the §10.3 model (plus-x + dispersion, no
+isotropic balls) and its CSF/GM-enabled twin, with the intra D∥ prior
+re-centred at 2.5 and the range opened to 3.5. Reported: f_i ± Laplace sd
+(`FixelPosterior.fintra_sd`, new), the z-score of the bias against that sd,
+and the fitted D∥ / D∥,ex.
+
+### 14.1 Two walker bugs found on the way
+
+Both were invisible on the §10.2 protocol and bit as soon as the diffusion
+length reached the box.
+
+1. **Box-periodic intra walkers.** Intra walkers wrapped along z into the
+   box image, with the axon-id check rejecting any wrap that lands in
+   another axon. For a perfectly z-aligned axon that is correct; for a
+   tilted (c₂ 0.98 ≈ 8°) or tortuous one the image sits at another (x, y),
+   every wrap is rejected and the faces are hard walls. At Δ 55 ms the
+   diffusion length (≈ 19 µm) equals the box: intra axial D collapsed to
+   ≈ 1.1 for an intrinsic 2.5, S_intra(b5000) was 0.38 instead of 0.26 and
+   the fit compensated with f_i +0.09 and D∥ 1.6 even on the clean baseline
+   (Slurm 1826, archived as `substrate_ladder_boxperiodic_ref_*`). Each
+   axon is now periodic along its own chord: image copies of its first and
+   last 1.5 µm of spheres sit at the other end, and a walker that passes an
+   end is translated by the chord. Axial variance over the walk is 0.995 ×
+   free on tilted test axons (`test_intra_axial_diffusion_is_free_along_tilted_axons`).
+   The §10.2 / §8.2 / §10.3 tables (10 µm box, Δ 36 ms, diffusion length
+   ≈ 12 µm) carry a milder version; their rankings were within-table and
+   stand, but their f_i and D∥ values should not be quoted as absolute.
+2. **Unclipped glia.** CATERPillar grows glial processes past the voxel
+   faces (67 % of glial spheres lay outside a 20 µm box). The box-periodic
+   extra-cellular SDF wrapped them back inside: the extra space shrank
+   from 0.58 to 0.18 of the box, 45 % of extra walkers froze and
+   S_extra(b5000) was 0.74. Glial spheres are now kept only when centred
+   inside the box, and the extra SDF ignores axon spheres poking out of a
+   face. Extra ADC along the bundle is back at 1.43–1.52 for a free 1.5.
+
+Also new: the union-of-spheres SDF uses a cell list above 3000 spheres
+(exact within one cell of a surface, 17× faster), which is what makes
+1.5·10⁵ glial spheres per voxel affordable.
+
+### 14.2 Results (Slurm 1828, 10⁴ walkers per compartment)
+
+Geometry f is their f = AV/(AV+ECV) (glia excluded from the denominator);
+f_i ± Laplace sd, relative bias in brackets, for the no-iso model; the
+CSF/GM-enabled twin in the last column. D∥ / D∥,ex true values 2.5 / 1.5.
+
+| rung (achieved packing) | angle | geom f | **no-iso** f_i ± sd (rel.) | D∥ / D∥,ex | θ err | iso twin f_i (f_iso) |
+|---|---|---|---|---|---|---|
+| baseline, straight (0.34) | 0° | 0.342 | **0.348 ± 0.003 (+2 %)** | 2.30 / 1.54 | 1.0° | 0.494 (0.33) |
+| | 60° | 0.324 | 0.318 ± 0.003 (−2 %) | 2.18 / 1.48 | 1.4° | 0.490 (0.38) |
+| undulation ε 0.2 (0.40) | 0° | 0.404 | **0.412 ± 0.003 (+2 %)** | 2.29 / 1.48 | 1.2° | 0.594 (0.34) |
+| | 60° | 0.383 | 0.373 ± 0.003 (−3 %) | 2.04 / 1.42 | 2.0° | 0.557 (0.36) |
+| beading A 0.3, σ 0.3 (0.61) | 0° | 0.612 | **0.584 ± 0.004 (−5 %)** | 2.16 / 1.20 | 0.8° | 0.665 (0.19) |
+| | 60° | 0.579 | 0.513 ± 0.003 (−11 %) | 2.07 / 1.06 | 1.1° | 0.618 (0.22) |
+| dispersion c₂ 0.90 (0.39) | 0° | 0.388 | **0.375 ± 0.003 (−3 %)** | 2.15 / 1.47 | 2.7° | 0.549 (0.34) |
+| | 60° | 0.365 | 0.366 ± 0.003 (0 %) | 2.13 / 1.47 | 3.9° | 0.546 (0.38) |
+| myelin, MVF 0.24 (AVF 0.15) | 0° | 0.203 | **0.240 ± 0.003 (+18 %)** | 2.56 / 1.33 | 2.8° | 0.368 (0.37) |
+| | 60° | 0.190 | 0.223 ± 0.003 (+17 %) | 2.36 / 1.33 | 3.0° | 0.360 (0.39) |
+| astrocytes 1 % + 6 %, impermeable (0.34) | 0° | 0.364 | **0.506 ± 0.003 (+39 %)** | 2.19 / 1.84 | 1.8° | 0.648 (0.23) |
+| | 60° | 0.345 | 0.468 ± 0.003 (+35 %) | 2.02 / 1.72 | 3.5° | 0.665 (0.38) |
+
+Against the paper's Standard-Model numbers (noise-free SMI):
+
+| realism feature | SM f bias (paper) | PRISM-JAX no-iso f_i bias |
+|---|---|---|
+| baseline / undulation | within 1 % | ±2–3 % |
+| beading (CV → 0.3) | +20 % | −5 % / −11 % |
+| dispersion | small (f −9 % with p₂) | −3 % / 0 % |
+| myelin (MVF 0.26) | +39 % over the range, 13 % at top | +18 % |
+| impermeable astrocytes | +35 % | +39 % / +35 % |
+
+**Reading.**
+
+1. **Clean geometry is clean.** With the walker fixed, the stick + Watson +
+   tortuous-zeppelin fit with no isotropic balls recovers f within 2–3 %
+   and both diffusivities within ~10 % on the baseline, undulation and
+   dispersion rungs, single bundle and 60° crossing alike. This replaces
+   the §10.2 statement "f_i within 0.02–0.06" with a cleaner one on the
+   CHUV protocol.
+2. **Beading does not inflate our f_i.** The paper's +20 % comes from the
+   SM's fixed-D_a stick absorbing the beaded compartment's lower axial
+   attenuation into f; we learn D∥ (2.16 vs 2.5 intrinsic) and D∥,ex
+   (1.2, hindered by the dense 0.6 packing) and f_i goes slightly *under*
+   (−5 % single bundle, −11 % at the crossing). Opposite sign, half the
+   size.
+3. **Myelin: +18 % vs their +39 %.** Same direction, same mechanism (the
+   sheath shrinks the extra-cellular space around each axon and raises
+   D∥ to 2.56, the upper edge of the prior; the fit reads tighter extra
+   space as more intra). The paper's 39 % is a range statement across
+   MVF 0 → 0.26; at their top MVF the error was 13 %, so ours is
+   comparable, not better.
+4. **Astrocytes: +39 / +35 %, identical to theirs.** Impermeable glial
+   water (S_glia(b5000) = 0.83, nearly restricted) has nowhere to go but
+   the intra compartment; D∥,ex rises to 1.8 as the zeppelin tries to
+   absorb some of it. Enabling the CSF/GM balls makes it *worse*
+   (0.648, with a 0.23 "isotropic" fraction that is really the glia plus
+   hindered extra), and the restricted ball takes only 0.065–0.10. This
+   is the compartment-attribution mechanism of §7.2 in its purest form:
+   the bias is the missing compartment, not the estimator.
+5. **The Laplace sd does not know.** f_i sd is 0.003 on every rung; the
+   z-score of the bias runs from 2 on the clean rungs to 55 on
+   astrocytes. The Laplace width is the precision of the MAP *given the
+   model*; it is blind to misspecification, as it must be — the
+   likelihood is sharply peaked at the wrong answer. Model-mismatch
+   detection has to come from elsewhere: the posterior predictive check
+   (pipeline/ppc), the per-voxel evidence (`voxel_log_evidence`), or an
+   explicit glial compartment. That is the honest answer to the question
+   this section asked, and it is the argument for the glia/SANDI-soma
+   compartment in the PRISM mixture (next item) rather than for a wider
+   posterior.
+6. **Orientation is untouched by any rung** (0.8–3.9°, recall 100 %),
+   including the 60° crossing the paper does not test.
+
+Not on this ladder: permeability (the walker has no membrane transit;
+the exchange work in §9.3 uses MCMRSimulator cylinders) and the
+T2-weighting that would add Fick's surface-relaxivity bias (doc 011) on
+top of these geometric ones.
+
+Artefacts: `validation/substrate_ladder_results.json`,
+`validation/substrate_ladder_signals.npz` (clean MC signals per
+compartment, the 8×8 noisy volumes, GT axes and box fractions, for any
+external method), `validation/logs/substrate_ladder_1828.log`; the
+box-periodic reference run as `substrate_ladder_boxperiodic_ref_*` and
+`logs/substrate_ladder_1826.log`.
