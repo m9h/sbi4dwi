@@ -497,6 +497,106 @@ def pgse_lobe_sums(sub: Substrate, comp, D: float, dt: float, n_particles: int,
     return acc          # (n,3) = R1 − R2 already (lobe weights ±1)
 
 
+def transit_probability(kappa: float, D: float, dt: float) -> float:
+    """Membrane crossing probability per attempted crossing for a Gaussian
+    stepper: the flux of walkers hitting unit membrane area per unit time is
+    c·√(D/(π dt)), so P = κ·√(π dt / D) gives the macroscopic flux κ·Δc
+    (Fieremans et al. 2010 form for Gaussian steps). D is the diffusivity of
+    the side the walker leaves, which keeps detailed balance when D differs."""
+    return float(kappa * np.sqrt(np.pi * dt / D))
+
+
+def pgse_lobe_sums_permeable(sub: Substrate, kappa: float, D_in: float, D_ex: float, dt: float,
+                             n_particles: int, delta: float, Delta: float, key):
+    """Joint intra ⇄ extra walk with permeable axonal membranes (κ in m/s).
+    Walkers start in intra / extra in proportion to the water fractions; a
+    step that would leave its compartment crosses with probability
+    ``transit_probability(κ, D_from, dt)`` if the landing point is valid in
+    the other compartment, else it is reflected as in ``pgse_lobe_sums``.
+    Intra walkers keep the chord-periodic convention and are wrapped into
+    the box only when they transit; extra walkers are box-periodic. Glia and
+    myelin are not supported (the paper's permeability rung has neither).
+    Returns (R1 − R2 (n,3), comp0 (n,) int [0 intra, 1 extra], comp_end (n,))."""
+    if sub.has_glia or (sub.fractions and sub.fractions.get("myelin", 0.0) > 0):
+        raise ValueError("permeable walk supports axon-only substrates without myelin")
+    L = sub.box_m
+    sdf_in = compartment_sdf(sub, "intra", PERIODIC_INTRA)
+    sdf_ex = compartment_sdf(sub, "extra", PERIODIC_EXTRA)
+    cell_of = nearest_axon_fn(sub, PERIODIC_INTRA)
+    per_ex = jnp.asarray(PERIODIC_EXTRA, jnp.float32)
+    n_steps = int(round((Delta + delta) / dt))
+    n1 = int(round(delta / dt)); s2 = int(round(Delta / dt))
+    lobe = jnp.zeros(n_steps).at[:n1].set(1.0).at[s2:s2 + n1].set(-1.0)
+    sd_in = jnp.sqrt(2 * D_in * dt); sd_ex = jnp.sqrt(2 * D_ex * dt)
+    P_in = transit_probability(kappa, D_in, dt); P_ex = transit_probability(kappa, D_ex, dt)
+    if max(P_in, P_ex) > 0.5:
+        raise ValueError(f"transit probability {max(P_in, P_ex):.2f} too large for dt={dt}; reduce dt")
+    T = jnp.asarray(sub.axon_chord_m, jnp.float32); S0 = jnp.asarray(sub.axon_start_m, jnp.float32)
+    T2 = jnp.maximum(jnp.sum(T ** 2, axis=1), 1e-30)
+
+    def chord_wrap(p):
+        a = cell_of(p)
+        s = jnp.dot(p - S0[a], T[a]) / T2[a]
+        return p - jnp.where(s > 1.0, 1.0, jnp.where(s < 0.0, -1.0, 0.0)) * T[a]
+
+    def min_image(v):
+        return v - per_ex * L * jnp.round(v / L)
+
+    def fix(p, o, c, u):
+        """One walker: proposal p from o in compartment c (0/1), uniform u."""
+        sd = jnp.where(c == 0, sd_in, sd_ex)
+        # ---- intra walker ----
+        in_ok = (sdf_in(p) <= 0) & (cell_of(p) == cell_of(o))
+        pw = confine_box(p, L, PERIODIC_EXTRA)
+        cross_in = (~in_ok) & (u < P_in) & (sdf_ex(pw) <= 0)
+        r_in = _reflect(p, o, sdf_in)
+        r_in_ok = (sdf_in(r_in) <= 0) & (jnp.linalg.norm(r_in - o) < 4.0 * sd) & (cell_of(r_in) == cell_of(o))
+        new_in = jnp.where(in_ok, p, jnp.where(cross_in, pw, jnp.where(r_in_ok, r_in, o)))
+        c_in = jnp.where(cross_in, 1, 0)
+        # ---- extra walker ----
+        ex_ok = sdf_ex(p) <= 0
+        cross_ex = (~ex_ok) & (u < P_ex) & (sdf_in(p) <= 0)
+        r_ex = _reflect(p, o, sdf_ex)
+        r_ex_ok = (sdf_ex(r_ex) <= 0) & (jnp.linalg.norm(min_image(r_ex - o)) < 4.0 * sd)
+        new_ex = jnp.where(ex_ok, p, jnp.where(cross_ex, p, jnp.where(r_ex_ok, r_ex, o)))
+        c_ex = jnp.where(cross_ex, 0, 1)
+        is_in = c == 0
+        return jnp.where(is_in, new_in, new_ex), jnp.where(is_in, c_in, c_ex)
+
+    def step(carry, w):
+        pos, upos, acc, comp, k = carry
+        k, sk, uk = jax.random.split(k, 3)
+        sd = jnp.where(comp == 0, sd_in, sd_ex)[:, None]
+        prop = pos + sd * jax.random.normal(sk, pos.shape)
+        prop = jnp.where((comp == 1)[:, None], jax.vmap(lambda p: confine_box(p, L, PERIODIC_EXTRA))(prop), prop)
+        u = jax.random.uniform(uk, (pos.shape[0],))
+        new, comp_new = jax.vmap(fix)(prop, pos, comp, u)
+        step_vec = jax.vmap(min_image)(new - pos)
+        upos = upos + step_vec
+        acc = acc + w * upos * dt
+        new = jnp.where((comp_new == 0)[:, None], jax.vmap(chord_wrap)(new), new)
+        return (new, upos, acc, comp_new, k), None
+
+    fr = sub.fractions or {"intra": sub.f_intra, "extra": 1 - sub.f_intra}
+    n_in = int(round(n_particles * fr["intra"] / (fr["intra"] + fr["extra"])))
+    k_in, k_ex, k_run = jax.random.split(key, 3)
+    pos0 = jnp.concatenate([_init_fn(sub, "intra")(k_in, n_in), _init_fn(sub, "extra")(k_ex, n_particles - n_in)])
+    comp0 = jnp.concatenate([jnp.zeros(n_in, jnp.int32), jnp.ones(n_particles - n_in, jnp.int32)])
+    (pos, _, acc, comp, _), _ = jax.lax.scan(step, (pos0, pos0, jnp.zeros_like(pos0), comp0, k_run), lobe)
+    return acc, comp0, comp
+
+
+def exchange_time_from_transfer(comp0, comp_end, T: float, f_in: float) -> float:
+    """Kärger exchange time from the fraction of initially intra-axonal walkers
+    found extra-axonal after T: p(t) = (1 − f_in)(1 − e^{−t/τ_ex})."""
+    comp0 = np.asarray(comp0); comp_end = np.asarray(comp_end)
+    p = float(np.mean(comp_end[comp0 == 0] == 1))
+    x = 1.0 - p / max(1.0 - f_in, 1e-9)
+    if x <= 0:
+        return 0.0
+    return float(-T / np.log(x)) if x < 1 else float("inf")
+
+
 def signals_from_lobe_sums(R, bvals_si, bvecs, delta, Delta):
     """|mean exp(iφ)| per measurement. G from b = γ²G²δ²(Δ − δ/3)."""
     G = jnp.sqrt(jnp.asarray(bvals_si) / (GAMMA ** 2 * delta ** 2 * (Delta - delta / 3.0)))

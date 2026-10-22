@@ -123,6 +123,35 @@ def test_intra_axial_diffusion_is_free_along_tilted_axons():
     assert bool(jnp.all(jax.vmap(sb.compartment_sdf(sub, "intra", sb.PERIODIC_INTRA))(p0) <= 0))
 
 
+def test_permeable_walk_zero_kappa_has_no_transits():
+    df = _tilted_bundle()
+    sub = sb.make_crossing_substrate(df, 0.0, 20.0)
+    R, c0, c1 = sb.pgse_lobe_sums_permeable(sub, 0.0, 2.5e-9, 1.5e-9, 4e-6, 1000, 5e-3, 10e-3, jax.random.PRNGKey(0))
+    assert bool(jnp.all(c0 == c1))
+    assert np.isfinite(np.asarray(R)).all()
+    # extra walkers really are extra, intra really intra at the end of the walk
+    assert abs(float(jnp.mean(c0 == 0)) - sub.fractions["intra"] / (sub.fractions["intra"] + sub.fractions["extra"])) < 0.02
+
+
+def test_permeable_walk_exchange_time_and_stationarity():
+    """Cylinders of radius r: intra residence time τ_i = r/(2κ), Kärger
+    τ_ex = τ_i·(1 − f). The walk must (a) keep the intra fraction stationary
+    (detailed balance with D_in ≠ D_ex) and (b) reproduce τ_ex within the
+    discretisation error of the transit rule on a corrugated sphere chain."""
+    df = _tilted_bundle()
+    sub = sb.make_crossing_substrate(df, 0.0, 20.0)
+    f_in = sub.fractions["intra"] / (sub.fractions["intra"] + sub.fractions["extra"])
+    kappa, r = 4e-5, 0.8e-6
+    tau_ex_theory = r / (2 * kappa) * (1 - f_in)
+    delta, Delta = 5e-3, 15e-3
+    R, c0, c1 = sb.pgse_lobe_sums_permeable(sub, kappa, 2.5e-9, 1.5e-9, 4e-6, 3000, delta, Delta, jax.random.PRNGKey(1))
+    c0 = np.asarray(c0); c1 = np.asarray(c1)
+    assert np.mean(c1 == 0) == pytest.approx(f_in, abs=0.03)          # stationary
+    assert np.mean(c1[c0 == 0] == 1) > 0.3                             # plenty of transits at this κ
+    tau = sb.exchange_time_from_transfer(c0, c1, delta + Delta, f_in)
+    assert tau == pytest.approx(tau_ex_theory, rel=0.35)
+
+
 def test_chord_images_cover_axon_ends():
     df = _tilted_bundle()
     sub = sb.make_crossing_substrate(df, 0.0, 20.0)
