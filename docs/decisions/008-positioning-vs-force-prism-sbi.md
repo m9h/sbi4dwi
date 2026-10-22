@@ -1973,3 +1973,106 @@ noiso / res / resD / sphere), `validation/substrate_ladder_glia_bounded_results.
 `substrate_ladder_glia_bounded_1830.log`; `--methods glia|glia-bounded
 --from-npz validation/substrate_ladder_signals.npz --evidence` reproduces
 them on the committed volumes.
+
+### 14.4 Axonal permeability on realistic axons: the rung where the SM lost 75 % (Slurm 1831 / 1832, 2026-10-22)
+
+The paper's permeability rung — undulating, beaded axons at packing 0.5,
+membrane permeability κ = 0 → 4·10⁻⁵ m/s in steps of 10⁻⁵ — is the one
+§14.2 could not run: the walker had no membrane transit. It has one now
+(`pgse_lobe_sums_permeable`, a joint intra ⇄ extra walk with crossing
+probability P = κ·√(π dt / D_from) per attempted crossing — the Gaussian-
+step form of Fieremans et al. 2010, D of the departing side so the flux
+κ·Δc balances with D_in ≠ D_ex). Two things learned about the walker
+before any fitting:
+
+- **The discrete walk's equilibrium is biased toward the convex side.**
+  With step sd σ = √(2 D dt) against axons of radius r, the wall-hitting
+  rate per unit area is lower from inside than from outside by ≈ σ/(2r)
+  each way, so the intra fraction drifts up during the walk: +5 % relative
+  at dt 4·10⁻⁶ (σ 0.14 µm, r 0.97; job 1831), +3 % at dt 2·10⁻⁶ (σ 0.10 µm,
+  the paper's step; job 1832, reported below). Pure cylinders in the unit
+  test (`test_permeable_walk_exchange_time_and_stationarity`) show the
+  same sign. It is a known MC artefact, not a code error; the end-of-walk
+  intra fraction is stored (`f_intra_end`) so the effective f is known.
+- **τ_ex from the walkers themselves.** The fraction of initially intra
+  walkers found extra after T, read through the two-site Kärger solution
+  p(T) = (1 − f)(1 − e^{−T/τ}), gives τ_ex = 37 / 19 / 11 ms at κ = 1 / 2 /
+  4·10⁻⁵ from the 25 ms walk; the 72 ms walk saturates at high κ (22 ms at
+  κ = 4·10⁻⁵, because p → 1 − f_end and the log of a small number is read
+  against a drifted f). The cylinder formula τ_ex = r/(2κ)·(1 − f) gives
+  19 / 10 / 5 ms — half the measured values: at packing 0.53 much of each
+  membrane faces a neighbouring axon, and an exit that lands inside the
+  neighbour is not an exit. Realistic packing roughly doubles the
+  exchange time a cylinder model would predict for the same κ.
+
+Fits on job 1832 (65 axons, mean r 0.82 µm, f = 0.530; same protocol and
+noise as §14.2 for PRISM; the Kärger kernel of §9.3 fitted to the clean
+signal and to 30 Rician repeats at SNR 50, fibre direction known, on the
+paper's single-Δ protocol and on the §9.3 Fisher-designed multi-Δ
+protocol b 1.4 / 5 / 5 ms/µm², δ 10, Δ 15 / 15 / 51.5 ms, 97 measurements).
+The sharp-stick Kärger kernel of §9.3 misreads *undulating* axons already
+at κ = 0 (+51 % / −25 % on the two protocols), so a Watson-dispersed Kärger
+kernel was added (`karger_watson_pgse`: the exchanging stick ⇄ zeppelin
+pair is axially symmetric, so it goes through the same Funk–Hecke /
+Legendre convolution as PRISM's dispersion; tested against PRISM's own
+dispersed mixture at τ → ∞). D∥,ex = ratio · D∥ with ratio ≤ 1 so the fit
+cannot land on the mirror solution (small slow "intra" pool).
+
+| κ (m/s) | τ_ex walker, 25 / 72 ms walk | PRISM no-iso f_i (D∥ / D∥,ex) | Kärger sharp, paper protocol: f_i, τ_ex | Kärger Watson, paper protocol: f_i, τ_ex [SNR 50] | Kärger Watson, **multi-Δ**: f_i, τ_ex [SNR 50] |
+|---|---|---|---|---|---|
+| 0 | ∞ | 0.486 (−8 %) (2.17 / 1.18) | 0.798 (+51 %), 9 ms | 0.593 (+12 %), 53 [66 ± 309] | **0.547 (+3 %)**, ∞ [∞] |
+| 1·10⁻⁵ | 37 / 39 ms | 0.413 (−22 %) (2.82 / 1.07) | 0.705 (+33 %), 8 | 0.540 (+2 %), 24 [33 ± 10] | **0.519 (−2 %), 31 [33 ± 9]** |
+| 2·10⁻⁵ | 19 / 31 ms | 0.390 (−26 %) (3.24 / 1.04) | 0.787 (+49 %), 3 | 0.442 (−17 %), 26 [32 ± 6] | **0.511 (−3 %), 14 [15 ± 3]** |
+| 4·10⁻⁵ | 11 / 22 ms | 0.349 (−34 %) (3.50 / 1.15) | 0.766 (+45 %), 2 | 0.446 (−16 %), 10 [12 ± 2] | **0.468 (−12 %), 9 [9 ± 2]** |
+
+Job 1831 (dt 4·10⁻⁶, a different realisation: 47 axons, r 0.97, f 0.485)
+gives the same picture: PRISM +2 / −14 / −23 / −32 %, Watson multi-Δ
++12 / +3 / −3 / −16 % with τ_ex ∞ / 55 / 23 / 13 ms against 41 / 24 / 14
+walker; the paper's SM read −75 % at κ = 4·10⁻⁵.
+
+**Reading.**
+
+1. **PRISM-JAX collapses too, more slowly than the SM.** f_i falls from
+   −8 % to −34 % as κ rises to 4·10⁻⁵ (the paper's SM: −75 %); D∥ climbs
+   to the 3.5 bound and D∥,ex falls to 1.0. The mechanism is the one the
+   paper describes: exchange makes the intra signal decay faster at high
+   b, and a non-exchanging model can only read that as "less stick with a
+   faster D∥". Learning D∥ (and letting it run to the bound) is what
+   buys us the gentler slope — it is not a virtue, it is a different
+   place to hide the misspecification. The glial sphere takes nothing
+   (f_res 0.00): exchange does not look like a restricted pool.
+2. **A dispersed Kärger kernel on a multi-Δ protocol recovers both f and
+   τ_ex on realistic axons.** f_i +3 / −2 / −3 / −12 % across the whole
+   κ range, τ_ex 31 / 14 / 9 ms against 37 / 19 / 11 ms from the walkers
+   (the same 15–25 % low reading §9.3 saw on MCMRSimulator cylinders at
+   Δ ≈ τ, the Kärger approximation's limit), with SNR-50 scatter ±9 / 3 /
+   2 ms. The §9.3 closed loop (design → protocol → third-party MC) now
+   holds on CHUV-realistic geometry too, with the walker as the engine.
+3. **The paper's single-Δ protocol is not blind to exchange when the
+   kernel is right.** With b up to 5 ms/µm² and 300 measurements, the
+   Watson Kärger kernel reads τ_ex 24 / 26 / 10 ms (±10 / 6 / 2 at
+   SNR 50) on their protocol — identifiable, if not accurate at the
+   fastest exchange, where f_i goes −16 %. The §9.3 CRLB verdict
+   ("single-Δ cannot see exchange") was for b ≤ 3 and 96 measurements;
+   the high-b shell carries exchange information through the shape of
+   the decay. What the single-Δ protocol *cannot* do is separate
+   exchange from the f_i / D∥ trade-off cleanly: compare 0.442 / 0.446
+   at κ ≥ 2·10⁻⁵ with the multi-Δ 0.511 / 0.468.
+4. **Dispersion is not optional for exchange on real axons.** The sharp
+   kernel that passed §9.3 on straight cylinders misreads these axons by
+   +50 % (paper protocol) or −25 % (multi-Δ) at κ = 0 and never recovers;
+   ODI 0.04 is enough to do that at b = 5. This is the same lesson as
+   §8.2 for PRISM, now for the exchange model.
+
+Caveats: single bundle, known direction, no crossing; Rician noise with a
+known σ; the Kärger model's own validity ends near Δ ≈ τ_ex (κ = 4·10⁻⁵).
+Permeable astrocytes (their Fig. 9: glia permeability 0 → 10⁻⁴ cut the SM
+f bias from 35 % to 10 %) are the natural next rung and need the glial
+compartment of §14.3 to exchange too.
+
+Artefacts: `validation/substrate_permeability_dt2_{results,karger_refit}.json`,
+`_signals.npz`, `_substrate.csv` (the CATERPillar realisation, reusable with
+`--load-substrate`), the dt 4·10⁻⁶ run as `substrate_permeability_{results,karger_refit}.json`
+/ `_signals.npz`; logs `validation/logs/substrate_permeability_183{1,2}.log`.
+Reproduce the fits from the signals with
+`validate_substrate_permeability.refit_from_npz`.

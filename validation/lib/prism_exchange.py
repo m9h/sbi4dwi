@@ -59,6 +59,33 @@ def karger_pgse(bvals, bvecs, dirs, f_i, d_par, d_par_ex, d_perp, tau_ex, delta,
     return jax.vmap(one)(bvals, t_d, R)
 
 
+def karger_watson_pgse(bvals, bvecs, dirs, f_i, d_par, d_par_ex, d_perp, tau_ex, delta, Delta, odi,
+                       n_legendre: int = 13, n_quad: int = 64):
+    """Kärger signal with Watson orientation dispersion (doc 008 §14.4). The
+    exchanging stick ⇄ zeppelin pair is an axially symmetric kernel K(b, t),
+    t = cos(angle to the fibre), so the Watson convolution is the same
+    Funk–Hecke / Legendre sum PRISM-JAX uses (`prism_jax.dispersed_signal`):
+    λ_l(b) = 2π ∫ K(b, t) P_l(t) dt on Gauss–Legendre nodes, K from the 2×2
+    matrix exponential per (measurement, node). dirs (3,), odi scalar."""
+    from dmipy_jax.prism import prism_jax as pj
+    bvals = jnp.asarray(bvals); t_d = jnp.broadcast_to(jnp.asarray(Delta) - jnp.asarray(delta) / 3.0, bvals.shape)
+    x, w = pj._gauss_legendre(n_quad)
+    P = pj._legendre_even(x, n_legendre)                                  # (L,Q)
+    K = _exchange_matrix(f_i, tau_ex)
+    m0 = jnp.array([f_i, 1.0 - f_i])
+
+    def kernel(b, td, t):
+        r = jnp.array([d_par * t ** 2, d_perp + (d_par_ex - d_perp) * t ** 2])
+        A = -jnp.diag(b / td * r) + K
+        return jnp.sum(jax.scipy.linalg.expm(A * td) @ m0)
+    Kq = jax.vmap(lambda b, td: jax.vmap(lambda t: kernel(b, td, t))(x))(bvals, t_d)   # (M,Q)
+    lam = 2.0 * jnp.pi * jnp.einsum("mq,lq->ml", Kq * w, P)              # (M,L)
+    kappa = 1.0 / jnp.tan(jnp.pi * odi / 2.0)
+    a = pj.watson_legendre_coeffs(jnp.asarray(kappa), n_legendre, n_quad)  # (L,)
+    c = jnp.asarray(bvecs) @ jnp.asarray(dirs)                            # (M,)
+    return pj.dispersed_signal(a[None, None], lam, c[None, None])[0, 0]
+
+
 def trapezoid_pgse(t, G, delta, Delta, rise=1e-4):
     """Effective gradient amplitude of a PGSE pair (spin-echo sign flip applied)."""
     def lobe(t0):

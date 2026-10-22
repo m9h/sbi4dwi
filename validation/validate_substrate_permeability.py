@@ -60,6 +60,51 @@ def karger_fit(bvals, bvecs, delta, Delta, u, y, x0=(0.5, 30.0, 2.2, 0.6, 0.5)):
     return r.x, float(np.sqrt(np.mean(r.fun ** 2)))
 
 
+def karger_fit_dispersed(bvals, bvecs, delta, Delta, u, y, x0=(0.5, 30.0, 2.2, 0.6, 0.5, 0.1)):
+    """As `karger_fit` plus a Watson ODI (x[5]) — the kernel realistic axons need."""
+    b = jnp.asarray(bvals); g = jnp.asarray(bvecs); de = jnp.asarray(delta); De = jnp.asarray(Delta); u = jnp.asarray(u)
+
+    def model(p):
+        f, tau, dpar, ratio, dperp, odi = p
+        return px.karger_watson_pgse(b, g, u, f, dpar * 1e-9, ratio * dpar * 1e-9, dperp * 1e-9, tau * 1e-3, de, De, odi)
+    fm = jax.jit(model); jac = jax.jit(jax.jacfwd(model))
+    r = least_squares(lambda p: np.asarray(fm(jnp.asarray(p))) - y, x0, jac=lambda p: np.asarray(jac(jnp.asarray(p))),
+                      bounds=([0.05, 1.0, 0.3, 0.3, 0.02, 0.01], [0.95, 2000.0, 3.0, 1.0, 2.0, 0.5]), max_nfev=400)
+    return r.x, float(np.sqrt(np.mean(r.fun ** 2)))
+
+
+def refit_from_npz(path, snr=50.0, repeats=30, seed=0, out=None):
+    """Re-fit saved signals with the sharp and the Watson-dispersed Kärger kernels."""
+    z = np.load(path); u = z["axis"]; f_in = float(z["f_gt"])
+    n_c = len(z["bvals_chuv"])
+    protos = {"chuv": (z["bvals_chuv"], z["bvecs_chuv"], np.full(n_c, 16.5e-3), np.full(n_c, 55.5e-3)),
+              "optimised": (z["bvals_opt"], z["bvecs_opt"], z["delta_opt"], z["Delta_opt"])}
+    tags = sorted({k.split("_")[0] for k in z.files if k.startswith("k") and k.endswith("_S_chuv")},
+                  key=lambda t: float(t[1:]))
+    results = {"f_gt": f_in}
+    for tag in tags:
+        print(f"\n### κ = {tag[1:]} m/s (GT f {f_in:.3f})", flush=True)
+        results[tag] = {}
+        for pname, (bv, gv, de, De) in protos.items():
+            S = z[f"{tag}_S_{pname.replace('optimised', 'opt')}"]
+            for kname, fitter in (("sharp", karger_fit), ("watson", karger_fit_dispersed)):
+                x, rmse = fitter(bv, gv, de, De, u, S)
+                rng = np.random.default_rng(seed); est = []
+                for _ in range(repeats):
+                    s = 1.0 / snr
+                    y = np.sqrt((S + rng.normal(0, s, S.shape)) ** 2 + rng.normal(0, s, S.shape) ** 2)
+                    est.append(fitter(bv, gv, de, De, u, y, x0=tuple(x))[0])
+                est = np.array(est); med = np.median(est, 0); sd = np.std(est, 0)
+                odi = f" ODI={x[5]:.2f}" if len(x) > 5 else ""
+                print(f"  {pname:9s} {kname:6s} clean f_i={x[0]:.3f} ({100*(x[0]-f_in)/f_in:+.0f} %) τ_ex={x[1]:.1f} ms "
+                      f"D∥={x[2]:.2f} D∥ex={x[2]*x[3]:.2f} D⊥={x[4]:.2f}{odi} rmse {rmse:.4f} | "
+                      f"SNR {snr:.0f}×{repeats}: f_i {med[0]:.3f}±{sd[0]:.3f} τ_ex {med[1]:.1f}±{sd[1]:.1f}", flush=True)
+                results[tag][f"{pname}-{kname}"] = {"clean": x.tolist(), "rmse": rmse, f"snr{snr:.0f}": {"median": med.tolist(), "sd": sd.tolist()}}
+        if out:
+            json.dump(results, open(out, "w"), indent=1)
+    return results
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--kappas", type=float, nargs="+", default=[0.0, 1e-5, 2e-5, 4e-5])
@@ -67,7 +112,10 @@ def main():
     ap.add_argument("--box-um", type=float, default=20.0)
     ap.add_argument("--snr", type=float, default=50)
     ap.add_argument("--n-particles", type=int, default=10000)
-    ap.add_argument("--dt", type=float, default=4e-6)
+    ap.add_argument("--dt", type=float, default=2e-6,
+                    help="step sd √(2 D dt); the transit rule's equilibrium shifts toward intra by ~σ/(2r) per side "
+                         "(convex wall seen from inside), 2e-6 → σ 0.1 µm, the CHUV step")
+    ap.add_argument("--load-substrate", default=None, help="reuse a saved <out>_substrate.csv instead of generating")
     ap.add_argument("--repeats", type=int, default=30)
     ap.add_argument("--n-iter", type=int, default=300)
     ap.add_argument("--threads", type=int, default=8)
@@ -77,9 +125,14 @@ def main():
 
     from dmipy_jax.simulation.substrates.caterpillar import CATERPillarCLI
     kw = dict(RUNGS["beading"]); kw["icvf"] = args.icvf
+    import pandas as pd
     cli = CATERPillarCLI()
     t0 = time.time()
-    df = cli.generate(cli.default_config(box_um=args.box_um, threads=args.threads, **kw), cells="all")
+    if args.load_substrate:
+        df = pd.read_csv(args.load_substrate)
+    else:
+        df = cli.generate(cli.default_config(box_um=args.box_um, threads=args.threads, **kw), cells="all")
+        df.to_csv(args.out + "_substrate.csv", index=False)
     sub = sb.make_crossing_substrate(df, 0.0, args.box_um, seed=args.seed)
     fr = sub.fractions
     f_in = fr["intra"] / (fr["intra"] + fr["extra"])
@@ -109,8 +162,10 @@ def main():
             tau = sb.exchange_time_from_transfer(c0, c1, de + De, f_in)
             tau_meas[(de, De)] = tau
             p_out = float(np.mean(np.asarray(c1)[np.asarray(c0) == 0] == 1))
+            f_end = float(np.mean(np.asarray(c1) == 0))
+            res.setdefault("f_intra_end", {})[f"{1e3*de:.1f}/{1e3*De:.1f}"] = f_end
             print(f"  walk δ {1e3*de:.1f} Δ {1e3*De:.1f} ms: {time.time()-t0:.0f}s, intra→extra fraction {p_out:.3f} "
-                  f"→ τ_ex {1e3*tau:.1f} ms; intra fraction at end {float(np.mean(np.asarray(c1)==0)):.3f}", flush=True)
+                  f"→ τ_ex {1e3*tau:.1f} ms; intra fraction at end {f_end:.3f}", flush=True)
         res["tau_ex_measured_ms"] = {f"{1e3*de:.1f}/{1e3*De:.1f}": 1e3 * t for (de, De), t in tau_meas.items()}
         tau_gt = 1e3 * tau_meas[(de_c, De_c)]       # longest walk: best-determined
 
