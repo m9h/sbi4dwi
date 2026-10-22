@@ -155,11 +155,19 @@ class CATERPillarCLI:
 
     @staticmethod
     def default_config(box_um=10.0, icvf=0.5, c2=0.98, tortuous=True, beading=0.0, beading_std=0.0, threads=8,
-                       n_populations=1, crossing_type=0, min_radius=0.2, alpha=4.0, beta=0.25, epsilon=0.1):
+                       n_populations=1, crossing_type=0, min_radius=0.2, alpha=4.0, beta=0.25, epsilon=0.1,
+                       myelin_icvf=0.0, glia_soma=0.0, glia_processes=0.0, glia_branching=True,
+                       glia_soma_radius=3.0, glia_process_length=30.0):
+        """All fractions are volume fractions of the voxel (CATERPillar's JSON takes
+        percentages; the conversion happens here). ``icvf`` = unmyelinated axons,
+        ``myelin_icvf`` = myelinated axons (inner + sheath; the generator sets the
+        sheath thickness from the inner radius via K1..K3), ``glia_soma`` /
+        ``glia_processes`` = glial population 1 (astrocyte-like, branching)."""
         return {
             "GeneralParameters": {"OutputDirectory": "", "Filename": "substrate", "VoxelEdgeLength": box_um, "Repetitions": 1,
                                   "OverlappingFactor": 4, "NumberOfThreads": threads},
-            "AxonParameters": {"AxonsICVF": 100.0 * icvf, "AxonsWithMyelinICVF": 0.0, "ArterioleICVF": 0.0, "CapillariesICVF": 0.0,
+            "AxonParameters": {"AxonsICVF": 100.0 * icvf, "AxonsWithMyelinICVF": 100.0 * myelin_icvf, "ArterioleICVF": 0.0,
+                               "CapillariesICVF": 0.0,
                                "CapillaryGamma": 3.0, "ArterioleRadiusMean": 6.0, "ArterioleRadiusStd": 1.0,
                                "NumberOfPopulations": n_populations, "CrossingFibersType": crossing_type,
                                "Alpha": alpha, "Beta": beta, "AlphaMyelin": 2.0, "BetaMyelin": 0.25, "MinRadius": min_radius,
@@ -169,10 +177,19 @@ class CATERPillarCLI:
             "GlialParameters": {**{f"Pop{i}SomaICVF": 0.0 for i in (1, 2, 3)}, **{f"Pop{i}ProcessesICVF": 0.0 for i in (1, 2, 3)},
                                 **{f"Pop{i}SomaRadiusMean": 3.0 for i in (1, 2, 3)}, **{f"Pop{i}SomaRadiusStd": 0.5 for i in (1, 2, 3)},
                                 **{f"Pop{i}MeanProcessLength": 30.0 for i in (1, 2, 3)}, **{f"Pop{i}StdProcessLength": 15.0 for i in (1, 2, 3)},
-                                **{f"Pop{i}NbrPrimaryProcesses": 4 for i in (1, 2, 3)}, **{f"Pop{i}Branching": False for i in (1, 2, 3)}},
+                                **{f"Pop{i}NbrPrimaryProcesses": 4 for i in (1, 2, 3)}, **{f"Pop{i}Branching": False for i in (1, 2, 3)},
+                                "Pop1SomaICVF": 100.0 * glia_soma, "Pop1ProcessesICVF": 100.0 * glia_processes,
+                                "Pop1SomaRadiusMean": glia_soma_radius, "Pop1MeanProcessLength": glia_process_length,
+                                "Pop1StdProcessLength": glia_process_length / 2, "Pop1Branching": bool(glia_branching)},
         }
 
-    def generate(self, config: Dict[str, Any], output_dir: Optional[str] = None) -> pd.DataFrame:
+    def generate(self, config: Dict[str, Any], output_dir: Optional[str] = None, cells: str = "all") -> pd.DataFrame:
+        """Run the generator. ``cells``: "axon" → axon spheres only (the pre-2026-10
+        behaviour); "all" → axons and glial cells. Columns: x y z (µm), radius
+        (axon inner radius / glial sphere radius), outer_radius (axon outer radius,
+        == radius without myelin), type (0 axon, 1 glia), id (cell id; glial ids
+        are offset past the axon ids), parent (parent component id), component
+        ("axon", "soma", "branch")."""
         import json
         temp = output_dir is None
         output_dir = output_dir or tempfile.mkdtemp(prefix="caterpillar_cli_")
@@ -188,8 +205,18 @@ class CATERPillarCLI:
         raw = pd.read_csv(csvs[0], sep=r"\s+")
         ax = raw[raw["cell_type"] == "axon"]
         df = pd.DataFrame({"x": ax["X"].values, "y": ax["Y"].values, "z": ax["Z"].values,
-                           "radius": ax["inner_radius"].values, "type": 0, "id": ax["cell_id"].values.astype(int),
-                           "parent": ax["parent_component_id"].values.astype(int)})
+                           "radius": ax["inner_radius"].values, "outer_radius": ax["outer_radius"].values,
+                           "type": 0, "id": ax["cell_id"].values.astype(int),
+                           "parent": ax["parent_component_id"].values.astype(int), "component": ax["component"].values})
+        if cells == "all":
+            gl = raw[raw["cell_type"] == "glial_cell"]
+            if len(gl):
+                offset = int(df["id"].max()) + 1 if len(df) else 0
+                g = pd.DataFrame({"x": gl["X"].values, "y": gl["Y"].values, "z": gl["Z"].values,
+                                  "radius": gl["outer_radius"].values, "outer_radius": gl["outer_radius"].values,
+                                  "type": 1, "id": gl["cell_id"].values.astype(int) + offset,
+                                  "parent": gl["parent_component_id"].values.astype(int), "component": gl["component"].values})
+                df = pd.concat([df, g], ignore_index=True)
         info = Path(output_dir).glob("*_growth_info.txt")
         df.attrs["growth_info"] = next((open(p).read() for p in info), "")
         if temp:

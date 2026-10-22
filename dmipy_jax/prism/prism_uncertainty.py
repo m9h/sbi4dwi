@@ -50,7 +50,7 @@ def _chunked_vmap(fn, args, chunk: int = 2048):
     n = args[0].shape[0]
     f = jax.jit(jax.vmap(fn))
     outs = [f(*[a[i:i + chunk] for a in args]) for i in range(0, n, chunk)]
-    return jnp.concatenate(outs, axis=0)
+    return jax.tree.map(lambda *xs: jnp.concatenate(xs, axis=0), *outs)   # pytree outputs OK
 
 
 @dataclass
@@ -62,6 +62,7 @@ class FixelPosterior:
     sigma_deg: np.ndarray     # (N,K) sqrt(max eigenvalue of cov), degrees
     wm_fracs: np.ndarray      # (N,K)
     mask: np.ndarray
+    fintra_sd: np.ndarray = None   # (N,) Laplace sd of f_i (f units, via the logit's sd × f(1−f))
 
     def sample_dirs(self, key, n_samples: int) -> np.ndarray:
         """(S,N,K,3) unit-vector samples from the tangent Gaussians."""
@@ -151,16 +152,18 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
                                       jnp.full((H.shape[0] - n_t,), 1.0 / 9.0)])
         H = H + jnp.diag(prior_prec) + jitter * jnp.eye(H.shape[0])
         cov_full = jnp.linalg.inv(0.5 * (H + H.T))
-        return cov_full[:n_t, :n_t].reshape(K, 2, K, 2)
+        return cov_full[:n_t, :n_t].reshape(K, 2, K, 2), cov_full[n_t, n_t]
 
     odi_arg = odi0 if odi0 is not None else jnp.zeros((dirs0.shape[0], K), jnp.float32)
-    cov = np.asarray(_chunked_vmap(voxel_cov, (y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg)))
+    cov, var_fi_logit = _chunked_vmap(voxel_cov, (y, dirs0, e1, e2, s0, fi_logit0, frac_logit0, odi_arg))
+    cov = np.asarray(cov)
     cov_kk = np.stack([cov[:, k, :, k, :] for k in range(K)], axis=1)   # (N,K,2,2)
     w = np.linalg.eigvalsh(cov_kk)
     sigma_deg = np.degrees(np.sqrt(np.maximum(w[..., -1], 0.0)))
+    fi_sd = np.sqrt(np.maximum(np.asarray(var_fi_logit), 0.0)) * fic * (1 - fic)
     return FixelPosterior(dirs=np.asarray(fit.dirs), cov=cov_kk, e1=np.asarray(e1),
                           e2=np.asarray(e2), sigma_deg=sigma_deg,
-                          wm_fracs=np.asarray(fit.wm_fracs), mask=mask)
+                          wm_fracs=np.asarray(fit.wm_fracs), mask=mask, fintra_sd=fi_sd)
 
 
 def cone_coverage(post: FixelPosterior, gt_dirs: np.ndarray, level: float = 0.9,
