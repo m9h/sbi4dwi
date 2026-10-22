@@ -184,6 +184,13 @@ def make_crossing_substrate(df, angle_deg: float, box_um: float, seed: int = 0) 
     axes = [a] if angle_deg <= 0 else [a, R @ a]
     gc = gl_df[["x", "y", "z"]].values.astype(np.float64); gr = gl_df["radius"].values.astype(np.float64)
     gi = gl_df["id"].values.astype(np.int32)
+    # CATERPillar grows glial processes past the voxel faces without clipping;
+    # under the box-periodic extra-cellular SDF those spheres would wrap back
+    # inside as spurious obstacles (measured 2026-10-22: extra space shrank
+    # from 0.58 to 0.18 of the box and 45 % of extra walkers froze). Keep the
+    # spheres whose centre is inside the box.
+    inside = np.all((gc >= 0) & (gc <= L), axis=1)
+    gc, gr, gi = gc[inside], gr[inside], gi[inside]
     gka, gkb, gcb = _split_sheet(gc, L, R, angle_deg)
     GC = np.concatenate([gc[gka], gcb[gkb]]); GR = np.concatenate([gr[gka], gr[gkb]])
     GI = np.concatenate([gi[gka], gi[gkb] + (gi.max() + 1 if len(gi) else 0)])
@@ -304,7 +311,12 @@ def compartment_sdf(sub: Substrate, comp: str, periodic=(False, False, False)):
     if comp == "glia":
         return _spheres_sdf(sub.glia_centers_m, sub.glia_radii_m, L, periodic)
     if comp == "extra":
-        s_ax = _spheres_sdf(sub.centers_m, sub.outer_radii_m, L, periodic)
+        # obstacles are the spheres whose centre is inside the box: an axon's
+        # end spheres poking out of a face are *not* the image of what enters at
+        # the opposite face (different (x, y)), so wrapping them in would add
+        # spurious obstacles
+        ina = np.all((sub.centers_m >= 0) & (sub.centers_m <= L), axis=1)
+        s_ax = _spheres_sdf(sub.centers_m[ina], sub.outer_radii_m[ina], L, periodic)
         s_gl = _spheres_sdf(sub.glia_centers_m, sub.glia_radii_m, L, periodic)
         return lambda p: -jnp.minimum(s_ax(p), s_gl(p))
     raise ValueError(comp)
