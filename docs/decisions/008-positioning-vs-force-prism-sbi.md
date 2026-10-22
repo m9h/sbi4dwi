@@ -1880,3 +1880,96 @@ compartment, the 8×8 noisy volumes, GT axes and box fractions, for any
 external method), `validation/logs/substrate_ladder_1828.log`; the
 box-periodic reference run as `substrate_ladder_boxperiodic_ref_*` and
 `logs/substrate_ladder_1826.log`.
+
+### 14.3 A glial compartment in the PRISM mixture (Slurm 1829 / 1830, 2026-10-22)
+
+The §14.2 astrocyte bias is a missing compartment, so the obvious test is
+to add one. PRISM already carries a "restricted isotropic" pool
+(e^{-b D_res}, D_res = 0.2 fixed) that §7/§10 switched off because on
+DiSCo it absorbed noise. The MC glial signal here is close to a mono-
+exponential with D ≈ 0.04 µm²/ms (S(b) = 0.979 / 0.959 / 0.922 / 0.887 /
+0.825 at b = 0.5 … 5 ms/µm²), five times slower than PRISM's pool, and
+equals a GPD sphere of r ≈ 5.7 µm at D = 2.5 — the 10 µm processes, not
+the 3 µm somata, dominate the water. `PrismConfig` now has
+`restricted_kernel ∈ {"ball", "sphere"}` and `learn_restricted` (D_res or
+the sphere radius as a bounded global; the sphere is the Murday–Cotts GPD
+soma with D = D∥ or a fixed `d_sphere`, needs `small_delta`/`big_delta`).
+Fits are on the *same* noisy volumes as §14.2 (`--from-npz`; CATERPillar
+is not seed-stable, so this is the only like-for-like comparison), no
+CSF/GM balls, per-voxel Laplace evidence (`voxel_log_evidence`) reported
+as ΔlogZ against the no-glia model. f_i bias is against the paper's
+f = AV/(AV+ECV).
+
+| rung | angle | geom f | no-iso f_i | + ball D_res 0.2 fixed | + ball D_res ∈ [0.01, 1.0] | + ball D_res ∈ [0.005, 0.3] | + sphere, D = D∥, r ∈ [1, 10] µm | + sphere, D = 2.5, r ∈ [1, 8] µm |
+|---|---|---|---|---|---|---|---|---|
+| baseline, straight | 0° | 0.342 | 0.348 (+2 %) | 0.348 (+2 %), f_res 0.001, ΔlogZ +1 | 0.390 (+14 %), f_res 0.113 (D_res 1.00), ΔlogZ +7 | 0.347 (+2 %), f_res 0.003 (D_res 0.30), ΔlogZ +1 | 0.348 (+2 %), f_res 0.002 (r 10.0 µm), ΔlogZ +1 | 0.347 (+2 %), f_res 0.001 (r 8.0 µm), ΔlogZ +1 |
+|  | 60° | 0.324 | 0.318 (−2 %) | 0.314 (−3 %), f_res 0.015, ΔlogZ +6 | 0.376 (+16 %), f_res 0.152 (D_res 1.00), ΔlogZ +8 | 0.317 (−2 %), f_res 0.024 (D_res 0.30), ΔlogZ +7 | 0.314 (−3 %), f_res 0.017 (r 10.0 µm), ΔlogZ +7 | 0.315 (−3 %), f_res 0.007 (r 8.0 µm), ΔlogZ +4 |
+| undulation | 0° | 0.404 | 0.412 (+2 %) | 0.410 (+1 %), f_res 0.005, ΔlogZ +3 | 0.466 (+15 %), f_res 0.122 (D_res 1.00), ΔlogZ +8 | 0.412 (+2 %), f_res 0.007 (D_res 0.30), ΔlogZ +3 | 0.410 (+1 %), f_res 0.006 (r 10.0 µm), ΔlogZ +3 | 0.410 (+1 %), f_res 0.003 (r 8.0 µm), ΔlogZ +2 |
+|  | 60° | 0.383 | 0.373 (−3 %) | 0.367 (−4 %), f_res 0.028, ΔlogZ +8 | 0.415 (+8 %), f_res 0.113 (D_res 0.70), ΔlogZ +8 | 0.373 (−3 %), f_res 0.038 (D_res 0.30), ΔlogZ +8 | 0.369 (−3 %), f_res 0.030 (r 10.0 µm), ΔlogZ +8 | 0.364 (−5 %), f_res 0.019 (r 8.0 µm), ΔlogZ +8 |
+| beading | 0° | 0.612 | 0.584 (−5 %) | 0.554 (−9 %), f_res 0.051, ΔlogZ +10 | 0.605 (−1 %), f_res 0.091 (D_res 0.39), ΔlogZ +10 | 0.578 (−5 %), f_res 0.064 (D_res 0.30), ΔlogZ +10 | 0.568 (−7 %), f_res 0.055 (r 10.0 µm), ΔlogZ +10 | 0.555 (−9 %), f_res 0.025 (r 8.0 µm), ΔlogZ +10 |
+|  | 60° | 0.579 | 0.513 (−11 %) | 0.510 (−12 %), f_res 0.065, ΔlogZ +18 | 0.513 (−11 %), f_res 0.070 (D_res 0.21), ΔlogZ +18 | 0.502 (−13 %), f_res 0.054 (D_res 0.15), ΔlogZ +18 | 0.500 (−14 %), f_res 0.053 (r 8.3 µm), ΔlogZ +18 | 0.496 (−14 %), f_res 0.046 (r 8.0 µm), ΔlogZ +19 |
+| dispersion | 0° | 0.388 | 0.375 (−3 %) | 0.377 (−3 %), f_res 0.003, ΔlogZ +2 | 0.432 (+11 %), f_res 0.133 (D_res 1.00), ΔlogZ +9 | 0.376 (−3 %), f_res 0.005 (D_res 0.30), ΔlogZ +4 | 0.373 (−4 %), f_res 0.004 (r 10.0 µm), ΔlogZ +4 | 0.373 (−4 %), f_res 0.002 (r 8.0 µm), ΔlogZ +3 |
+|  | 60° | 0.365 | 0.366 (0 %) | 0.339 (−7 %), f_res 0.039, ΔlogZ +12 | 0.399 (+9 %), f_res 0.113 (D_res 0.70), ΔlogZ +10 | 0.351 (−4 %), f_res 0.048 (D_res 0.30), ΔlogZ +11 | 0.344 (−6 %), f_res 0.040 (r 10.0 µm), ΔlogZ +12 | 0.339 (−7 %), f_res 0.027 (r 8.0 µm), ΔlogZ +11 |
+| myelin | 0° | 0.203 | 0.240 (+18 %) | 0.240 (+18 %), f_res 0.001, ΔlogZ +1 | 0.336 (+66 %), f_res 0.286 (D_res 1.00), ΔlogZ +5 | 0.241 (+19 %), f_res 0.000 (D_res 0.30), ΔlogZ +1 | 0.237 (+17 %), f_res 0.000 (r 10.0 µm), ΔlogZ 0 | 0.239 (+18 %), f_res 0.000 (r 8.0 µm), ΔlogZ 0 |
+|  | 60° | 0.190 | 0.223 (+17 %) | 0.221 (+16 %), f_res 0.007, ΔlogZ +6 | 0.302 (+59 %), f_res 0.246 (D_res 1.00), ΔlogZ +8 | 0.222 (+17 %), f_res 0.013 (D_res 0.30), ΔlogZ +7 | 0.223 (+17 %), f_res 0.008 (r 10.0 µm), ΔlogZ +6 | 0.226 (+19 %), f_res 0.001 (r 8.0 µm), ΔlogZ +1 |
+| **astrocytes 1 % + 6 %** (glia 0.058 of water) | 0° | 0.364 | 0.506 (+39 %) | 0.435 (+20 %), f_res 0.069, ΔlogZ +17 | 0.416 (+14 %), f_res 0.043 (D_res 0.05), ΔlogZ +21 | 0.404 (+11 %), f_res 0.040 (D_res 0.01), ΔlogZ +22 | **0.402 (+10 %)**, f_res 0.039 (r 2.7 µm), ΔlogZ +22 | 0.406 (+11 %), f_res 0.038 (r 1.0 µm), ΔlogZ +23 |
+|  | 60° | 0.345 | 0.468 (+35 %) | 0.355 (+3 %), f_res 0.127, ΔlogZ +52 | 0.339 (−2 %), f_res 0.095 (D_res 0.12), ΔlogZ +57 | 0.334 (−3 %), f_res 0.079 (D_res 0.08), ΔlogZ +58 | **0.332 (−4 %)**, f_res 0.073 (r 6.2 µm), ΔlogZ +58 | 0.332 (−4 %), f_res 0.074 (r 6.4 µm), ΔlogZ +58 |
+
+Orientation error and recall are unchanged by any column (0.8–3.9°,
+100 %); the Laplace f_i sd grows from 0.003 to 0.005–0.014 when the pool
+is on, because f_i now trades against f_res.
+
+**Reading.**
+
+1. **The glial compartment removes most of the astrocyte bias.** +39 % →
+   +10 % on the single bundle, +35 % → −4 % at the 60° crossing, with the
+   learned kernel landing on the right physics: D_res 0.05–0.12 against
+   the MC glial 0.04; sphere radius 2.7 µm against the 3 µm somata (0°)
+   or 6.2 µm against the process-dominated effective size (60°). The
+   recovered f_res is 0.04–0.09 against 0.058 of the water. The residual
+   +0.04 at 0° is the under-assigned glia plus a D∥,ex still high
+   (1.55 vs 1.5): in a single bundle a restricted isotropic pool is
+   partially degenerate with the zeppelin's perpendicular signal, and
+   the crossing breaks that degeneracy. The SM has no such compartment,
+   so this is the one rung where we now beat it outright.
+2. **Even PRISM's own fixed pool does the job once the balls are off.**
+   D_res = 0.2 fixed gives +20 % / +3 %. §14.2's `iso-res` twin had the
+   same pool and still read 0.536, because the CSF/GM balls took the
+   hindered extra-cellular water first; `use_isotropic=False` is the
+   change that matters, the kernel is second order.
+3. **A free D_res is a trap.** With D_res ∈ [0.01, 1.0] the pool runs to
+   the upper bound on five of six rungs and takes 11–15 % of clean
+   bundles (f_i +14–16 %; +66 % on myelin, where it swallows the
+   myelin-tightened extra space). It has become a second isotropic
+   absorber, the §7.2 mechanism again. Capping at 0.3 (the glial range)
+   removes it: f_res ≤ 0.02 on clean rungs, f_i within 2–3 %. The sphere
+   kernel is self-limiting (a 10 µm sphere at Δ 55 ms is still 45 % below
+   a free ball), so it needs no cap; **default: sphere, D = D∥, r ∈ [1, 10]
+   µm**, the bold column.
+4. **Beading looks like a restricted pool.** Every glial variant takes
+   5–7 % on the beading rung with ΔlogZ +10/+18, as large as the 0°
+   astrocyte gain. Bulged axons at Δ 55 ms hold water that is restricted
+   in all directions, exactly what the pool fits; f_i moves 2–4 % further
+   under. So f_res is "restricted non-axonal-looking water", not "glia"
+   — the paper's beading and glia rungs are not separable by this kernel
+   at this protocol.
+5. **The evidence does see the misspecification that the sd could not.**
+   ΔlogZ (no-glia → glia) is +1 to +8 nats on the clean rungs, +10/+18
+   on beading, +17–23 on astrocytes 0° and +52–58 at the crossing. That
+   is the per-voxel model-comparison signal §14.2 asked for: a voxel
+   whose glial model wins by > 10 nats is either glial or beaded, and
+   either way the no-glia f_i is not to be trusted. With the spatial
+   prior ignored, these are per-voxel numbers on 8×8 patches at SNR 50;
+   the threshold wants calibrating on §13's HCP retest before it is a
+   rule.
+
+What this does not fix: myelin (+17–19 % in every column, f_res 0) and
+the beading under-estimate; both are compartment *geometry* the two-pool
+WM model cannot express, not missing pools.
+
+Artefacts: `validation/substrate_ladder_glia_results.json` (job 1829:
+noiso / res / resD / sphere), `validation/substrate_ladder_glia_bounded_results.json`
+(job 1830: resDslow / sphere25), logs `validation/logs/substrate_ladder_glia_1829.log`,
+`substrate_ladder_glia_bounded_1830.log`; `--methods glia|glia-bounded
+--from-npz validation/substrate_ladder_signals.npz --evidence` reproduces
+them on the committed volumes.

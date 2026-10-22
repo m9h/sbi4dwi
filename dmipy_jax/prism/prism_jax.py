@@ -85,6 +85,19 @@ class PrismConfig:
     disperse: bool = False
     # Ablation (doc 007 §3.1): drop PRISM's restricted isotropic pool.
     use_restricted: bool = True
+    # Restricted-pool kernel (doc 008 §14.3, glia). "ball": e^{-b D_res} as in
+    # PRISM. "sphere": GPD soma of radius `sphere_radius` with intrinsic
+    # diffusivity d_sphere (None → the stick's D∥); needs small_delta/big_delta.
+    # learn_restricted → D_res (ball) or the radius (sphere) is a learnable
+    # global, sigmoid-bounded in its range.
+    restricted_kernel: str = "ball"  # "ball" | "sphere"
+    learn_restricted: bool = False
+    d_res_range: tuple[float, float] = (0.01e-9, 1.0e-9)
+    sphere_radius: float = 3.0e-6
+    sphere_radius_range: tuple[float, float] = (1.0e-6, 10.0e-6)
+    d_sphere: Optional[float] = None
+    small_delta: Optional[float] = None
+    big_delta: Optional[float] = None
     use_isotropic: bool = True       # False → CSF and GM balls disabled (WM-only voxels, e.g. substrates)
     use_gm: bool = True              # False → GM ball off, CSF ball kept (NODDI-style free water only; doc 008 §10.4)
     lam_iso: float = 0.0             # one-sided prior on f_iso = f_csf+f_gm above iso_target (collapses the WM-only/default two-model workaround; doc 008 §13)
@@ -115,6 +128,10 @@ class PrismConfig:
             raise ValueError(f"loss must be 'mse' or 'nll', got {self.loss!r}")
         if self.connectivity not in (6, 26):
             raise ValueError("connectivity must be 6 or 26")
+        if self.restricted_kernel not in ("ball", "sphere"):
+            raise ValueError(f"restricted_kernel must be 'ball' or 'sphere', got {self.restricted_kernel!r}")
+        if self.restricted_kernel == "sphere" and self.use_restricted and (self.small_delta is None or self.big_delta is None):
+            raise ValueError("restricted_kernel='sphere' needs small_delta and big_delta (s)")
 
 
 # --------------------------------------------------------------------------- #
@@ -196,6 +213,13 @@ def init_params(n_vox: int, cfg: PrismConfig, key,
         params["dpar_extra_frac_logit"] = jnp.asarray(_logit(cfg.d_par_extra_init_ratio))
     if cfg.tortuosity_scale:
         params["tort_scale_logit"] = jnp.asarray(0.0)     # s = 0.5 + 1.5·sigmoid → 1.25 at init
+    if cfg.learn_restricted and cfg.use_restricted:
+        if cfg.restricted_kernel == "ball":
+            lo, hi = cfg.d_res_range
+            params["dres_logit"] = jnp.asarray(_logit((cfg.d_res - lo) / (hi - lo)))
+        else:
+            lo, hi = cfg.sphere_radius_range
+            params["radius_logit"] = jnp.asarray(_logit((cfg.sphere_radius - lo) / (hi - lo)))
     return params
 
 
@@ -237,7 +261,26 @@ def unpack(params: dict, cfg: PrismConfig) -> dict:
         out["odi"] = lo + (hi - lo) * jax.nn.sigmoid(params["odi_logit"])   # (N,K)
         out["kappa"] = 1.0 / jnp.tan(jnp.pi * out["odi"] / 2.0)
     out["sigma"] = jnp.exp(params["log_sigma"]) if "log_sigma" in params else None
+    out["d_res"] = jnp.asarray(cfg.d_res)
+    out["sphere_radius"] = jnp.asarray(cfg.sphere_radius)
+    if "dres_logit" in params:
+        lo, hi = cfg.d_res_range
+        out["d_res"] = lo + (hi - lo) * jax.nn.sigmoid(params["dres_logit"])
+    if "radius_logit" in params:
+        lo, hi = cfg.sphere_radius_range
+        out["sphere_radius"] = lo + (hi - lo) * jax.nn.sigmoid(params["radius_logit"])
     return out
+
+
+def restricted_signal(phys: dict, bvals, cfg: PrismConfig):
+    """(1, M) kernel of the restricted isotropic pool: ball e^{-b D_res} or a
+    GPD sphere (Murday–Cotts) of radius phys['sphere_radius']."""
+    if cfg.restricted_kernel == "ball":
+        return jnp.exp(-bvals * phys.get("d_res", cfg.d_res))[None, :]
+    from dmipy_jax.signal_models.sphere_models import g3_sphere
+    D = phys["d_par"] if cfg.d_sphere is None else jnp.asarray(cfg.d_sphere)
+    r = phys.get("sphere_radius", cfg.sphere_radius)
+    return g3_sphere(bvals, None, 2.0 * r, D, cfg.big_delta, cfg.small_delta)[None, :]
 
 
 # --------------------------------------------------------------------------- #
@@ -391,11 +434,10 @@ def forward(phys: dict, bvals, bvecs, cfg: PrismConfig):
     K = cfg.n_fibres
     e_csf = jnp.exp(-bvals * cfg.d_csf)[None, :]
     e_gm = jnp.exp(-bvals * cfg.d_gm)[None, :]
-    e_res = jnp.exp(-bvals * cfg.d_res)[None, :]
     s = (f[:, 0:1] * e_csf + f[:, 1:2] * e_gm
          + jnp.einsum("nk,nkm->nm", f[:, 2:2 + K], e_wm))
     if cfg.use_restricted:
-        s = s + f[:, -1:] * e_res
+        s = s + f[:, -1:] * restricted_signal(phys, bvals, cfg)
     return phys["s0"][:, None] * s
 
 
@@ -511,10 +553,21 @@ class PrismFit:
     cfg: PrismConfig
     odi: Optional[np.ndarray] = None      # (N,K), fibre-sorted, if disperse
     d_par_extra: Optional[float] = None   # extra-cellular axial D (== d_par unless decoupled)
+    d_res: Optional[float] = None         # restricted-ball diffusivity (cfg.d_res unless learned)
+    sphere_radius: Optional[float] = None # restricted-sphere radius (cfg.sphere_radius unless learned)
 
     @property
     def wm_fracs(self) -> np.ndarray:
         return self.fracs[:, 2:2 + self.cfg.n_fibres]
+
+    @property
+    def f_res(self) -> np.ndarray:
+        return self.fracs[:, -1]
+
+    def restricted_globals(self) -> dict:
+        """The restricted pool's fitted globals, for rebuilding `phys` outside unpack."""
+        return {"d_res": jnp.asarray(self.cfg.d_res if self.d_res is None else self.d_res),
+                "sphere_radius": jnp.asarray(self.cfg.sphere_radius if self.sphere_radius is None else self.sphere_radius)}
 
 
 def fit_prism(
@@ -575,6 +628,7 @@ def fit_prism(
         sigma=None if phys["sigma"] is None else float(phys["sigma"]) * scale,
         loss_history=np.asarray(hist), mask=mask, cfg=cfg, odi=odi,
         d_par_extra=float(phys["d_par_extra"]),
+        d_res=float(phys["d_res"]), sphere_radius=float(phys["sphere_radius"]),
     )
 
 

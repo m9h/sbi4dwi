@@ -391,6 +391,57 @@ def test_restricted_ablation_zeroes_fraction():
     np.testing.assert_allclose(np.asarray(phys["fracs"]).sum(-1), 1.0, atol=1e-6)
 
 
+class TestRestrictedKernel:
+    """doc 008 §14.3: the restricted pool as a glial compartment."""
+
+    def test_sphere_kernel_limits(self):
+        bvals, _ = _scheme()
+        cfg = pj.PrismConfig(n_fibres=1, restricted_kernel="sphere", small_delta=16.5e-3, big_delta=55.5e-3)
+        phys = {"d_par": jnp.asarray(2.5e-9), "sphere_radius": jnp.asarray(1e-6)}
+        s_small = np.asarray(pj.restricted_signal(phys, jnp.asarray(bvals), cfg))[0]
+        phys["sphere_radius"] = jnp.asarray(10e-6)
+        s_big = np.asarray(pj.restricted_signal(phys, jnp.asarray(bvals), cfg))[0]
+        assert np.all(s_small > 0.995)                 # 1 µm soma: fully restricted at these b
+        assert s_big[-1] < 0.6 and np.all(s_big <= s_small + 1e-6)   # bigger sphere attenuates more
+        np.testing.assert_allclose(s_small[:4], 1.0, atol=1e-6)      # b0
+
+    def test_sphere_requires_timing(self):
+        with pytest.raises(ValueError):
+            pj.PrismConfig(restricted_kernel="sphere")
+
+    def test_learned_restricted_globals_are_bounded(self):
+        cfg = pj.PrismConfig(n_fibres=1, learn_restricted=True, d_res_range=(0.01e-9, 0.5e-9), d_res=0.1e-9)
+        p = pj.init_params(2, cfg, jax.random.PRNGKey(0))
+        phys = pj.unpack(p, cfg)
+        assert float(phys["d_res"]) == pytest.approx(0.1e-9, rel=1e-5)
+        cfg = pj.PrismConfig(n_fibres=1, learn_restricted=True, restricted_kernel="sphere",
+                             small_delta=16.5e-3, big_delta=55.5e-3, sphere_radius=4e-6)
+        p = pj.init_params(2, cfg, jax.random.PRNGKey(0))
+        assert float(pj.unpack(p, cfg)["sphere_radius"]) == pytest.approx(4e-6, rel=1e-5)
+
+    def test_recovers_slow_restricted_pool(self):
+        """Stick+zeppelin bundle plus 10 % of a D=0.04 ball (the MC glial
+        signal of §14): the no-iso fit with a learnable D_res must put the
+        pool in f_res, not in f_i."""
+        bvals, bvecs = _scheme(n_dirs=30, bvals_mm2=(1000, 2000, 3000, 5000))
+        n = _unit([1, 0, 0]); c2 = (bvecs @ n) ** 2
+        fi, fres, dpar, dres = 0.4, 0.1, 2.2e-9, 0.04e-9
+        dperp = dpar * (1 - fi)
+        s = (1 - fres) * (fi * np.exp(-bvals * dpar * c2) + (1 - fi) * np.exp(-bvals * (dpar * c2 + dperp * (1 - c2)))) \
+            + fres * np.exp(-bvals * dres)
+        data = np.broadcast_to(s, (3, 3, 1, len(bvals))).copy()
+        rng = np.random.default_rng(0)
+        data = np.abs(data + 0.01 * (rng.normal(size=data.shape) + 1j * rng.normal(size=data.shape)))
+        mask = np.ones((3, 3, 1), bool)
+        cfg = pj.PrismConfig(n_fibres=1, n_iter=400, loss="nll", learn_diffusivities=True, tortuosity=True,
+                             use_isotropic=False, use_restricted=True, learn_restricted=True, d_res=0.2e-9,
+                             d_res_range=(0.01e-9, 1.0e-9), d_par=2.0e-9, d_par_range=(0.5e-9, 3.0e-9))
+        fit = pj.fit_prism(data, mask, bvals, bvecs, cfg)
+        assert fit.f_res.mean() == pytest.approx(fres, abs=0.04)
+        assert fit.fintra.mean() == pytest.approx(fi, abs=0.06)
+        assert fit.d_res == pytest.approx(dres, rel=0.6)
+
+
 class TestSeparateExtraDpar:
     def test_default_is_shared(self):
         cfg = pj.PrismConfig(n_fibres=2, learn_diffusivities=True, tortuosity=True)

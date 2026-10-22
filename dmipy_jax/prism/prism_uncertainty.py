@@ -123,7 +123,7 @@ def laplace_fixel_posterior(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
         phys = {"s0": s0n[None], "fracs": fr[None], "dirs": d[None], "fintra": fi[None],
                 "d_par": d_par, "d_par_extra": d_par_ex,
                 "d_perp": (d_par_ex * (1 - fi))[None] if cfg.tortuosity else d_perp_g,
-                "sigma": sigma}
+                "sigma": sigma, **fit.restricted_globals()}
         if cfg.disperse:
             phys["odi"] = odin[None]
             phys["kappa"] = 1.0 / jnp.tan(jnp.pi * phys["odi"] / 2.0)
@@ -291,7 +291,8 @@ def voxel_log_evidence(fit: pj.PrismFit, data: np.ndarray, bvals_si, bvecs,
         dpe = d_par_ex
         phys = {"s0": s0n[None], "fracs": fr[None], "dirs": d[None], "fintra": fi[None],
                 "d_par": d_par, "d_par_extra": dpe,
-                "d_perp": (dpe * (1 - fi))[None] if cfg.tortuosity else d_perp_g, "sigma": sigma}
+                "d_perp": (dpe * (1 - fi))[None] if cfg.tortuosity else d_perp_g, "sigma": sigma,
+                **fit.restricted_globals()}
         if cfg.disperse:
             odi = lo_o + (hi_o - lo_o) * jax.nn.sigmoid(th[n_t + n_f:])
             phys["odi"] = odi[None]; phys["kappa"] = 1.0 / jnp.tan(jnp.pi * phys["odi"] / 2.0)
